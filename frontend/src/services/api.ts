@@ -62,8 +62,8 @@ class ApiService {
   }
 
   // Generic API methods
-  async get<T>(url: string): Promise<ApiResponse<T>> {
-    const response = await this.api.get<ApiResponse<T>>(url);
+  async get<T>(url: string, config?: any): Promise<ApiResponse<T>> {
+    const response = await this.api.get<ApiResponse<T>>(url, config);
     return response.data;
   }
 

@@ -12,7 +12,8 @@ import {
   X,
   Leaf,
   Bell,
-  HelpCircle
+  HelpCircle,
+  Upload
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -24,6 +25,7 @@ export const Navbar: React.FC = () => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
     { name: 'Calculate', href: '/calculations', icon: Calculator },
+    { name: 'Import/Export', href: '/import-export', icon: Upload },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];

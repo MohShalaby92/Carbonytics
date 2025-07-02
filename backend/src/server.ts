@@ -16,7 +16,7 @@ import calculationRoutes from './routes/calculations';
 import reportRoutes from './routes/reports';
 import emissionCategoryRoutes from './routes/emissionCategories';
 import emissionFactorRoutes from './routes/emissionFactors';
-
+import csvRoutes from './routes/csv';
 
 class Server {
   public app: express.Application;
@@ -78,6 +78,8 @@ class Server {
     } else {
       this.app.use(morgan('combined'));
     }
+
+      this.app.use('/api/csv', csvRoutes);
 
     // Trust proxy (for rate limiting and security)
     this.app.set('trust proxy', 1);
