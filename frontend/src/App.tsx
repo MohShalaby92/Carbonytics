@@ -8,6 +8,7 @@ import { CalculationPage } from './pages/calculations/CalculationPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { ImportExportPage } from './pages/ImportExportPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
 
 function App() {
   return (
@@ -31,6 +32,16 @@ function App() {
               <Route path="/import-export" element={
                 <ProtectedRoute>
                   <ImportExportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+              <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <SettingsPage />
                 </ProtectedRoute>
               } />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
