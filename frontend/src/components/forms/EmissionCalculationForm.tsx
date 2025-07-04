@@ -101,7 +101,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     reset,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(validationSchema),
+    resolver: zodResolver(validationSchema) as any,
     defaultValues: {
       categoryId: categoryId || '',
       value: 0,

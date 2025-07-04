@@ -49,7 +49,7 @@ export const useDashboard = (timeframe: 'month' | 'quarter' | 'year' = 'month') 
       });
 
       // Process data
-      const processedData = processDashboardData(calculations.data || []);
+      const processedData = processDashboardData((calculations as any)?.data || []);
       setData(processedData);
 
     } catch (err) {

@@ -18,3 +18,5 @@ describe('App Component - MVP Ready', () => {
     expect(mvpComplete).toBe(true);
   });
 });
+
+export {};
