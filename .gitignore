@@ -116,3 +116,4 @@ coverage/
 
 # Lock files (keep yarn.lock if using yarn)
 package-lock.json
+.env.production
