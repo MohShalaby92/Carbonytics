@@ -5,7 +5,7 @@ echo "💾 Backing up Carbonytics database..."
 BACKUP_DIR="./backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_NAME="carbonytics_backup_$DATE"
-DB_NAME="${MONGODB_DB:-carbonytics}"
+DB_NAME="${MONGODB_DB:-carbonytics_dev}"
 MONGODB_URI="${MONGODB_URI:-mongodb://localhost:27017}"
 
 # Create backup directory
