@@ -80,17 +80,35 @@ export interface IEmissionFactor extends Document {
   _id: Types.ObjectId;
   categoryId: Types.ObjectId;
   name: string;
+  factorCode?: string;
   factor: number;
+  description?: string;
   unit: string;
   source: string;
+  sourceUrl?: string;
+  sourceDocument?: string;
   region: 'egypt' | 'global';
+  country?: string;
   year: number;
+  validFrom?: Date;
+  validTo?: Date;
+  fuelType?: string;
+  vehicleType?: string;
+  materialType?: string;
+  co2?: number;
+  ch4?: number;
+  n2o?: number;
+  otherGhg?: number;
+  qualityRating?: string;
   uncertainty?: number;
   isActive: boolean;
   metadata?: Record<string, any>;
   egyptianData?: {
     adjustmentFactor?: number;
   };
+  tags?: string[];
+  isDefault?: boolean;
+  version?: string;
 }
 
 export interface IIndustryBenchmark extends mongoose.Document {

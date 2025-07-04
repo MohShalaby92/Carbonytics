@@ -9,7 +9,7 @@ export const validate = (validations: ValidationChain[]) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       const formattedErrors = errors.array().reduce((acc, error) => {
-        const field = error.param || 'unknown';
+        const field = (error as any).param || 'unknown';
         if (!acc[field]) acc[field] = [];
         acc[field].push(error.msg);
         return acc;

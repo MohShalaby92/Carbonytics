@@ -63,7 +63,7 @@ export const errorHandler = (
     message = 'Validation Error';
     const validationErrors = (error as any).array() as ValidationError[];
     errors = validationErrors.reduce((acc, err) => {
-      const field = err.param || 'unknown';
+      const field = (err as any).param || 'unknown';
       if (!acc[field]) acc[field] = [];
       acc[field].push(err.msg);
       return acc;

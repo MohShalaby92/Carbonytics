@@ -26,7 +26,7 @@ export const cache = (ttl: number = config.CACHE_TTL) => {
       res.json = function(data: any) {
         // Cache successful responses only
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          database.redis?.setex(key, ttl, JSON.stringify(data));
+          database.redis?.setEx(key, ttl, JSON.stringify(data));
         }
         return originalJson.call(this, data);
       };
