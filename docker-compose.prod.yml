@@ -27,9 +27,13 @@ services:
     container_name: carbonytics-frontend
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=https://api.carbonytics.com
+      - REACT_APP_API_URL=http://localhost:5000
       - REACT_APP_APP_NAME=Carbonytics
       - REACT_APP_VERSION=1.0.0
+    env_file:
+      - .env.production
+    depends_on:
+      - backend
     restart: unless-stopped
     networks:
       - carbonytics-network
@@ -46,6 +50,8 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/carbonytics_prod
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - JWT_EXPIRE=7d
       - REFRESH_TOKEN_EXPIRE=30d
       - CLIENT_URL=https://carbonytics.com
@@ -55,6 +61,8 @@ services:
       - CACHE_TTL=3600
       - LOG_LEVEL=info
       - ENABLE_METRICS=true
+    env_file:
+      - .env.production
     depends_on:
       - mongo
       - redis
@@ -73,6 +81,8 @@ services:
       - MONGO_INITDB_DATABASE=carbonytics_prod
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    env_file:
+      - .env.production
     volumes:
       - mongo_data:/data/db
       - ./backups/mongo:/backup
@@ -87,6 +97,8 @@ services:
     image: redis:7.2-alpine
     container_name: carbonytics-redis
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    env_file:
+      - .env.production
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/etc/redis/redis.conf

@@ -4,7 +4,7 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
-import { BenchmarkService } from '@/services/benchmarkService';
+import { BenchmarkService } from '../services/benchmarkService';
 
 interface DashboardData {
   totalEmissions: {

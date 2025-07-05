@@ -24,10 +24,14 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongo:27017/carbonytics
       - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=4cbd5d51d8447b42f4675b49d4e77e231765898b5e7daf0adfc87441b8f978d0
+      - CLIENT_URL=http://localhost:3000
     depends_on:
       - mongo
       - redis

@@ -326,3 +326,5 @@ export class BenchmarkService {
     return recommendations.slice(0, 5); // Limit to top 5 recommendations
   }
 }
+
+export default BenchmarkService;

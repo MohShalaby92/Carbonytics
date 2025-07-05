@@ -67,7 +67,7 @@ echo "🐳 Deploying production containers..."
 docker-compose -f docker-compose.prod.yml down
 docker-compose -f docker-compose.prod.yml up -d --build
 echo "⏳ Waiting for services to start..."
-sleep 30
+sleep 60
 
 # Health checks
 echo "🏥 Running comprehensive health checks..."
