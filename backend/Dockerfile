@@ -1,20 +1,20 @@
 FROM node:18-alpine AS base
 
-# Install dependencies only when needed
+# Install dependencies
 FROM base AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --only=production
 
-# Rebuild the source code only when needed
+# Build the source code
 FROM base AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
-# Production image, copy all the files and run the app
+# Production image
 FROM base AS runner
 WORKDIR /app
 
@@ -30,7 +30,6 @@ COPY --from=builder /app/package*.json ./
 USER nodejs
 
 EXPOSE 5000
-
 ENV PORT 5000
 
 CMD ["node", "dist/server.js"]
