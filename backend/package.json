@@ -16,7 +16,8 @@
     "seed": "ts-node src/scripts/seed.ts",
     "import-excel": "ts-node src/scripts/importExcel.ts",
     "seed-basic-data": "ts-node src/scripts/seedBasicData.ts",
-    "seed-benchmarks": "ts-node src/scripts/seedBenchmarks.ts"
+    "seed-benchmarks": "ts-node src/scripts/seedBenchmarks.ts",
+    "create-demo-user": "ts-node src/scripts/createDemoUser.ts"
   },
   "keywords": [
     "carbon",

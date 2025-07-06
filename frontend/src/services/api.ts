@@ -5,8 +5,13 @@ class ApiService {
   private api: AxiosInstance;
 
   constructor() {
+    // FIXED: Use environment-aware base URL
+    const baseURL = process.env.NODE_ENV === 'production' 
+      ? '/api'  // Use nginx proxy in production
+      : process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
     this.api = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+      baseURL,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',

@@ -23,9 +23,14 @@ ENV NODE_ENV production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nodejs
 
+RUN mkdir -p /app/logs /app/uploads
+RUN chown -R nodejs:nodejs /app/logs /app/uploads
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
+
+RUN chown -R nodejs:nodejs /app
 
 USER nodejs
 

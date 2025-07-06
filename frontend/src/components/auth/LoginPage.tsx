@@ -113,7 +113,7 @@ export const LoginPage: React.FC = () => {
             <div className="mt-4 p-4 bg-gray-50 rounded-md">
               <p className="text-sm text-gray-600 mb-2">For demo purposes, use:</p>
               <p className="text-xs font-mono text-gray-700">Email: demo@carbonytics.com</p>
-              <p className="text-xs font-mono text-gray-700">Password: demo123</p>
+              <p className="text-xs font-mono text-gray-700">Password: demo123456</p>
             </div>
           </div>
         </Card>
