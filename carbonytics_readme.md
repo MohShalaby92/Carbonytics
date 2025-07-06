@@ -59,7 +59,7 @@ A comprehensive platform that provides:
 ### **Technology Stack**
 
 #### **Frontend**
-- **React 18** with TypeScript for type-safe UI development
+- **React** with TypeScript for type-safe UI development
 - **Tailwind CSS** for responsive, modern styling
 - **Recharts** for interactive data visualizations
 - **React Hook Form** with Zod validation
@@ -229,7 +229,6 @@ npm run test:e2e           # Full application tests
 - Purchased electricity consumption
 - Purchased heating/cooling
 - Steam consumption
-- Egyptian grid emission factors integration
 
 #### **Scope 3 - Value Chain Emissions**
 - Business travel and commuting
@@ -247,7 +246,6 @@ npm run test:e2e           # Full application tests
 
 #### **Regulatory Compliance**
 - Aligned with Egyptian Environmental Affairs Agency requirements
-- Compatible with UNFCCC reporting standards
 - Supports Egyptian Green Building Council protocols
 
 ### **Analytics & Business Intelligence**
@@ -262,41 +260,74 @@ npm run test:e2e           # Full application tests
 - Automated report generation
 - Custom report builder
 - Export to PDF, Excel, CSV
-- Stakeholder-ready presentations
+- Stakeholder-ready presentation
 
 ## 🔧 API Documentation
 
 ### **Authentication Endpoints**
 ```http
-POST /api/auth/register      # User registration
-POST /api/auth/login         # User login
-POST /api/auth/refresh       # Token refresh
-GET  /api/auth/profile       # User profile
+POST /api/auth/register         # User registration
+POST /api/auth/login            # User login
+POST /api/auth/refresh          # Token refresh
+GET  /api/auth/profile          # Get user profile
+PUT  /api/auth/profile          # Update user profile
+POST /api/auth/logout           # User logout
+POST /api/auth/change-password  # Change password
 ```
 
 ### **Calculation Endpoints**
 ```http
-GET    /api/calculations           # List calculations
-POST   /api/calculations           # Create calculation
-PUT    /api/calculations/:id       # Update calculation
-DELETE /api/calculations/:id       # Delete calculation
-GET    /api/calculations/:id/pdf   # Export PDF report
+GET    /api/calculations                            # List user calculations
+POST   /api/calculations                            # Save calculation batch
+GET    /api/calculations/:id                        # Get specific calculation
+POST   /api/calculations/calculate                  # Single emission calculation
+POST   /api/calculations/calculate-batch            # Batch emission calculations
+POST   /api/calculations/calculate-business-travel  # Business travel calculations
 ```
 
 ### **Organization Endpoints**
 ```http
-GET  /api/organizations        # Organization details
-PUT  /api/organizations        # Update organization
-GET  /api/organizations/users  # List organization users
-POST /api/organizations/invite # Invite user
+GET    /api/organizations                     # Get organization details
+PUT    /api/organizations                     # Update organization
+GET    /api/organizations/users               # List organization users
+POST   /api/organizations/invite              # Invite new user
+PUT    /api/organizations/users/:userId/role  # Update user role
+DELETE /api/organizations/users/:userId       # Remove user
+GET    /api/organizations/settings            # Get organization settings
+PUT    /api/organizations/settings            # Update organization settings
 ```
 
-### **Data Endpoints**
+### **Emission Categories**
 ```http
-GET /api/emission-categories   # Available emission categories
-GET /api/emission-factors      # Emission factors database
-GET /api/reports/dashboard     # Dashboard analytics
-GET /api/reports/trends        # Trend analysis
+GET /api/emission-categories              # List all categories
+GET /api/emission-categories/:id          # Get specific category
+GET /api/emission-categories/scope/:scope # Categories by scope (1,2,3)
+GET /api/emission-categories/industry/:industry  # Categories by industry
+```
+
+### **Emission Factors**
+```http
+GET /api/emission-factors                           # List all factors
+GET /api/emission-factors/search                    # Search factors
+GET /api/emission-factors/sources                   # Available data sources
+GET /api/emission-factors/category/:categoryId      # Factors by category
+GET /api/emission-factors/category/:categoryId/default  # Default factor for category
+```
+
+### **Reports & Analytics**
+```http
+GET /api/reports/dashboard         # Dashboard analytics data
+GET /api/reports/emissions         # Detailed emission reports
+GET /api/reports/comparison        # Comparison analysis
+GET /api/reports/trends            # Trend analysis
+GET /api/reports/benchmarks        # Industry benchmarks
+GET /api/reports/export/:reportId  # Export reports (PDF/Excel/CSV)
+```
+
+### **System Endpoints**
+```http
+GET /health                      # Health check
+GET /api                         # API information and endpoints
 ```
 
 ## 🛡️ Security Features
