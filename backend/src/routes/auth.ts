@@ -16,11 +16,17 @@ const router = Router();
 
 // Validation middleware
 const validateRegister = [
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-  body('name').notEmpty().withMessage('Name is required'),
-  body('organizationName').notEmpty().withMessage('Organization name is required'),
-  body('industry').notEmpty().withMessage('Industry is required'),
+  body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Za-z]/)
+    .withMessage('Password must contain a letter')
+    .matches(/\d/)
+    .withMessage('Password must contain a number'),
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('organizationName').trim().notEmpty().withMessage('Organization name is required'),
+  body('industry').trim().notEmpty().withMessage('Industry is required'),
 ];
 
 const validateLogin = [
@@ -30,7 +36,13 @@ const validateLogin = [
 
 const validateChangePassword = [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
-  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('New password must be at least 8 characters')
+    .matches(/[A-Za-z]/)
+    .withMessage('New password must contain a letter')
+    .matches(/\d/)
+    .withMessage('New password must contain a number'),
 ];
 
 // Public routes

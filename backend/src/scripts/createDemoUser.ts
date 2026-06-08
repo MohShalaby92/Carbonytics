@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import { config } from '../config/config';
 import { User } from '../models/User';
 import { Organization } from '../models/Organization';
@@ -24,19 +23,19 @@ async function createDemoUser(): Promise<void> {
     }
 
     await User.deleteOne({ email: 'demo@carbonytics.com' });
-    
-    const hashedPassword = await bcrypt.hash('demo123', 12);
-    
+
+    // Pass the PLAIN password — the User model's pre-save hook hashes it once.
+    // (Previously this pre-hashed, causing a double-hash so the demo login failed.)
     await User.create({
       email: 'demo@carbonytics.com',
-      password: hashedPassword,
+      password: 'Demo!2026Pass',
       name: 'Demo User',
       role: 'admin',
       organizationId: demoOrg._id,
       isActive: true,
     });
-    
-    console.log('✅ Demo user created successfully');
+
+    console.log('✅ Demo user created (email: demo@carbonytics.com / password: Demo!2026Pass)');
     
   } catch (error) {
     console.error('❌ Demo user creation failed:', error);

@@ -12,7 +12,7 @@ import { cache } from '../middleware/cache';
 const router = Router();
 
 // Public routes
-router.get('/', cache(1800), optionalAuth, getEmissionFactors);
+router.get('/', optionalAuth, cache(1800), getEmissionFactors);
 router.get('/search', cache(900), searchFactors);
 router.get('/sources', cache(3600), getFactorSources);
 router.get('/category/:categoryId', cache(1800), getFactorsByCategory);

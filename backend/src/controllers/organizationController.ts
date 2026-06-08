@@ -4,7 +4,8 @@ import { Organization } from '../models/Organization';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
-import { generateTokens } from '../utils/jwt';
+import { generateTemporaryPassword, escapeRegex } from '../utils/security';
+import { config } from '../config/config';
 
 export const getOrganization = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
@@ -73,9 +74,10 @@ export const getOrganizationUsers = asyncHandler(async (req: AuthenticatedReques
   }
 
   if (search) {
+    const safe = escapeRegex(String(search));
     filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
+      { name: { $regex: safe, $options: 'i' } },
+      { email: { $regex: safe, $options: 'i' } },
     ];
   }
 
@@ -109,8 +111,10 @@ export const inviteUser = asyncHandler(async (req: AuthenticatedRequest, res: Re
     return ApiResponseUtil.error(res, 'User already exists with this email', 400);
   }
 
-  // Generate temporary password (in a real app, you'd send an email invitation)
-  const temporaryPassword = Math.random().toString(36).slice(-8);
+  // Generate a cryptographically secure temporary password.
+  // In production this should be delivered via an email invite / reset link,
+  // never returned in the API response.
+  const temporaryPassword = generateTemporaryPassword(16);
 
   const user = new User({
     email,
@@ -122,14 +126,23 @@ export const inviteUser = asyncHandler(async (req: AuthenticatedRequest, res: Re
 
   await user.save();
 
-  ApiResponseUtil.success(res, {
-    id: user._id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    temporaryPassword, // In production, don't return this - send via email
-    message: 'User invited successfully. Temporary password provided.',
-  }, 'User invited successfully', 201);
+  ApiResponseUtil.success(
+    res,
+    {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      // Only surface the temporary password outside production (dev/demo convenience).
+      // In production, deliver it via email/reset link instead.
+      ...(config.IS_PROD ? {} : { temporaryPassword }),
+      message: config.IS_PROD
+        ? 'User invited. A temporary password has been generated and should be sent via email.'
+        : 'User invited successfully. Temporary password provided (development only).',
+    },
+    'User invited successfully',
+    201
+  );
 });
 
 export const updateUserRole = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

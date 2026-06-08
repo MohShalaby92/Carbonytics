@@ -32,11 +32,12 @@ export const errorHandler = (
     }, {} as Record<string, string[]>);
   }
 
-  // Mongoose duplicate key error
-  if (error.name === 'MongoError' && (error as any).code === 11000) {
+  // Mongoose / MongoDB duplicate key error (driver name is 'MongoServerError')
+  if ((error.name === 'MongoServerError' || error.name === 'MongoError') && (error as any).code === 11000) {
     statusCode = 400;
     message = 'Duplicate field value';
-    const field = Object.keys((error as any).keyValue)[0];
+    const keyValue = (error as any).keyValue || {};
+    const field = Object.keys(keyValue)[0] || 'field';
     errors[field] = [`${field} already exists`];
   }
 

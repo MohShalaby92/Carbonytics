@@ -1,6 +1,7 @@
 import { EmissionCategory } from '../models/EmissionCategory';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { logger } from '../utils/logger';
+import { config } from '../config/config';
 import axios from 'axios';
 
 export interface CalculationInput {
@@ -66,8 +67,8 @@ export class CalculationEngine {
       // 5. Assess calculation quality
       const quality = this.assessCalculationQuality(factor, category, input);
       
-      // 6. Handle special calculations (e.g., business travel with distance API)
-      const finalEmissions = await this.handleSpecialCalculations(emissions, category, input);
+      // 6. Handle special calculations (e.g., business travel with distance)
+      const finalEmissions = await this.handleSpecialCalculations(emissions, category, input, factor);
       
       const result: CalculationResult = {
         calculation: {
@@ -185,6 +186,12 @@ export class CalculationEngine {
   }
 
   private async convertUnits(value: number, fromUnit: string, category: any, factor: any): Promise<number> {
+    // 'trip' is a sentinel for distance-based travel: the value is a placeholder
+    // that handleSpecialCalculations recomputes from distance, so skip conversion.
+    if (fromUnit === 'trip') {
+      return value;
+    }
+
     // Check if units match
     if (fromUnit === factor.unit || fromUnit === category.baseUnit) {
       return value;
@@ -205,9 +212,13 @@ export class CalculationEngine {
       return value * conversions[conversionKey];
     }
 
-    // If no conversion found, log warning and proceed
-    logger.warn(`No unit conversion found from ${fromUnit} to ${factor.unit}, using value as-is`);
-    return value;
+    // If no conversion is known and the units genuinely differ, FAIL LOUDLY.
+    // Silently using the value as-is here previously produced wrong-magnitude results.
+    throw new Error(
+      `Cannot convert units: no known conversion from "${fromUnit}" to "${factor.unit}" ` +
+        `for category "${category.category}". Provide the value in "${factor.unit}" ` +
+        `(or "${category.baseUnit}"), or add a conversion for this unit.`
+    );
   }
 
   private getUnitConversions(): Record<string, number> {
@@ -531,98 +542,111 @@ export class CalculationEngine {
     };
   }
 
-  private async handleSpecialCalculations(emissions: number, category: any, input: CalculationInput): Promise<number> {
-    // Handle business travel with automatic distance calculation
-    if (category.category.toLowerCase().includes('business travel') && input.metadata?.origin && input.metadata?.destination) {
-      return this.calculateBusinessTravelEmissions(input);
+  private async handleSpecialCalculations(
+    emissions: number,
+    category: any,
+    input: CalculationInput,
+    factor: any
+  ): Promise<number> {
+    const categoryName = (category.category || '').toLowerCase();
+
+    // Distance-based travel: recompute from actual distance and the selected factor.
+    const hasRoute = input.metadata?.origin && input.metadata?.destination;
+    const hasDistance = typeof input.metadata?.distance === 'number' && input.metadata.distance > 0;
+    if (categoryName.includes('travel') && (hasRoute || hasDistance)) {
+      return this.calculateBusinessTravelEmissions(input, factor);
     }
-    
-    // Handle employee commuting with traffic adjustments
-    if (category.category.toLowerCase().includes('commuting') && input.metadata?.location === 'Cairo') {
-      return emissions * 1.0;
-    }
-    
-    // Handle electricity with time-of-use factors (if available)
-    if (category.category.toLowerCase().includes('electricity') && input.metadata?.timeOfUse) {
+
+    // Electricity with time-of-use factors (if provided)
+    if (categoryName.includes('electricity') && input.metadata?.timeOfUse) {
       return this.applyTimeOfUseFactors(emissions, input.metadata.timeOfUse);
     }
-    
+
     return emissions;
   }
 
-  private async calculateBusinessTravelEmissions(input: CalculationInput): Promise<number> {
-    try {
-      const { origin, destination, travelMode, travelClass } = input.metadata || {};
-      
-      if (travelMode === 'Flight' && origin && destination) {
-        // Get distance from airport API
-        const distance = await this.getAirportDistance(origin, destination);
-        
-        // Apply class-specific emission factors
-        const classMultipliers = {
-          'Economy': 1.0,
-          'Business': 1.5,
-          'First': 2.0,
-        };
-        
-        const multiplier = classMultipliers[travelClass as keyof typeof classMultipliers] || 1.0;
-        
-        // Base emission factor for aviation (approximate)
-        const aviationFactor = 0.255; // kg CO2e per km
-        
-        let emissions = distance * aviationFactor * multiplier;
-        
-        // Round trip adjustment
-        if (input.metadata?.roundTrip) {
-          emissions *= 2;
-        }
-        
-        return emissions;
-      }
-    } catch (error) {
-      logger.warn('Special business travel calculation failed, using standard calculation:', error);
+  /**
+   * Distance-based travel emissions.
+   * emissions = distance(km) × factor(kg CO2e per km) × classMultiplier × roundTripMultiplier
+   *
+   * The per-distance emission factor comes from the selected DB factor (NOT a hardcoded
+   * constant). The factor for travel categories must be expressed per km / passenger-km.
+   * If a real distance cannot be determined, this throws so the caller can require manual
+   * input — it never silently returns a placeholder value.
+   */
+  private async calculateBusinessTravelEmissions(input: CalculationInput, factor: any): Promise<number> {
+    const { origin, destination, travelMode, travelClass, roundTrip } = input.metadata || {};
+
+    // 1. Determine distance (km): explicit value preferred, else airport lookup for flights.
+    let distance: number | undefined =
+      typeof input.metadata?.distance === 'number' && input.metadata.distance > 0
+        ? input.metadata.distance
+        : undefined;
+
+    if (distance === undefined && travelMode === 'Flight' && origin && destination) {
+      distance = await this.getAirportDistance(String(origin), String(destination));
     }
-    
-    // Fallback to standard calculation
-    return input.value * 0.255; // Default aviation factor
+
+    if (distance === undefined || !(distance > 0)) {
+      throw new Error(
+        'Unable to determine travel distance automatically. Please provide "distance" (in km) in the calculation metadata.'
+      );
+    }
+
+    // 2. Per-km emission factor from the selected DB factor.
+    const perKm = Number(factor?.factor);
+    if (!Number.isFinite(perKm) || perKm <= 0) {
+      throw new Error('No valid per-distance emission factor available for this travel category.');
+    }
+
+    // 3. Cabin-class multiplier applies to flights only (simplified estimate).
+    const classMultipliers: Record<string, number> = { Economy: 1.0, Business: 1.5, First: 2.0 };
+    const classMultiplier =
+      travelMode === 'Flight' ? classMultipliers[String(travelClass)] ?? 1.0 : 1.0;
+
+    const roundTripMultiplier = roundTrip === true || roundTrip === 'true' ? 2 : 1;
+
+    const emissions = distance * perKm * classMultiplier * roundTripMultiplier;
+    return Math.round(emissions * 100) / 100;
   }
 
   private async getAirportDistance(origin: string, destination: string): Promise<number> {
+    const from = encodeURIComponent(origin.trim().toUpperCase());
+    const to = encodeURIComponent(destination.trim().toUpperCase());
+
     try {
-      // Use the airport distance API mentioned in requirements
-      const response = await axios.get(`https://airportgap.com/api/airports/distance?from=${origin}&to=${destination}`);
-      
-      if (response.data && response.data.data && response.data.data.attributes) {
-        return response.data.data.attributes.kilometers;
+      const headers: Record<string, string> = {};
+      if (config.AIRPORT_API_KEY) {
+        headers.Authorization = `Bearer ${config.AIRPORT_API_KEY}`;
       }
-      
-      throw new Error('Invalid API response');
+      const response = await axios.post(
+        'https://airportgap.com/api/airports/distance',
+        { from, to },
+        { headers, timeout: 5000 }
+      );
+
+      const km = response.data?.data?.attributes?.kilometers;
+      if (typeof km === 'number' && km > 0) {
+        return km;
+      }
+      throw new Error('Invalid airport distance API response');
     } catch (error) {
-      logger.error('Airport distance API failed:', error);
-      
-      // Fallback: estimate based on common routes from Cairo
+      logger.warn('Airport distance lookup failed; trying local fallback table.', error);
+
+      // Offline fallback for common Cairo routes (IATA codes).
       const cairoCentricDistances: Record<string, number> = {
-        'CAI-DXB': 2196,   // Cairo to Dubai
-        'CAI-LHR': 3520,   // Cairo to London
-        'CAI-JFK': 8965,   // Cairo to New York
-        'CAI-CDG': 3221,   // Cairo to Paris
-        'CAI-FRA': 2895,   // Cairo to Frankfurt
-        'CAI-IST': 1094,   // Cairo to Istanbul
-        'CAI-DOH': 1832,   // Cairo to Doha
-        'CAI-RUH': 1278,   // Cairo to Riyadh
+        'CAI-DXB': 2196, 'CAI-LHR': 3520, 'CAI-JFK': 8965, 'CAI-CDG': 3221,
+        'CAI-FRA': 2895, 'CAI-IST': 1094, 'CAI-DOH': 1832, 'CAI-RUH': 1278,
       };
-      
-      const routeKey = `${origin}-${destination}`;
-      const reverseKey = `${destination}-${origin}`;
-      
-      if (cairoCentricDistances[routeKey]) {
-        return cairoCentricDistances[routeKey];
-      } else if (cairoCentricDistances[reverseKey]) {
-        return cairoCentricDistances[reverseKey];
-      }
-      
-      // Ultimate fallback: throw error to require manual input
-      throw new Error('Distance calculation failed - please enter distance manually');
+      const o = origin.trim().toUpperCase();
+      const d = destination.trim().toUpperCase();
+      const dist = cairoCentricDistances[`${o}-${d}`] ?? cairoCentricDistances[`${d}-${o}`];
+      if (dist) return dist;
+
+      // No silent default — force explicit distance entry instead of a wrong number.
+      throw new Error(
+        'Distance calculation failed for this route. Please enter the distance (in km) manually.'
+      );
     }
   }
 

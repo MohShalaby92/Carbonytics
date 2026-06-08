@@ -157,39 +157,61 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     total: 0,
   };
 
-  // Process each calculation entry
+  // Process each calculation entry — recompute emissions SERVER-SIDE so stored
+  // totals cannot be spoofed by the client and stay consistent with the engine.
   const processedCalculations = [];
-  
+
   for (const calc of calculations) {
     const category = await EmissionCategory.findById(calc.categoryId);
     if (!category) {
       return ApiResponseUtil.error(res, `Category not found: ${calc.categoryId}`, 400);
     }
 
+    let computed;
+    try {
+      computed = await calculationEngine.calculate({
+        categoryId: String(calc.categoryId),
+        value: parseFloat(calc.value),
+        unit: calc.unit,
+        factorId: calc.factorId,
+        metadata: calc.metadata || {},
+        userId: req.user.id,
+        organizationId: req.user.organizationId,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'calculation failed';
+      return ApiResponseUtil.error(res, `Could not compute entry for category ${calc.categoryId}: ${reason}`, 400);
+    }
+
     const entry = {
       categoryId: calc.categoryId,
-      value: calc.value,
-      unit: calc.unit,
-      factor: calc.factor,
-      emissions: calc.emissions,
+      value: computed.calculation.value,
+      unit: computed.calculation.unit,
+      factor: computed.factor.value,
+      emissions: computed.calculation.emissions,
       notes: calc.notes,
     };
 
     processedCalculations.push(entry);
 
-    // Add to scope totals
+    // Add to scope totals using the authoritative category scope.
     switch (category.scope) {
       case 1:
-        emissions.scope1 += calc.emissions;
+        emissions.scope1 += entry.emissions;
         break;
       case 2:
-        emissions.scope2 += calc.emissions;
+        emissions.scope2 += entry.emissions;
         break;
       case 3:
-        emissions.scope3 += calc.emissions;
+        emissions.scope3 += entry.emissions;
         break;
     }
   }
+
+  // Guard against floating-point drift in the stored totals.
+  emissions.scope1 = Math.round(emissions.scope1 * 100) / 100;
+  emissions.scope2 = Math.round(emissions.scope2 * 100) / 100;
+  emissions.scope3 = Math.round(emissions.scope3 * 100) / 100;
 
   emissions.total = emissions.scope1 + emissions.scope2 + emissions.scope3;
 
