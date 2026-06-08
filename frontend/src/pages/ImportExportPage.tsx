@@ -92,8 +92,8 @@ export const ImportExportPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Import & Export Data</h1>
-        <p className="mt-2 text-gray-600">
+        <h1 className="text-3xl font-bold text-fg">Import & Export Data</h1>
+        <p className="mt-2 text-muted">
           Import calculations from CSV files or export your emissions data
         </p>
       </div>
@@ -114,13 +114,13 @@ export const ImportExportPage: React.FC = () => {
       )}
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-8">
+      <div className="flex space-x-1 bg-fg/[0.06] p-1 rounded-lg mb-8">
         <button
           onClick={() => setActiveTab('import')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'import'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'bg-surface text-primary-600 shadow-sm'
+              : 'text-muted hover:text-fg'
           }`}
         >
           <Upload className="w-4 h-4" />
@@ -130,8 +130,8 @@ export const ImportExportPage: React.FC = () => {
           onClick={() => setActiveTab('export')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'export'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'bg-surface text-primary-600 shadow-sm'
+              : 'text-muted hover:text-fg'
           }`}
         >
           <Download className="w-4 h-4" />
@@ -148,8 +148,8 @@ export const ImportExportPage: React.FC = () => {
                 <Upload className="w-8 h-8 text-primary-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Import Calculations</h2>
-                <p className="mt-1 text-gray-600">
+                <h2 className="text-xl font-semibold text-fg">Import Calculations</h2>
+                <p className="mt-1 text-muted">
                   Upload a CSV file with your emissions calculation data. The file should include 
                   category, value, unit, and date information for each calculation.
                 </p>
@@ -166,10 +166,10 @@ export const ImportExportPage: React.FC = () => {
 
           {/* Import Guidelines */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Import Guidelines</h3>
-            <div className="space-y-4 text-sm text-gray-600">
+            <h3 className="text-lg font-semibold text-fg mb-4">Import Guidelines</h3>
+            <div className="space-y-4 text-sm text-muted">
               <div>
-                <h4 className="font-medium text-gray-900">Required Columns:</h4>
+                <h4 className="font-medium text-fg">Required Columns:</h4>
                 <ul className="mt-1 list-disc list-inside space-y-1">
                   <li><strong>category</strong> - Emission category name (e.g., "Purchased Electricity")</li>
                   <li><strong>value</strong> - Numeric value for the activity</li>
@@ -179,7 +179,7 @@ export const ImportExportPage: React.FC = () => {
                 </ul>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Optional Columns:</h4>
+                <h4 className="font-medium text-fg">Optional Columns:</h4>
                 <ul className="mt-1 list-disc list-inside space-y-1">
                   <li><strong>notes</strong> - Additional notes or context</li>
                   <li><strong>location</strong> - Geographic location</li>
@@ -204,8 +204,8 @@ export const ImportExportPage: React.FC = () => {
                   <Download className="w-8 h-8 text-primary-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Export Data</h2>
-                  <p className="mt-1 text-gray-600">
+                  <h2 className="text-xl font-semibold text-fg">Export Data</h2>
+                  <p className="mt-1 text-muted">
                     Export your emissions calculation data as CSV for analysis in Excel or other tools
                   </p>
                 </div>
@@ -213,10 +213,10 @@ export const ImportExportPage: React.FC = () => {
 
               {/* Date Range */}
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Date Range</h3>
+                <h3 className="text-sm font-medium text-fg mb-3">Date Range</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Start Date</label>
+                    <label className="block text-sm text-fg/80 mb-1">Start Date</label>
                     <input
                       type="date"
                       value={exportFilters.startDate}
@@ -224,11 +224,11 @@ export const ImportExportPage: React.FC = () => {
                         ...prev,
                         startDate: e.target.value
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">End Date</label>
+                    <label className="block text-sm text-fg/80 mb-1">End Date</label>
                     <input
                       type="date"
                       value={exportFilters.endDate}
@@ -236,7 +236,7 @@ export const ImportExportPage: React.FC = () => {
                         ...prev,
                         endDate: e.target.value
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                 </div>
@@ -244,7 +244,7 @@ export const ImportExportPage: React.FC = () => {
 
               {/* Scope Selection */}
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Emission Scopes</h3>
+                <h3 className="text-sm font-medium text-fg mb-3">Emission Scopes</h3>
                 <div className="space-y-2">
                   {[1, 2, 3].map(scope => (
                     <label key={scope} className="flex items-center">
@@ -252,9 +252,9 @@ export const ImportExportPage: React.FC = () => {
                         type="checkbox"
                         checked={exportFilters.scopes.includes(scope)}
                         onChange={() => toggleScope(scope)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-line rounded"
                       />
-                      <span className="ml-2 text-sm text-gray-700">
+                      <span className="ml-2 text-sm text-fg/80">
                         Scope {scope} - {
                           scope === 1 ? 'Direct Emissions' :
                           scope === 2 ? 'Energy Indirect' :
@@ -264,7 +264,7 @@ export const ImportExportPage: React.FC = () => {
                     </label>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-muted mt-2">
                   Leave empty to include all scopes
                 </p>
               </div>
@@ -283,12 +283,12 @@ export const ImportExportPage: React.FC = () => {
           {/* Export Info */}
           <div className="space-y-6">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Format</h3>
+              <h3 className="text-lg font-semibold text-fg mb-4">Export Format</h3>
               <div className="flex items-start space-x-3">
                 <BarChart3 className="w-5 h-5 text-green-500 mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-gray-900">CSV Data</h4>
-                  <p className="text-sm text-gray-600">
+                  <h4 className="font-medium text-fg">CSV Data</h4>
+                  <p className="text-sm text-muted">
                     Raw calculation data for analysis in Excel or other tools
                   </p>
                 </div>
@@ -296,7 +296,7 @@ export const ImportExportPage: React.FC = () => {
             </Card>
 
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+              <h3 className="text-lg font-semibold text-fg mb-4">Quick Actions</h3>
               <div className="space-y-3">
                 <Button
                   variant="outline"

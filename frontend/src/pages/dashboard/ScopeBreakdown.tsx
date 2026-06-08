@@ -26,7 +26,7 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
 
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">Emissions by Scope</h3>
+      <h3 className="text-lg font-semibold text-fg mb-6">Emissions by Scope</h3>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
@@ -47,7 +47,7 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value: number) => [formatEmissions(value), 'Emissions']}
+                formatter={(value) => [formatEmissions(Number(value)), 'Emissions']}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -59,15 +59,15 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
             const percentage = total > 0 ? (item.value / total * 100).toFixed(1) : '0';
             
             return (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div 
                     className="w-4 h-4 rounded-full"
                     style={{ backgroundColor: COLORS[item.name as keyof typeof COLORS] }}
                   />
                   <div>
-                    <p className="font-medium text-gray-900">{item.name}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium text-fg">{item.name}</p>
+                    <p className="text-sm text-muted">
                       {item.name === 'Scope 1' && 'Direct emissions'}
                       {item.name === 'Scope 2' && 'Energy emissions'}
                       {item.name === 'Scope 3' && 'Value chain emissions'}
@@ -75,8 +75,8 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900">{item.emissions}</p>
-                  <p className="text-sm text-gray-600">{percentage}%</p>
+                  <p className="font-medium text-fg">{item.emissions}</p>
+                  <p className="text-sm text-muted">{percentage}%</p>
                 </div>
               </div>
             );

@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (userData: Partial<User>) => Promise<void>;
 }
 
@@ -30,9 +30,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuthStatus();
   }, []);
 
+  // Rehydrate the session from the httpOnly refresh cookie on load.
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      const token = await apiService.refresh();
       if (token) {
         const response = await apiService.get<User>(API_ENDPOINTS.AUTH.PROFILE);
         if (response.success && response.data) {
@@ -40,50 +41,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      // No valid session — proceed as logged out.
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email: string, password: string) => {
-    const response = await apiService.post<{
-      user: User;
-      accessToken: string;
-      refreshToken: string;
-    }>(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+    const response = await apiService.post<{ user: User; accessToken: string }>(
+      API_ENDPOINTS.AUTH.LOGIN,
+      { email, password }
+    );
 
     if (response.success && response.data) {
-      const { user, accessToken, refreshToken } = response.data;
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      setUser(user);
+      apiService.setAccessToken(response.data.accessToken);
+      setUser(response.data.user);
     }
   };
 
   const register = async (userData: RegisterData) => {
-    const response = await apiService.post<{
-      user: User;
-      accessToken: string;
-      refreshToken: string;
-    }>(API_ENDPOINTS.AUTH.REGISTER, userData);
+    const response = await apiService.post<{ user: User; accessToken: string }>(
+      API_ENDPOINTS.AUTH.REGISTER,
+      userData
+    );
 
     if (response.success && response.data) {
-      const { user, accessToken, refreshToken } = response.data;
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      setUser(user);
+      apiService.setAccessToken(response.data.accessToken);
+      setUser(response.data.user);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+  const logout = async () => {
+    await apiService.logout();
     setUser(null);
-    // Optional: Call logout endpoint
-    apiService.post(API_ENDPOINTS.AUTH.LOGOUT);
   };
 
   const updateProfile = async (userData: Partial<User>) => {
@@ -94,14 +84,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      loading,
-      login,
-      register,
-      logout,
-      updateProfile,
-    }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, updateProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -12,13 +12,13 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="space-y-1">
         {label && (
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-fg/80">
             {label}
           </label>
         )}
         <textarea
           className={cn(
-            'block w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 resize-vertical',
+            'block w-full rounded-md border border-line px-3 py-2 text-sm placeholder-[rgb(var(--muted))] shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 resize-vertical',
             error && 'border-red-300 focus:border-red-500 focus:ring-red-500',
             className
           )}
@@ -26,10 +26,10 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {helperText && !error && (
-          <p className="text-xs text-gray-500">{helperText}</p>
+          <p className="text-xs text-muted">{helperText}</p>
         )}
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
       </div>
     );

@@ -33,8 +33,8 @@ export const CalculationPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Carbon Emissions Calculator</h1>
-        <p className="mt-2 text-gray-600">
+        <h1 className="text-3xl font-bold text-fg">Carbon Emissions Calculator</h1>
+        <p className="mt-2 text-muted">
           Calculate your organization's carbon footprint across Scope 1, 2, and 3 emissions
         </p>
       </div>
@@ -43,7 +43,7 @@ export const CalculationPage: React.FC = () => {
         {/* Left Column - Category Selection */}
         <div className="lg:col-span-1">
           <Card className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Emission Categories</h2>
+            <h2 className="text-lg font-semibold text-fg mb-4">Emission Categories</h2>
             <CategorySelector
               onCategorySelect={handleCategorySelect}
               selectedCategoryId={selectedCategoryId}
@@ -64,10 +64,10 @@ export const CalculationPage: React.FC = () => {
           {/* Summary */}
           {calculations.length > 0 && (
             <Card className="p-6 mt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
+              <h3 className="text-lg font-semibold text-fg mb-4">Summary</h3>
               <CalculationSummary calculations={calculations} />
               
-              <div className="pt-4 border-t border-gray-200 mt-4">
+              <div className="pt-4 border-t border-line mt-4">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total Emissions:</span>
                   <span className="text-primary-600">
@@ -100,13 +100,13 @@ export const CalculationPage: React.FC = () => {
             />
           ) : (
             <Card className="p-12 text-center">
-              <div className="text-gray-400 mb-4">
+              <div className="text-muted mb-4">
                 <Plus className="w-16 h-16 mx-auto" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <h3 className="text-lg font-medium text-fg mb-2">
                 Select a Category to Start
               </h3>
-              <p className="text-gray-600">
+              <p className="text-muted">
                 Choose an emission category from the left to begin calculating your carbon footprint
               </p>
             </Card>

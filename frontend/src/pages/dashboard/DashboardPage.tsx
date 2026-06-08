@@ -131,15 +131,15 @@ export const DashboardPage: React.FC = () => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-8 bg-fg/[0.08] rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+              <div key={i} className="h-32 bg-fg/[0.08] rounded"></div>
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-64 bg-gray-200 rounded"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
+            <div className="h-64 bg-fg/[0.08] rounded"></div>
+            <div className="h-64 bg-fg/[0.08] rounded"></div>
           </div>
         </div>
       </div>
@@ -151,8 +151,8 @@ export const DashboardPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Carbon Dashboard</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-3xl font-bold text-fg">Carbon Dashboard</h1>
+          <p className="mt-2 text-muted">
             Track and analyze your organization's carbon footprint
           </p>
         </div>
@@ -169,7 +169,7 @@ export const DashboardPage: React.FC = () => {
                   ${period === 'month' ? 'rounded-l-md' : period === 'year' ? 'rounded-r-md' : ''}
                   ${timeframe === period
                     ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    : 'bg-surface text-fg/80 border-line hover:bg-fg/[0.04]'
                   }
                 `}
               >
@@ -228,13 +228,13 @@ export const DashboardPage: React.FC = () => {
       {/* Bottom Section - Additional Insights */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Insights & Recommendations</h3>
+          <h3 className="text-lg font-semibold text-fg mb-4">Insights & Recommendations</h3>
           <div className="space-y-3">
             {dashboardData && (
               <>
                 {dashboardData.scopeBreakdown[3] > dashboardData.totalEmissions * 0.5 && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-sm text-yellow-800">
+                  <div className="p-3 bg-yellow-500/10 border border-yellow-500/25 rounded-md">
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 dark:text-yellow-300">
                       <strong>Scope 3 Focus:</strong> Over 50% of emissions are from Scope 3. 
                       Consider supplier engagement and value chain optimization.
                     </p>
@@ -242,16 +242,16 @@ export const DashboardPage: React.FC = () => {
                 )}
                 
                 {dashboardData.scopeBreakdown[2] > dashboardData.totalEmissions * 0.3 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                    <p className="text-sm text-blue-800">
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-md">
+                    <p className="text-sm text-blue-700 dark:text-blue-300 dark:text-blue-300">
                       <strong>Energy Opportunity:</strong> Significant Scope 2 emissions detected. 
                       Consider renewable energy procurement or energy efficiency measures.
                     </p>
                   </div>
                 )}
 
-                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm text-green-800">
+                <div className="p-3 bg-green-500/10 border border-green-500/25 rounded-md">
+                  <p className="text-sm text-green-700 dark:text-green-300 dark:text-green-300">
                     <strong>Egyptian Context:</strong> Using local emission factors for more accurate calculations. 
                     Consider the growing renewable energy sector in Egypt.
                   </p>
@@ -262,15 +262,15 @@ export const DashboardPage: React.FC = () => {
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Next Steps</h3>
+          <h3 className="text-lg font-semibold text-fg mb-4">Next Steps</h3>
           <div className="space-y-3">
             <div className="flex items-start space-x-3">
               <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center mt-0.5">
                 <span className="text-xs font-medium text-primary-600">1</span>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Set Science-Based Targets</p>
-                <p className="text-xs text-gray-600">Align with 1.5°C pathway and Egyptian NDCs</p>
+                <p className="text-sm font-medium text-fg">Set Science-Based Targets</p>
+                <p className="text-xs text-muted">Align with 1.5°C pathway and Egyptian NDCs</p>
               </div>
             </div>
             
@@ -279,8 +279,8 @@ export const DashboardPage: React.FC = () => {
                 <span className="text-xs font-medium text-primary-600">2</span>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Expand Data Collection</p>
-                <p className="text-xs text-gray-600">Include more Scope 3 categories and suppliers</p>
+                <p className="text-sm font-medium text-fg">Expand Data Collection</p>
+                <p className="text-xs text-muted">Include more Scope 3 categories and suppliers</p>
               </div>
             </div>
             
@@ -289,8 +289,8 @@ export const DashboardPage: React.FC = () => {
                 <span className="text-xs font-medium text-primary-600">3</span>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Monitor Progress</p>
-                <p className="text-xs text-gray-600">Regular tracking and verification</p>
+                <p className="text-sm font-medium text-fg">Monitor Progress</p>
+                <p className="text-xs text-muted">Regular tracking and verification</p>
               </div>
             </div>
           </div>

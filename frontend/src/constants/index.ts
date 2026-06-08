@@ -289,7 +289,7 @@ export const API_ENDPOINTS = {
   } as const;
   
   export const API_CONFIG = {
-	BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+	BASE_URL: import.meta.env.VITE_API_URL || '/api',
 	TIMEOUT: 10000, // 10 seconds
 	RETRY_ATTEMPTS: 3,
 	CACHE_DURATION: 5 * 60 * 1000, // 5 minutes

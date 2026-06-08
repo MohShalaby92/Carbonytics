@@ -149,8 +149,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       <Card className="p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-medium text-gray-900">Import Template</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="font-medium text-fg">Import Template</h3>
+            <p className="text-sm text-muted">
               Download the CSV template to see the required format
             </p>
           </div>
@@ -174,35 +174,35 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             isDragging
               ? 'border-primary-500 bg-primary-50'
-              : 'border-gray-300 hover:border-gray-400'
+              : 'border-line hover:border-line'
           }`}
         >
-          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Upload className="w-12 h-12 text-muted mx-auto mb-4" />
           
           {selectedFile ? (
             <div className="space-y-2">
               <div className="flex items-center justify-center space-x-2">
                 <File className="w-5 h-5 text-green-500" />
-                <span className="font-medium text-gray-900">{selectedFile.name}</span>
+                <span className="font-medium text-fg">{selectedFile.name}</span>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted">
                 {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={resetUpload}
-                className="text-gray-500"
+                className="text-muted"
               >
                 Choose different file
               </Button>
             </div>
           ) : (
             <>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <h3 className="text-lg font-medium text-fg mb-2">
                 Upload CSV File
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-muted mb-4">
                 Drag and drop your CSV file here, or click to browse
               </p>
               <Button
@@ -239,7 +239,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {/* Validation Results */}
       {validation && (
         <Card className="p-6">
-          <h3 className="font-medium text-gray-900 mb-4">Validation Results</h3>
+          <h3 className="font-medium text-fg mb-4">Validation Results</h3>
           
           {validation.valid ? (
             <Alert variant="success" className="mb-4">
@@ -256,7 +256,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           {validation.errors.length > 0 && (
             <div className="mb-4">
               <h4 className="font-medium text-red-900 mb-2">Errors:</h4>
-              <ul className="text-sm text-red-700 space-y-1">
+              <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
                 {validation.errors.map((error, index) => (
                   <li key={index}>• {error}</li>
                 ))}
@@ -266,10 +266,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
           {validation.preview.length > 0 && (
             <div className="mb-4">
-              <h4 className="font-medium text-gray-900 mb-2">Preview (first 3 rows):</h4>
+              <h4 className="font-medium text-fg mb-2">Preview (first 3 rows):</h4>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs border">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-fg/[0.04]">
                     <tr>
                       {Object.keys(validation.preview[0]).map(key => (
                         <th key={key} className="px-2 py-1 border text-left font-medium">
@@ -312,20 +312,20 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {/* Import Results */}
       {importResult && (
         <Card className="p-6">
-          <h3 className="font-medium text-gray-900 mb-4">Import Results</h3>
+          <h3 className="font-medium text-fg mb-4">Import Results</h3>
           
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{importResult.processed}</div>
-              <div className="text-sm text-gray-600">Processed</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{importResult.processed}</div>
+              <div className="text-sm text-muted">Processed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{importResult.successful}</div>
-              <div className="text-sm text-gray-600">Successful</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{importResult.successful}</div>
+              <div className="text-sm text-muted">Successful</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{importResult.failed}</div>
-              <div className="text-sm text-gray-600">Failed</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{importResult.failed}</div>
+              <div className="text-sm text-muted">Failed</div>
             </div>
           </div>
 
@@ -340,14 +340,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <div>
               <h4 className="font-medium text-red-900 mb-2">Import Errors:</h4>
               <div className="max-h-32 overflow-y-auto">
-                <ul className="text-sm text-red-700 space-y-1">
+                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
                   {importResult.errors.slice(0, 10).map((error: any, index: number) => (
                     <li key={index}>
                       Row {error.row}: {error.error}
                     </li>
                   ))}
                   {importResult.errors.length > 10 && (
-                    <li className="text-gray-600">
+                    <li className="text-muted">
                       ... and {importResult.errors.length - 10} more errors
                     </li>
                   )}

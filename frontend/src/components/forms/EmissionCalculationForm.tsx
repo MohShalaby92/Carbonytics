@@ -238,10 +238,10 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
   const getScopeColor = (scope: number) => {
     switch (scope) {
-      case 1: return 'text-red-600 bg-red-50';
-      case 2: return 'text-yellow-600 bg-yellow-50';
-      case 3: return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 1: return 'text-red-600 dark:text-red-400 bg-red-500/10';
+      case 2: return 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10';
+      case 3: return 'text-green-600 dark:text-green-400 bg-green-500/10';
+      default: return 'text-muted bg-fg/[0.04]';
     }
   };
 
@@ -249,9 +249,9 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     return (
       <Card className="p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-4 bg-fg/[0.08] rounded w-1/4"></div>
+          <div className="h-10 bg-fg/[0.08] rounded"></div>
+          <div className="h-4 bg-fg/[0.08] rounded w-1/2"></div>
         </div>
       </Card>
     );
@@ -261,13 +261,13 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     <Card className="p-6 space-y-6">
       <div className="flex items-center space-x-3">
         <Calculator className="w-6 h-6 text-primary-600" />
-        <h2 className="text-xl font-semibold text-gray-900">Calculate Emissions</h2>
+        <h2 className="text-xl font-semibold text-fg">Calculate Emissions</h2>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Category Selection */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-fg/80">
             Emission Category
           </label>
           <Controller
@@ -297,19 +297,19 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                 {getScopeIcon(selectedCategory.scope)}
               </div>
               <div className="flex-1">
-                <h3 className="font-medium text-gray-900">
+                <h3 className="font-medium text-fg">
                   Scope {selectedCategory.scope}: {selectedCategory.category}
                 </h3>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-muted mt-1">
                   {selectedCategory.description}
                 </p>
                 {selectedCategory.clarification && (
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-muted mt-2">
                     💡 {selectedCategory.clarification}
                   </p>
                 )}
                 {selectedCategory.egyptianContext?.considerations && (
-                  <p className="text-xs text-blue-600 mt-2">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                     🇪🇬 Egyptian Context: {selectedCategory.egyptianContext.considerations}
                   </p>
                 )}
@@ -323,7 +323,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Primary Value Input */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-fg/80">
                 Value *
               </label>
               <Controller
@@ -344,7 +344,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
             {/* Unit Selection */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-fg/80">
                 Unit *
               </label>
               <Controller
@@ -369,7 +369,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             {/* Dynamic Category-Specific Fields */}
             {selectedCategory.requiredInputs?.map(input => (
               <div key={input.field} className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-fg/80">
                   {input.field.charAt(0).toUpperCase() + input.field.slice(1).replace(/([A-Z])/g, ' $1')}
                   {input.required && ' *'}
                 </label>
@@ -423,7 +423,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         {/* Period Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-fg/80">
               Period Start *
             </label>
             <Controller
@@ -440,7 +440,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-fg/80">
               Period End *
             </label>
             <Controller
@@ -459,7 +459,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
         {/* Notes */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-fg/80">
             Notes (optional)
           </label>
           <Controller
@@ -477,29 +477,29 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
         {/* Real-time Calculation Result */}
         {calculationResult && (
-          <Card className="p-4 bg-green-50 border-green-200">
-            <h3 className="font-medium text-green-800 mb-2">Calculation Result</h3>
+          <Card className="p-4 bg-green-500/10 border-green-500/25">
+            <h3 className="font-medium text-green-700 dark:text-green-300 dark:text-green-300 mb-2">Calculation Result</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Emissions:</span>
-                <span className="font-medium text-green-800">
+                <span className="text-muted">Emissions:</span>
+                <span className="font-medium text-green-700 dark:text-green-300 dark:text-green-300">
                   {formatEmissions(calculationResult.calculation.emissions)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Factor:</span>
-                <span className="text-green-700">
+                <span className="text-muted">Factor:</span>
+                <span className="text-green-700 dark:text-green-300">
                   {calculationResult.factor.value} {calculationResult.factor.unit}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Source:</span>
-                <span className="text-green-700">
+                <span className="text-muted">Source:</span>
+                <span className="text-green-700 dark:text-green-300">
                   {calculationResult.factor.source} ({calculationResult.factor.year})
                 </span>
               </div>
               {calculationResult.factor.region === 'egypt' && (
-                <div className="text-xs text-blue-600 mt-2">
+                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                   🇪🇬 Using Egyptian-specific emission factor
                 </div>
               )}

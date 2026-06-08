@@ -29,8 +29,8 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-gray-900">{data.fullCategory}</p>
+        <div className="bg-surface p-3 border border-line rounded-lg shadow-lg">
+          <p className="font-medium text-fg">{data.fullCategory}</p>
           <p className="text-primary-600">{data.formattedEmissions}</p>
         </div>
       );
@@ -41,7 +41,7 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Emissions by Category</h3>
+        <h3 className="text-lg font-semibold text-fg">Emissions by Category</h3>
         {sortedData.length > 8 && (
           <button
             onClick={() => setShowAll(!showAll)}
@@ -75,26 +75,26 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
       </div>
 
       {/* Top Contributors Table */}
-      <div className="border-t border-gray-200 pt-4">
-        <h4 className="text-sm font-medium text-gray-900 mb-3">Top Contributors</h4>
+      <div className="border-t border-line pt-4">
+        <h4 className="text-sm font-medium text-fg mb-3">Top Contributors</h4>
         <div className="space-y-2">
           {sortedData.slice(0, 5).map((item, index) => {
             const total = Object.values(data).reduce((sum, val) => sum + val, 0);
             const percentage = total > 0 ? (item.emissions / total * 100).toFixed(1) : '0';
             
             return (
-              <div key={index} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded">
+              <div key={index} className="flex items-center justify-between py-2 px-3 bg-fg/[0.04] rounded">
                 <div className="flex items-center space-x-3">
                   <span className="w-6 h-6 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-medium">
                     {index + 1}
                   </span>
-                  <span className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                  <span className="text-sm font-medium text-fg truncate max-w-xs">
                     {item.fullCategory}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-medium text-gray-900">{item.formattedEmissions}</span>
-                  <span className="text-xs text-gray-600 ml-2">{percentage}%</span>
+                  <span className="text-sm font-medium text-fg">{item.formattedEmissions}</span>
+                  <span className="text-xs text-muted ml-2">{percentage}%</span>
                 </div>
               </div>
             );

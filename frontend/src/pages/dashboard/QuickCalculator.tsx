@@ -46,12 +46,12 @@ export const QuickCalculator: React.FC = () => {
     <Card className="p-6">
       <div className="flex items-center space-x-2 mb-4">
         <Calculator className="w-5 h-5 text-primary-600" />
-        <h3 className="text-lg font-semibold text-gray-900">Quick Calculator</h3>
+        <h3 className="text-lg font-semibold text-fg">Quick Calculator</h3>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-fg/80 mb-2">
             Type
           </label>
           <Select
@@ -67,7 +67,7 @@ export const QuickCalculator: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-fg/80 mb-2">
             Amount ({selectedCalcType?.unit})
           </label>
           <Input
@@ -98,20 +98,20 @@ export const QuickCalculator: React.FC = () => {
         </div>
 
         {result !== null && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="p-4 bg-green-500/10 border border-green-500/25 rounded-lg">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-green-800">Emissions:</span>
+              <span className="text-sm font-medium text-green-700 dark:text-green-300 dark:text-green-300">Emissions:</span>
               <span className="text-lg font-bold text-green-900">
                 {formatEmissions(result)}
               </span>
             </div>
-            <p className="text-xs text-green-700 mt-1">
+            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
               Using Egyptian emission factor: {selectedCalcType?.factor} kg CO₂e/{selectedCalcType?.unit}
             </p>
           </div>
         )}
 
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted">
           <p>💡 Quick estimates using Egyptian emission factors</p>
           <p>For detailed calculations, use the full calculator</p>
         </div>

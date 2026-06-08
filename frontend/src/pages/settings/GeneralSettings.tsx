@@ -72,14 +72,14 @@ export const GeneralSettings: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center mb-6">
           <SettingsIcon className="w-5 h-5 text-primary-600 mr-2" />
-          <h2 className="text-xl font-semibold text-gray-900">General Settings</h2>
+          <h2 className="text-xl font-semibold text-fg">General Settings</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Currency */}
             <div>
-              <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="currency" className="block text-sm font-medium text-fg/80 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-1" />
                 Default Currency
               </label>
@@ -87,20 +87,20 @@ export const GeneralSettings: React.FC = () => {
                 id="currency"
                 value={settings.currency}
                 onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
               >
                 {Object.entries(CURRENCIES).map(([code, config]) => (
                   <option key={code} value={code}>{code} - {config.name}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 This will be used for displaying monetary values in reports
               </p>
             </div>
 
             {/* Language */}
             <div>
-              <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="language" className="block text-sm font-medium text-fg/80 mb-2">
                 <Globe className="w-4 h-4 inline mr-1" />
                 Language
               </label>
@@ -108,20 +108,20 @@ export const GeneralSettings: React.FC = () => {
                 id="language"
                 value={settings.language}
                 onChange={(e) => setSettings(prev => ({ ...prev, language: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
               >
                 {Object.entries(LANGUAGES).map(([code, config]) => (
                   <option key={code} value={code}>{config.name}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Interface language for your organization
               </p>
             </div>
 
             {/* Timezone */}
             <div className="md:col-span-2">
-              <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="timezone" className="block text-sm font-medium text-fg/80 mb-2">
                 <Clock className="w-4 h-4 inline mr-1" />
                 Timezone
               </label>
@@ -129,21 +129,21 @@ export const GeneralSettings: React.FC = () => {
                 id="timezone"
                 value={settings.timezone}
                 onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
               >
                 {timezones.map(tz => (
                   <option key={tz.value} value={tz.value}>{tz.label}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Default timezone for displaying dates and times
               </p>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-200">
+          <div className="pt-4 border-t border-line">
             <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted">
                 <p>These settings apply to your entire organization</p>
               </div>
               <Button type="submit" loading={loading}>
@@ -157,40 +157,40 @@ export const GeneralSettings: React.FC = () => {
 
       {/* Additional Settings */}
       <Card className="p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Additional Preferences</h3>
+        <h3 className="text-lg font-medium text-fg mb-4">Additional Preferences</h3>
         
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">Data Export Format</h4>
-              <p className="text-sm text-gray-600">Default format for exporting calculation data</p>
+              <h4 className="font-medium text-fg">Data Export Format</h4>
+              <p className="text-sm text-muted">Default format for exporting calculation data</p>
             </div>
-            <select className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            <select className="px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
               <option value="csv">CSV</option>
               <option value="excel">Excel</option>
               <option value="pdf">PDF</option>
             </select>
           </div>
 
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">Measurement Units</h4>
-              <p className="text-sm text-gray-600">Preferred units for emission calculations</p>
+              <h4 className="font-medium text-fg">Measurement Units</h4>
+              <p className="text-sm text-muted">Preferred units for emission calculations</p>
             </div>
-            <select className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            <select className="px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
               <option value="metric">Metric (kg, km, L)</option>
               <option value="imperial">Imperial (lbs, miles, gal)</option>
             </select>
           </div>
 
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">Auto-save Calculations</h4>
-              <p className="text-sm text-gray-600">Automatically save calculations as you work</p>
+              <h4 className="font-medium text-fg">Auto-save Calculations</h4>
+              <p className="text-sm text-muted">Automatically save calculations as you work</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+              <div className="w-11 h-6 bg-fg/[0.08] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-line after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
             </label>
           </div>
         </div>

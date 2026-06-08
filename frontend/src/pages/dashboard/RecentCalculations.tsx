@@ -13,10 +13,10 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
   if (!calculations || calculations.length === 0) {
     return (
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Calculations</h3>
+        <h3 className="text-lg font-semibold text-fg mb-4">Recent Calculations</h3>
         <div className="text-center py-6">
-          <Clock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">No recent calculations</p>
+          <Clock className="w-8 h-8 text-muted mx-auto mb-2" />
+          <p className="text-sm text-muted">No recent calculations</p>
           <Button variant="outline" className="mt-3" href="/calculations">
             Start Calculating
           </Button>
@@ -29,17 +29,17 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
 
   const getScopeColor = (scope: number) => {
     switch (scope) {
-      case 1: return 'bg-red-100 text-red-700';
-      case 2: return 'bg-yellow-100 text-yellow-700';
-      case 3: return 'bg-green-100 text-green-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 1: return 'bg-red-500/15 text-red-700 dark:text-red-300';
+      case 2: return 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300';
+      case 3: return 'bg-green-500/15 text-green-700 dark:text-green-300';
+      default: return 'bg-fg/[0.06] text-fg/80';
     }
   };
 
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Recent Calculations</h3>
+        <h3 className="text-lg font-semibold text-fg">Recent Calculations</h3>
         <Button variant="ghost" size="sm" href="/calculations">
           View All
         </Button>
@@ -47,17 +47,17 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
 
       <div className="space-y-3">
         {recentCalcs.map((calc, index) => (
-          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+          <div key={index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-1">
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${getScopeColor(calc.category?.scope || calc.scope || 1)}`}>
                   Scope {calc.category?.scope || calc.scope || 1}
                 </span>
-                <span className="text-sm font-medium text-gray-900 truncate">
+                <span className="text-sm font-medium text-fg truncate">
                   {calc.category?.name || calc.category || 'Unknown Category'}
                 </span>
               </div>
-              <div className="flex items-center space-x-2 text-xs text-gray-600">
+              <div className="flex items-center space-x-2 text-xs text-muted">
                 <Clock className="w-3 h-3" />
                 <span>
                   {calc.createdAt ? format(new Date(calc.createdAt), 'MMM dd, HH:mm') : 'Just now'}
@@ -65,14 +65,14 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
               </div>
             </div>
             <div className="text-right ml-3">
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-fg">
                 {formatEmissions(calc.emissions?.total || calc.emissions || 0)}
               </p>
               {calc.quality?.rating && (
                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                  calc.quality.rating === 'high' ? 'bg-green-100 text-green-700' :
-                  calc.quality.rating === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-red-100 text-red-700'
+                  calc.quality.rating === 'high' ? 'bg-green-500/15 text-green-700 dark:text-green-300' :
+                  calc.quality.rating === 'medium' ? 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300' :
+                  'bg-red-500/15 text-red-700 dark:text-red-300'
                 }`}>
                   {calc.quality.rating}
                 </span>

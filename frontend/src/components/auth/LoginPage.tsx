@@ -3,9 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Card } from '../../components/ui/Card';
 import { Alert } from '../../components/ui/Alert';
-import { Leaf } from 'lucide-react';
+import { Leaf, TrendingDown, ShieldCheck, BarChart3 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login } = useAuth();
@@ -15,7 +14,7 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
 
   if (user) {
     return <Navigate to={from} replace />;
@@ -25,44 +24,81 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       await login(email, password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || (err instanceof Error ? err.message : 'Login failed'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center">
-            <div className="flex items-center space-x-2">
-              <Leaf className="w-12 h-12 text-primary-600" />
-              <span className="text-3xl font-bold text-gray-900">Carbonytics</span>
-            </div>
-          </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Track and manage your carbon emissions
-          </p>
+    <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-2">
+      {/* Brand panel */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-brand text-brand-fg overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)',
+            backgroundSize: '22px 22px',
+          }}
+        />
+        <div className="relative flex items-center gap-2.5">
+          <span className="grid place-items-center w-10 h-10 rounded-xl bg-brand-fg/15">
+            <Leaf className="w-6 h-6" />
+          </span>
+          <span className="text-xl font-display font-semibold">Carbonytics</span>
         </div>
 
-        <Card className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <Alert variant="error">
-                {error}
-              </Alert>
-            )}
+        <div className="relative max-w-md">
+          <h1 className="text-4xl font-display font-semibold leading-tight">
+            Measure, understand, and cut your organization's carbon footprint.
+          </h1>
+          <p className="mt-4 text-brand-fg/70">
+            Scope 1, 2 &amp; 3 accounting built on recognized emission factors — with the
+            local context Egyptian organizations need.
+          </p>
+          <div className="mt-10 space-y-4">
+            {[
+              { icon: BarChart3, text: 'Audit-ready scope breakdowns and reports' },
+              { icon: TrendingDown, text: 'Track reductions against targets over time' },
+              { icon: ShieldCheck, text: 'Your data, isolated per organization and secured' },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3 text-sm">
+                <span className="grid place-items-center w-9 h-9 rounded-lg bg-brand-fg/10">
+                  <Icon className="w-5 h-5" />
+                </span>
+                <span className="text-brand-fg/85">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="relative text-xs text-brand-fg/50">
+          Carbon emissions analytics · Built for organizations in Egypt and beyond
+        </p>
+      </div>
+
+      {/* Form panel */}
+      <div className="flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden flex items-center gap-2 mb-8">
+            <span className="grid place-items-center w-9 h-9 rounded-xl bg-brand text-brand-fg">
+              <Leaf className="w-5 h-5" />
+            </span>
+            <span className="text-lg font-display font-semibold text-fg">Carbonytics</span>
+          </div>
+
+          <h2 className="text-2xl font-display font-semibold text-fg">Welcome back</h2>
+          <p className="mt-1.5 text-sm text-muted">Sign in to continue to your dashboard.</p>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            {error && <Alert variant="error">{error}</Alert>}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-fg/80 mb-1.5">
                 Email address
               </label>
               <Input
@@ -71,13 +107,13 @@ export const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="mt-1"
-                placeholder="Enter your email"
+                autoComplete="email"
+                placeholder="you@company.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-fg/80 mb-1.5">
                 Password
               </label>
               <Input
@@ -86,42 +122,23 @@ export const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="mt-1"
-                placeholder="Enter your password"
+                autoComplete="current-password"
+                placeholder="••••••••"
               />
             </div>
 
-            <Button
-              type="submit"
-              loading={loading}
-              className="w-full"
-            >
+            <Button type="submit" loading={loading} size="lg" className="w-full">
               Sign in
             </Button>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Demo credentials</span>
-              </div>
-            </div>
-
-            <div className="mt-4 p-4 bg-gray-50 rounded-md">
-              <p className="text-sm text-gray-600 mb-2">For demo purposes, use:</p>
-              <p className="text-xs font-mono text-gray-700">Email: demo@carbonytics.com</p>
-              <p className="text-xs font-mono text-gray-700">Password: demo123456</p>
-            </div>
+          <div className="mt-8 rounded-xl border border-line bg-fg/[0.02] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+              Demo credentials
+            </p>
+            <p className="text-xs font-mono text-fg/70">demo@carbonytics.com</p>
+            <p className="text-xs font-mono text-fg/70">Demo!2026Pass</p>
           </div>
-        </Card>
-
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            Carbon emissions tracking for Egyptian organizations
-          </p>
         </div>
       </div>
     </div>
