@@ -28,9 +28,11 @@ export const getEmissionFactors = asyncHandler(async (req: Request, res: Respons
   }
   
   if (region) {
-    filter.region = region;
+    // Prefer the requested region but include global factors as a fallback, so
+    // generic (global) factors still appear under the default 'egypt' view.
+    filter.region = region === 'global' ? 'global' : { $in: [region as string, 'global'] };
   }
-  
+
   if (year) {
     filter.year = parseInt(year as string);
   }

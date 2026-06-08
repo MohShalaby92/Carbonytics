@@ -1,10 +1,12 @@
 import csvParser from 'csv-parser';
+import ExcelJS from 'exceljs';
+import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
 import { Calculation } from '../models/Calculation';
 import { EmissionCategory } from '../models/EmissionCategory';
-import { EmissionFactor } from '../models/EmissionFactor';
 import { calculationEngine } from './calculationEngine';
+import { escapeRegex } from '../utils/security';
 import { logger } from '../utils/logger';
 
 interface CSVCalculationRow {
@@ -28,11 +30,14 @@ interface ImportResult {
   }>;
 }
 
+// UTF-8 BOM so spreadsheet apps read exported CSVs (e.g. "m³") with the right encoding.
+const UTF8_BOM = '﻿';
+
 export class CSVService {
-  
+
   async importCalculations(
-    filePath: string, 
-    userId: string, 
+    filePath: string,
+    userId: string,
     organizationId: string
   ): Promise<ImportResult> {
     const result: ImportResult = {
@@ -42,86 +47,130 @@ export class CSVService {
       errors: [],
     };
 
-    try {
-      logger.info(`Starting CSV import from: ${filePath}`);
-      
-      const calculations: any[] = [];
-      
-      return new Promise((resolve, reject) => {
-        fs.createReadStream(filePath)
-          .pipe(csvParser())
-          .on('data', (row: CSVCalculationRow) => {
-            calculations.push(row);
-          })
-          .on('end', async () => {
-            try {
-              for (let i = 0; i < calculations.length; i++) {
-                const row = calculations[i];
-                result.processed++;
-                
-                try {
-                  await this.processCalculationRow(row, userId, organizationId, i + 2);
-                  result.successful++;
-                } catch (error) {
-                  result.failed++;
-                  result.errors.push({
-                    row: i + 2,
-                    error: error instanceof Error ? error.message : String(error),
-                    data: row,
-                  });
-                }
-              }
-              
-              logger.info(`CSV import completed. Processed: ${result.processed}, Successful: ${result.successful}, Failed: ${result.failed}`);
-              resolve(result);
-              
-            } catch (error) {
-              reject(error);
-            }
-          })
-          .on('error', (error) => {
-            reject(error);
-          });
-      });
-      
-    } catch (error) {
-      logger.error('CSV import failed:', error);
-      throw error;
+    logger.info(`Starting import from: ${filePath}`);
+    const rows = await this.readRows(filePath);
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      result.processed++;
+      try {
+        await this.processCalculationRow(row, userId, organizationId, i + 2);
+        result.successful++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({
+          row: i + 2,
+          error: error instanceof Error ? error.message : String(error),
+          data: row,
+        });
+      }
     }
+
+    logger.info(
+      `Import completed. Processed: ${result.processed}, Successful: ${result.successful}, Failed: ${result.failed}`
+    );
+    return result;
+  }
+
+  /** Read tabular rows from a CSV or Excel (.xlsx/.xls) file into plain row objects. */
+  private async readRows(filePath: string): Promise<CSVCalculationRow[]> {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.xlsx' || ext === '.xls') {
+      return this.readRowsFromExcel(filePath);
+    }
+    return this.readRowsFromCSV(filePath);
+  }
+
+  private readRowsFromCSV(filePath: string): Promise<CSVCalculationRow[]> {
+    return new Promise((resolve, reject) => {
+      const rows: CSVCalculationRow[] = [];
+      fs.createReadStream(filePath)
+        .pipe(csvParser())
+        .on('data', (row: CSVCalculationRow) => rows.push(row))
+        .on('end', () => resolve(rows))
+        .on('error', (error) => reject(error));
+    });
+  }
+
+  private async readRowsFromExcel(filePath: string): Promise<CSVCalculationRow[]> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return [];
+
+    const headers: string[] = [];
+    const rows: CSVCalculationRow[] = [];
+
+    const cellToString = (cell: any): string => {
+      if (cell === null || cell === undefined) return '';
+      if (cell instanceof Date) return cell.toISOString().split('T')[0];
+      if (typeof cell === 'object') {
+        if ('text' in cell) return String(cell.text).trim();
+        if ('result' in cell) return String(cell.result).trim();
+        if ('richText' in cell) return cell.richText.map((r: any) => r.text).join('').trim();
+      }
+      return String(cell).trim();
+    };
+
+    sheet.eachRow((row, rowNumber) => {
+      const values = row.values as any[]; // 1-indexed; values[0] is undefined
+      if (rowNumber === 1) {
+        for (let i = 1; i < values.length; i++) {
+          headers[i] = values[i] != null ? String(values[i]).trim() : '';
+        }
+        return;
+      }
+      const obj: Record<string, any> = {};
+      for (let i = 1; i < headers.length; i++) {
+        const key = headers[i];
+        if (!key) continue;
+        obj[key] = cellToString(values[i]);
+      }
+      // Skip fully empty rows
+      if (Object.values(obj).some((v) => v !== '')) {
+        rows.push(obj as CSVCalculationRow);
+      }
+    });
+
+    return rows;
   }
 
   private async processCalculationRow(
-    row: CSVCalculationRow, 
-    userId: string, 
+    row: CSVCalculationRow,
+    userId: string,
     organizationId: string,
     rowNumber: number
   ): Promise<void> {
-    
+
     // Validate required fields
     if (!row.category) {
       throw new Error('Category is required');
     }
-    
+
     if (!row.value || isNaN(parseFloat(row.value))) {
       throw new Error('Valid numeric value is required');
     }
-    
+
     if (!row.unit) {
       throw new Error('Unit is required');
     }
-    
-    // Find category by name
-    const category = await EmissionCategory.findOne({
-      $or: [
-        { category: { $regex: new RegExp(row.category, 'i') } },
-        { _id: row.category }, // In case they use ID
-      ]
-    });
-    
+
+    // Find category by name (case-insensitive exact match), or by id if a valid
+    // ObjectId was supplied. The id branch is guarded so a plain name never gets
+    // cast to ObjectId (which previously threw and failed every import row).
+    const term = String(row.category).trim();
+    const orConditions: any[] = [
+      { category: { $regex: new RegExp(`^${escapeRegex(term)}$`, 'i') } },
+    ];
+    if (mongoose.isValidObjectId(term)) {
+      orConditions.push({ _id: term });
+    }
+    const category = await EmissionCategory.findOne({ $or: orConditions });
+
     if (!category) {
       throw new Error(`Category not found: ${row.category}`);
     }
-    
+
     // Prepare calculation input
     const calculationInput = {
       categoryId: category._id.toString(),
@@ -131,16 +180,16 @@ export class CSVService {
       userId,
       organizationId,
     };
-    
-    // Perform calculation
+
+    // Perform calculation (server-side, authoritative)
     const calculationResult = await calculationEngine.calculate(calculationInput);
-    
+
     // Create calculation record
     const calculationData = {
       organizationId,
       userId,
       title: `Imported - ${category.category}`,
-      description: row.notes || `Imported from CSV on ${new Date().toISOString()}`,
+      description: row.notes || `Imported from file on ${new Date().toISOString()}`,
       period: {
         start: row.period_start ? new Date(row.period_start) : new Date(),
         end: row.period_end ? new Date(row.period_end) : new Date(),
@@ -149,7 +198,7 @@ export class CSVService {
         categoryId: category._id,
         value: calculationResult.calculation.value,
         unit: calculationResult.calculation.unit,
-        factor: calculationResult.calculation.factor,
+        factor: calculationResult.factor?.value,
         emissions: calculationResult.calculation.emissions,
         notes: row.notes,
       }],
@@ -161,13 +210,13 @@ export class CSVService {
       },
       status: 'completed',
     };
-    
+
     await Calculation.create(calculationData);
   }
 
   private extractMetadata(row: CSVCalculationRow, category: any): Record<string, any> {
     const metadata: Record<string, any> = {};
-    
+
     // Extract dynamic fields based on category requirements
     if (category.requiredInputs) {
       category.requiredInputs.forEach((input: any) => {
@@ -177,20 +226,20 @@ export class CSVService {
         }
       });
     }
-    
+
     // Extract common metadata fields
     const metadataFields = [
       'location', 'supplier', 'source', 'method', 'quality',
       'distance', 'weight', 'passengers', 'fuel_type',
       'vehicle_type', 'accommodation_type', 'travel_class'
     ];
-    
+
     metadataFields.forEach(field => {
       if (row[field]) {
         metadata[field] = row[field];
       }
     });
-    
+
     return metadata;
   }
 
@@ -205,40 +254,40 @@ export class CSVService {
   ): Promise<string> {
     try {
       logger.info('Starting calculations export to CSV');
-      
+
       // Build query
       const query: any = { organizationId, status: 'completed' };
-      
+
       if (filters.startDate || filters.endDate) {
         query.createdAt = {};
         if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
         if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
       }
-      
+
       // Get calculations with populated data
       const calculations = await Calculation.find(query)
         .populate('data.categoryId')
         .sort({ createdAt: -1 })
         .lean();
-      
+
       // Generate CSV content
       const csvContent = await this.generateCSVContent(calculations, filters);
-      
+
       // Save to temporary file
       const fileName = `emissions_export_${Date.now()}.csv`;
       const filePath = path.join(process.cwd(), 'uploads', fileName);
-      
+
       // Ensure uploads directory exists
       const uploadsDir = path.dirname(filePath);
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      
-      fs.writeFileSync(filePath, csvContent);
-      
+
+      fs.writeFileSync(filePath, UTF8_BOM + csvContent, 'utf8');
+
       logger.info(`CSV export saved to: ${filePath}`);
       return fileName;
-      
+
     } catch (error) {
       logger.error('CSV export failed:', error);
       throw error;
@@ -259,23 +308,23 @@ export class CSVService {
       'Quality Rating',
       'Notes'
     ];
-    
+
     const rows: string[][] = [headers];
-    
+
     for (const calc of calculations) {
       for (const entry of calc.data) {
         const category = entry.categoryId;
-        
+
         // Apply scope filter
         if (filters.scopes && !filters.scopes.includes(category.scope)) {
           continue;
         }
-        
+
         // Apply category filter
         if (filters.categories && !filters.categories.includes(category._id.toString())) {
           continue;
         }
-        
+
         const row = [
           new Date(calc.createdAt).toISOString().split('T')[0],
           category.category || 'Unknown',
@@ -289,13 +338,13 @@ export class CSVService {
           'Medium',
           entry.notes || ''
         ];
-        
+
         rows.push(row);
       }
     }
-    
+
     // Convert to CSV format
-    return rows.map(row => 
+    return rows.map(row =>
       row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`)
          .join(',')
     ).join('\n');
@@ -304,7 +353,7 @@ export class CSVService {
   async exportTemplate(): Promise<string> {
     try {
       logger.info('Generating CSV import template');
-      
+
       const headers = [
         'category',
         'value',
@@ -318,7 +367,7 @@ export class CSVService {
         'fuel_type',
         'travel_class'
       ];
-      
+
       const sampleRows = [
         headers,
         [
@@ -361,84 +410,55 @@ export class CSVService {
           ''
         ]
       ];
-      
-      const csvContent = sampleRows.map(row => 
+
+      const csvContent = sampleRows.map(row =>
         row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`)
            .join(',')
       ).join('\n');
-      
+
       // Save template file
       const fileName = `carbonytics_import_template.csv`;
       const filePath = path.join(process.cwd(), 'uploads', fileName);
-      
+
       // Ensure uploads directory exists
       const uploadsDir = path.dirname(filePath);
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      
-      fs.writeFileSync(filePath, csvContent);
-      
+
+      fs.writeFileSync(filePath, UTF8_BOM + csvContent, 'utf8');
+
       logger.info(`CSV template saved to: ${filePath}`);
       return fileName;
-      
+
     } catch (error) {
       logger.error('CSV template generation failed:', error);
       throw error;
     }
   }
 
+  /** Validate an uploaded CSV or Excel file (shared row reader). */
   async validateCSV(filePath: string): Promise<{
     valid: boolean;
     rowCount: number;
     errors: string[];
     preview: any[];
   }> {
-    try {
-      const errors: string[] = [];
-      const preview: any[] = [];
-      let rowCount = 0;
-      
-      return new Promise((resolve, reject) => {
-        fs.createReadStream(filePath)
-          .pipe(csvParser())
-          .on('data', (row: any) => {
-            rowCount++;
-            
-            // Validate required columns
-            if (!row.category) {
-              errors.push(`Row ${rowCount}: Missing category`);
-            }
-            
-            if (!row.value || isNaN(parseFloat(row.value))) {
-              errors.push(`Row ${rowCount}: Invalid or missing value`);
-            }
-            
-            if (!row.unit) {
-              errors.push(`Row ${rowCount}: Missing unit`);
-            }
-            
-            // Add to preview (first 5 rows)
-            if (preview.length < 5) {
-              preview.push(row);
-            }
-          })
-          .on('end', () => {
-            resolve({
-              valid: errors.length === 0,
-              rowCount,
-              errors,
-              preview,
-            });
-          })
-          .on('error', (error) => {
-            reject(error);
-          });
-      });
-      
-    } catch (error) {
-      logger.error('CSV validation failed:', error);
-      throw error;
-    }
+    const errors: string[] = [];
+    const rows = await this.readRows(filePath);
+
+    rows.forEach((row, idx) => {
+      const n = idx + 2; // account for header row
+      if (!row.category) errors.push(`Row ${n}: Missing category`);
+      if (!row.value || isNaN(parseFloat(row.value))) errors.push(`Row ${n}: Invalid or missing value`);
+      if (!row.unit) errors.push(`Row ${n}: Missing unit`);
+    });
+
+    return {
+      valid: errors.length === 0,
+      rowCount: rows.length,
+      errors,
+      preview: rows.slice(0, 5),
+    };
   }
 }

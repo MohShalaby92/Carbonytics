@@ -21,6 +21,9 @@ export async function seedBasicData(): Promise<void> {
     
     // Seed Egyptian-specific emission factors
     await seedEgyptianFactors();
+
+    // Ensure every category has at least one (baseline) factor so all are calculable
+    await seedDefaultCategoryFactors();
     
     logger.info('Basic data seeding completed');
     
@@ -700,4 +703,64 @@ async function seedEgyptianFactors(): Promise<void> {
   }
 
   logger.info('Seeded Egyptian emission factors');
+}
+
+/**
+ * Baseline default factors so EVERY category is calculable in the app
+ * (only created for categories that don't already have a factor).
+ *
+ * NOTE: these are reasonable demo baselines (DEFRA/IPCC-style order of magnitude).
+ * They should be validated against authoritative GHG datasets before production use;
+ * spend-based and per-unit values in particular are rough estimates (qualityRating: low).
+ */
+async function seedDefaultCategoryFactors(): Promise<void> {
+  const defaults: Array<{
+    name: string; code: string; factor: number; unit: string; source: string; quality?: 'high' | 'medium' | 'low';
+  }> = [
+    // Scope 1
+    { name: 'Process Emissions', code: 'PROCESS_GENERIC', factor: 530, unit: 'kg CO2e/t', source: 'IPCC 2006', quality: 'low' },
+    { name: 'Fugitive Emissions', code: 'FUGITIVE_R410A', factor: 2088, unit: 'kg CO2e/kg', source: 'IPCC 2019' },
+    // Scope 2
+    { name: 'Purchased Steam', code: 'STEAM_GENERIC', factor: 0.27, unit: 'kg CO2e/kg', source: 'DEFRA 2024', quality: 'low' },
+    { name: 'Purchased Heat', code: 'HEAT_GENERIC', factor: 0.20, unit: 'kg CO2e/kWh', source: 'DEFRA 2024', quality: 'low' },
+    { name: 'Purchased Cooling', code: 'COOLING_GENERIC', factor: 0.20, unit: 'kg CO2e/kWh', source: 'DEFRA 2024', quality: 'low' },
+    // Scope 3
+    { name: 'Purchased Goods & Services', code: 'PGS_SPEND', factor: 0.0004, unit: 'kg CO2e/EGP', source: 'Estimate (spend-based)', quality: 'low' },
+    { name: 'Capital Goods', code: 'CAPGOODS_SPEND', factor: 0.0003, unit: 'kg CO2e/EGP', source: 'Estimate (spend-based)', quality: 'low' },
+    { name: 'Fuel & Energy Related', code: 'FERA_WTT', factor: 0.05, unit: 'kg CO2e/kWh', source: 'DEFRA 2024', quality: 'low' },
+    { name: 'Upstream Transport', code: 'UP_TRANSPORT', factor: 0.107, unit: 'kg CO2e/tkm', source: 'DEFRA 2024' },
+    { name: 'Business Travel', code: 'BTRAVEL_FLIGHT', factor: 0.158, unit: 'kg CO2e/km', source: 'DEFRA 2024' },
+    { name: 'Employee Commuting', code: 'COMMUTE_CAR', factor: 0.17, unit: 'kg CO2e/km', source: 'DEFRA 2024' },
+    { name: 'Upstream Leased Assets', code: 'UP_LEASED_ELEC', factor: 0.458, unit: 'kg CO2e/kWh', source: 'IEA Egypt' },
+    { name: 'Downstream Transport', code: 'DOWN_TRANSPORT', factor: 0.107, unit: 'kg CO2e/tkm', source: 'DEFRA 2024' },
+    { name: 'Processing of Sold Products', code: 'PROC_SOLD', factor: 1.0, unit: 'kg CO2e/unit', source: 'Estimate', quality: 'low' },
+    { name: 'Use of Sold Products', code: 'USE_SOLD', factor: 1.0, unit: 'kg CO2e/unit', source: 'Estimate', quality: 'low' },
+    { name: 'End-of-Life Treatment', code: 'EOL_LANDFILL', factor: 0.45, unit: 'kg CO2e/kg', source: 'DEFRA 2024', quality: 'low' },
+    { name: 'Downstream Leased Assets', code: 'DOWN_LEASED_ELEC', factor: 0.458, unit: 'kg CO2e/kWh', source: 'IEA Egypt' },
+    { name: 'Franchises', code: 'FRANCHISE_GENERIC', factor: 1000, unit: 'kg CO2e/franchise', source: 'Estimate', quality: 'low' },
+    { name: 'Investments', code: 'INVEST_SPEND', factor: 0.0004, unit: 'kg CO2e/EGP', source: 'Estimate (spend-based)', quality: 'low' },
+  ];
+
+  let created = 0;
+  for (const d of defaults) {
+    const category = await EmissionCategory.findOne({ category: d.name });
+    if (!category) continue;
+    const exists = await EmissionFactor.findOne({ categoryId: category._id });
+    if (exists) continue; // don't override richer factors (e.g. the Egyptian ones)
+    await EmissionFactor.create({
+      categoryId: category._id,
+      factorCode: d.code,
+      name: `${d.name} (baseline)`,
+      factor: d.factor,
+      unit: d.unit,
+      source: d.source,
+      region: 'global',
+      country: 'EG',
+      year: 2024,
+      qualityRating: d.quality || 'medium',
+      isDefault: true,
+    });
+    created++;
+  }
+  logger.info(`Seeded ${created} default category factors`);
 }
