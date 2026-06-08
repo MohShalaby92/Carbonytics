@@ -33,6 +33,9 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
     }
   };
 
+  const share = (value: number) =>
+    data.totalEmissions > 0 ? `${((value / data.totalEmissions) * 100).toFixed(1)}%` : '—';
+
   const metrics = [
     {
       title: 'Total Emissions',
@@ -44,21 +47,21 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
     {
       title: 'Scope 1',
       value: formatEmissions(data.scopeBreakdown[1] || 0),
-      change: `${((data.scopeBreakdown[1] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[1] || 0),
       trend: 'stable' as const,
       subtitle: 'Direct emissions',
     },
     {
       title: 'Scope 2',
       value: formatEmissions(data.scopeBreakdown[2] || 0),
-      change: `${((data.scopeBreakdown[2] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[2] || 0),
       trend: 'stable' as const,
       subtitle: 'Energy emissions',
     },
     {
       title: 'Scope 3',
       value: formatEmissions(data.scopeBreakdown[3] || 0),
-      change: `${((data.scopeBreakdown[3] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[3] || 0),
       trend: 'stable' as const,
       subtitle: 'Value chain emissions',
     },

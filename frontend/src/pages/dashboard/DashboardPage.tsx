@@ -10,6 +10,7 @@ import { TargetsProgress } from '../../pages/dashboard/TargetsProgress';
 import { QualityIndicators } from '../../pages/dashboard/QualityIndicators';
 import { useCalculations } from '../../hooks/useCalculations';
 import { calculationService } from '../../services/calculationService';
+import { apiService } from '../../services/api';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -40,11 +41,10 @@ export const DashboardPage: React.FC = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Calculate date range based on timeframe
+
+      // Current period range based on the selected timeframe.
       const endDate = new Date();
       const startDate = new Date();
-      
       switch (timeframe) {
         case 'month':
           startDate.setMonth(endDate.getMonth() - 1);
@@ -57,23 +57,38 @@ export const DashboardPage: React.FC = () => {
           break;
       }
 
-      // Load saved calculations from API
-      const savedCalculations = await calculationService.getCalculations({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        limit: 100,
-      }) as { data: any[] };
+      // Immediately-preceding period of equal length, for a real trend comparison.
+      const spanMs = endDate.getTime() - startDate.getTime();
+      const prevEnd = new Date(startDate.getTime());
+      const prevStart = new Date(startDate.getTime() - spanMs);
 
-      // Combine with session calculations
-      const allCalculations = [
-        ...savedCalculations.data || [],
-        ...sessionCalculations,
-      ];
+      // getCalculations() resolves to the calculations ARRAY (not an object).
+      const [current, previous, categoriesResp] = await Promise.all([
+        calculationService.getCalculations({
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          limit: 100,
+        }),
+        calculationService.getCalculations({
+          startDate: prevStart.toISOString(),
+          endDate: prevEnd.toISOString(),
+          limit: 100,
+        }),
+        apiService.get<any[]>('/emission-categories').then((r) => r?.data ?? []).catch(() => []),
+      ]);
 
-      // Process dashboard data
-      const processedData = processDashboardData(allCalculations);
-      setDashboardData(processedData);
+      const currentCalcs = Array.isArray(current) ? current : [];
+      const previousCalcs = Array.isArray(previous) ? previous : [];
 
+      // Map category id -> name for the category breakdown.
+      const catMap: Record<string, string> = {};
+      (Array.isArray(categoriesResp) ? categoriesResp : []).forEach((c: any) => {
+        const id = (c._id || c.id || '').toString();
+        if (id) catMap[id] = c.category || 'Other';
+      });
+
+      const allCalculations = [...currentCalcs, ...sessionCalculations];
+      setDashboardData(processDashboardData(allCalculations, previousCalcs, catMap));
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -81,29 +96,60 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const processDashboardData = (calculations: any[]) => {
-    const totalEmissions = calculations.reduce((sum, calc) => sum + (calc.emissions?.total || calc.emissions || 0), 0);
-    
-    const scopeBreakdown = calculations.reduce((acc, calc) => {
-      const scope = calc.category?.scope || calc.scope || 1;
-      const emissions = calc.emissions?.total || calc.emissions || 0;
-      acc[scope] = (acc[scope] || 0) + emissions;
-      return acc;
-    }, {} as Record<number, number>);
+  const sumTotals = (calcs: any[]): number =>
+    calcs.reduce(
+      (sum, calc) =>
+        sum + (calc.emissions?.total ?? (typeof calc.emissions === 'number' ? calc.emissions : 0)),
+      0
+    );
 
+  const processDashboardData = (
+    calculations: any[],
+    previousCalcs: any[] = [],
+    catMap: Record<string, string> = {}
+  ) => {
+    const totalEmissions = sumTotals(calculations);
+
+    // Scope totals come from each calculation's authoritative emissions object.
+    const scopeBreakdown = calculations.reduce(
+      (acc, calc) => {
+        const e = calc.emissions || {};
+        acc[1] += e.scope1 || 0;
+        acc[2] += e.scope2 || 0;
+        acc[3] += e.scope3 || 0;
+        return acc;
+      },
+      { 1: 0, 2: 0, 3: 0 } as Record<number, number>
+    );
+
+    // Category totals come from each calculation's entries.
     const categoryBreakdown = calculations.reduce((acc, calc) => {
-      const category = calc.category?.name || calc.category || 'Unknown';
-      const emissions = calc.emissions?.total || calc.emissions || 0;
-      acc[category] = (acc[category] || 0) + emissions;
+      const entries = Array.isArray(calc.data) ? calc.data : [];
+      entries.forEach((entry: any) => {
+        const id = (entry.categoryId?._id || entry.categoryId || '').toString();
+        const name = catMap[id] || entry.categoryId?.category || 'Other';
+        acc[name] = (acc[name] || 0) + (entry.emissions || 0);
+      });
       return acc;
     }, {} as Record<string, number>);
 
-    // Calculate trends (mock data for now)
+    // Real trend vs the previous period (guarded against divide-by-zero).
+    const prevTotal = sumTotals(previousCalcs);
+    let changePercent = 0;
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    if (prevTotal > 0) {
+      changePercent = ((totalEmissions - prevTotal) / prevTotal) * 100;
+      trend = changePercent > 0.5 ? 'up' : changePercent < -0.5 ? 'down' : 'stable';
+    } else if (totalEmissions > 0) {
+      changePercent = 100;
+      trend = 'up';
+    }
+
     const trends = {
       thisMonth: totalEmissions,
-      lastMonth: totalEmissions * 0.9, // 10% reduction (example)
-      changePercent: 10,
-      trend: 'down' as 'up' | 'down' | 'stable',
+      lastMonth: prevTotal,
+      changePercent: Math.round(changePercent * 10) / 10,
+      trend,
     };
 
     return {
