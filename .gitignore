@@ -66,7 +66,8 @@ dist
 
 # Gatsby files
 .cache/
-public
+# Anchored to repo root so it doesn't clobber frontend/public (SPA assets, theme-init.js)
+/public
 
 # Storybook build outputs
 .out
@@ -104,7 +105,7 @@ logs
 *.db
 
 # Docker
-.dockerignore
+# (.dockerignore files are intentionally tracked — do not ignore them)
 
 # Testing
 coverage/
@@ -114,6 +115,8 @@ coverage/
 *.backup
 *.bak
 
-# Lock files (keep yarn.lock if using yarn)
+# Lock files: commit per-package lockfiles for reproducible installs (npm ci); ignore any root workspace lockfile.
 package-lock.json
+!backend/package-lock.json
+!frontend/package-lock.json
 .env.production
