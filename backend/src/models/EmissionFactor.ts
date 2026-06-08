@@ -44,17 +44,9 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     type: String,
     required: [true, 'Source is required'],
     trim: true,
-    enum: [
-      'DEFRA 2024',
-      'IPCC 2006',
-      'IPCC 2019',
-      'EPA 2024',
-      'IEA Egypt',
-      'EEHC Egypt',
-      'CAPMAS Egypt',
-      'Custom',
-      'Other',
-    ],
+    // Provenance is free-text: seed/import data legitimately uses sources beyond a
+    // fixed list (e.g. 'IEA Egypt/EEHC', 'DEFRA equivalent', 'Local factors').
+    // Standardize against the real source spreadsheets in a later accuracy pass.
   },
   sourceUrl: String,
   sourceDocument: String,

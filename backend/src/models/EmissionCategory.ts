@@ -1,6 +1,21 @@
 import mongoose, { Schema } from 'mongoose';
 import { IEmissionCategory } from '../types';
 
+// Sub-schema for a single required input (a form-field definition).
+// `typeKey: '$type'` keeps a real field literally named `type` (the input's data
+// type) instead of letting Mongoose treat it as the SchemaType keyword — without
+// this, `requiredInputs` collapses to `[String]` and persisting the input objects
+// fails (this broke seeding).
+const requiredInputSchema = new Schema(
+  {
+    field: String,
+    type: String, // 'number' | 'text' | 'date' | 'select'
+    required: Boolean,
+    options: [String], // for select fields
+  },
+  { _id: false, typeKey: '$type' }
+);
+
 const emissionCategorySchema = new Schema<IEmissionCategory>({
   scope: {
     type: Number,
@@ -44,28 +59,11 @@ const emissionCategorySchema = new Schema<IEmissionCategory>({
     default: 'medium',
     index: true,
   },
-  // Industries where this category is relevant
-  industries: [{
-    type: String,
-    enum: [
-      'Technology/Software',
-      'Manufacturing',
-      'Financial Services',
-      'Healthcare',
-      'Education',
-      'Retail/E-commerce',
-      'Construction',
-      'Transportation',
-      'Energy/Utilities',
-      'Tourism/Hospitality',
-      'Agriculture',
-      'Oil & Gas',
-      'Cement',
-      'Steel & Metals',
-      'Chemical & Petrochemical',
-      'Other',
-    ],
-  }],
+  // Industries where this category is relevant. This is a loose relevance-tagging
+  // vocabulary that intentionally exceeds the organization industry list (e.g.
+  // 'Logistics', 'All Industries'), so it is NOT constrained to a fixed enum.
+  // (See note: align org/category/benchmark industry vocabularies in a later pass.)
+  industries: [{ type: String, trim: true }],
   // Egyptian market considerations
   egyptianContext: {
     relevance: {
@@ -82,12 +80,7 @@ const emissionCategorySchema = new Schema<IEmissionCategory>({
     enum: ['direct', 'activity_based', 'spend_based', 'hybrid'],
     required: true,
   },
-  requiredInputs: [{
-    field: String,
-    type: String, // 'number', 'text', 'date', 'select'
-    required: Boolean,
-    options: [String], // For select fields
-  }],
+  requiredInputs: [requiredInputSchema],
   isActive: {
     type: Boolean,
     default: true,
