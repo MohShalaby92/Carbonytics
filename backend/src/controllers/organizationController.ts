@@ -25,10 +25,35 @@ export const getOrganization = asyncHandler(async (req: AuthenticatedRequest, re
     country: organization.country,
     size: organization.size,
     settings: organization.settings,
+    targets: organization.targets || [],
     isActive: organization.isActive,
     createdAt: organization.createdAt,
     updatedAt: organization.updatedAt,
   });
+});
+
+/** Replace the organization's emission-reduction targets (admin/manager). */
+export const updateOrganizationTargets = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const { targets } = req.body;
+  if (!Array.isArray(targets)) {
+    return ApiResponseUtil.error(res, 'targets must be an array', 400);
+  }
+
+  const organization = await Organization.findByIdAndUpdate(
+    req.user.organizationId,
+    { targets },
+    { new: true, runValidators: true }
+  );
+
+  if (!organization) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  ApiResponseUtil.success(res, { targets: organization.targets || [] }, 'Targets updated successfully');
 });
 
 export const updateOrganization = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

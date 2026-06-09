@@ -200,6 +200,7 @@ export class CSVService {
         unit: calculationResult.calculation.unit,
         factor: calculationResult.factor?.value,
         emissions: calculationResult.calculation.emissions,
+        quality: calculationResult.quality?.rating,
         notes: row.notes,
       }],
       emissions: {

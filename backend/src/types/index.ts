@@ -36,6 +36,14 @@ export interface IOrganization extends Document {
     timezone: string;
     language: string;
   };
+  targets?: Array<{
+    name: string;
+    description?: string;
+    baselineYear: number;
+    baselineEmissions: number; // kg CO2e in the baseline year
+    targetYear: number;
+    targetReduction: number; // percent vs baseline (100 = net zero)
+  }>;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -102,6 +110,7 @@ export interface IEmissionFactor extends Document {
   qualityRating?: string;
   uncertainty?: number;
   isActive: boolean;
+  organizationId?: Types.ObjectId; // set for org-scoped custom factors
   metadata?: Record<string, any>;
   egyptianData?: {
     adjustmentFactor?: number;
@@ -209,6 +218,7 @@ export interface ICalculationEntry {
   unit: string;
   factor: number;
   emissions: number;
+  quality?: 'high' | 'medium' | 'low';
   notes?: string;
 }
 

@@ -36,6 +36,13 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
     }
   };
 
+  // A saved calculation can span several scopes — show a chip for each non-zero one.
+  const getScopes = (calc: any): number[] => {
+    const e = calc.emissions || {};
+    const scopes = [1, 2, 3].filter((s) => (e[`scope${s}`] || 0) > 0);
+    return scopes.length > 0 ? scopes : [];
+  };
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -47,14 +54,16 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
 
       <div className="space-y-3">
         {recentCalcs.map((calc, index) => (
-          <div key={index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
-            <div className="flex-1">
+          <div key={calc.id || calc._id || index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2 mb-1">
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getScopeColor(calc.category?.scope || calc.scope || 1)}`}>
-                  Scope {calc.category?.scope || calc.scope || 1}
-                </span>
+                {getScopes(calc).map((s) => (
+                  <span key={s} className={`px-2 py-0.5 text-xs font-medium rounded-full ${getScopeColor(s)}`}>
+                    S{s}
+                  </span>
+                ))}
                 <span className="text-sm font-medium text-fg truncate">
-                  {calc.category?.name || calc.category || 'Unknown Category'}
+                  {calc.title || 'Untitled calculation'}
                 </span>
               </div>
               <div className="flex items-center space-x-2 text-xs text-muted">
@@ -62,21 +71,15 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
                 <span>
                   {calc.createdAt ? format(new Date(calc.createdAt), 'MMM dd, HH:mm') : 'Just now'}
                 </span>
+                {Array.isArray(calc.data) && (
+                  <span>· {calc.data.length} {calc.data.length === 1 ? 'entry' : 'entries'}</span>
+                )}
               </div>
             </div>
             <div className="text-right ml-3">
               <p className="text-sm font-medium text-fg">
-                {formatEmissions(calc.emissions?.total || calc.emissions || 0)}
+                {formatEmissions(calc.emissions?.total || 0)}
               </p>
-              {calc.quality?.rating && (
-                <span className={`text-xs px-1.5 py-0.5 rounded ${
-                  calc.quality.rating === 'high' ? 'bg-green-500/15 text-green-700 dark:text-green-300' :
-                  calc.quality.rating === 'medium' ? 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300' :
-                  'bg-red-500/15 text-red-700 dark:text-red-300'
-                }`}>
-                  {calc.quality.rating}
-                </span>
-              )}
             </div>
           </div>
         ))}

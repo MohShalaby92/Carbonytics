@@ -4,6 +4,13 @@ import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { cache } from '../middleware/cache';
 
+// .lean() bypasses the model's toJSON transform, so the `id` field the frontend
+// relies on never gets added. Re-add it here for every lean result.
+const withId = <T extends { _id: any }>(doc: T): T & { id: string } => ({
+  ...doc,
+  id: doc._id.toString(),
+});
+
 export const getEmissionCategories = asyncHandler(async (req: Request, res: Response) => {
   const { scope, industry, priority, search } = req.query;
   
@@ -29,9 +36,11 @@ export const getEmissionCategories = asyncHandler(async (req: Request, res: Resp
     ];
   }
 
-  const categories = await EmissionCategory.find(filter)
-    .sort({ scope: 1, displayOrder: 1, category: 1 })
-    .lean();
+  const categories = (
+    await EmissionCategory.find(filter)
+      .sort({ scope: 1, displayOrder: 1, category: 1 })
+      .lean()
+  ).map(withId);
 
   // Group by scope for better organization
   const groupedCategories = categories.reduce((acc, category) => {
@@ -52,12 +61,12 @@ export const getCategoryById = asyncHandler(async (req: Request, res: Response) 
   const { id } = req.params;
   
   const category = await EmissionCategory.findById(id).lean();
-  
+
   if (!category) {
     return ApiResponseUtil.error(res, 'Category not found', 404);
   }
 
-  ApiResponseUtil.success(res, category);
+  ApiResponseUtil.success(res, withId(category));
 });
 
 export const getCategoriesByScope = asyncHandler(async (req: Request, res: Response) => {
@@ -68,12 +77,14 @@ export const getCategoriesByScope = asyncHandler(async (req: Request, res: Respo
     return ApiResponseUtil.error(res, 'Invalid scope. Must be 1, 2, or 3', 400);
   }
 
-  const categories = await EmissionCategory.find({ 
-    scope: scopeNumber, 
-    isActive: true 
-  })
-    .sort({ displayOrder: 1, category: 1 })
-    .lean();
+  const categories = (
+    await EmissionCategory.find({
+      scope: scopeNumber,
+      isActive: true,
+    })
+      .sort({ displayOrder: 1, category: 1 })
+      .lean()
+  ).map(withId);
 
   ApiResponseUtil.success(res, {
     scope: scopeNumber,
@@ -97,7 +108,7 @@ export const getCategoriesForIndustry = asyncHandler(async (req: Request, res: R
 
   // Add relevance scoring for the industry
   const categoriesWithRelevance = categories.map(category => ({
-    ...category,
+    ...withId(category),
     relevance: Array.isArray(category.industries) && category.industries.includes(industry) ? 'high' : 'medium',
   }));
 

@@ -13,6 +13,16 @@ import { EmissionCategory, EmissionFactor, CalculationResult } from '../../types
 import { formatEmissions } from '../../utils/calculations';
 import { Calculator, Zap, Truck, Factory } from 'lucide-react';
 
+// Category requiredInputs that duplicate the form's own base fields. Rendering
+// them twice bound the same form path twice (and the 'period' one clobbered the
+// period {start,end} object, breaking validation), so they are skipped.
+const RESERVED_INPUT_FIELDS = ['unit', 'period', 'value'];
+
+const dynamicInputs = (category: EmissionCategory | null) =>
+  (category?.requiredInputs || []).filter(
+    (input) => !RESERVED_INPUT_FIELDS.includes(input.field)
+  );
+
 // Dynamic schema builder based on category requirements
 const buildValidationSchema = (category: EmissionCategory) => {
   const baseSchema = {
@@ -28,8 +38,8 @@ const buildValidationSchema = (category: EmissionCategory) => {
 
   // Add dynamic fields based on category requirements
   const dynamicFields: any = {};
-  
-  category.requiredInputs?.forEach(input => {
+
+  dynamicInputs(category).forEach(input => {
     if (input.required) {
       if (input.type === 'number') {
         dynamicFields[input.field] = z.number().positive();
@@ -74,9 +84,15 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const [selectedCategory, setSelectedCategory] = useState<EmissionCategory | null>(null);
   const [categories, setCategories] = useState<EmissionCategory[]>([]);
   const [availableFactors, setAvailableFactors] = useState<EmissionFactor[]>([]);
+  const [selectedFactorId, setSelectedFactorId] = useState<string>('');
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  // Inline "add custom factor" mini-form
+  const [showCustomFactor, setShowCustomFactor] = useState(false);
+  const [customFactor, setCustomFactor] = useState({ name: '', factor: '', unit: '', source: '' });
+  const [customFactorError, setCustomFactorError] = useState<string | null>(null);
+  const [customFactorSaving, setCustomFactorSaving] = useState(false);
 
   // Dynamic form setup
   const emptySchema = z.object({
@@ -98,6 +114,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     handleSubmit,
     watch,
     setValue,
+    getValues,
     reset,
     formState: { errors },
   } = useForm<FormData>({
@@ -123,6 +140,14 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     loadCategories();
   }, []);
 
+  // Keep the form in sync when a category is picked in the sidebar selector.
+  useEffect(() => {
+    if (categoryId && categoryId !== watchedCategoryId) {
+      setValue('categoryId', categoryId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryId]);
+
   // Load category details when selected
   useEffect(() => {
     if (watchedCategoryId) {
@@ -130,12 +155,13 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     }
   }, [watchedCategoryId]);
 
-  // Real-time calculation
+  // Real-time calculation (re-runs when the chosen factor changes too)
   useEffect(() => {
     if (selectedCategory && watchedValue > 0 && watchedUnit) {
       performCalculation();
     }
-  }, [watchedValue, watchedUnit, selectedCategory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedValue, watchedUnit, selectedCategory, selectedFactorId]);
 
   const loadCategories = async () => {
     try {
@@ -169,7 +195,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
       if (categoryResponse.success && categoryResponse.data) {
         setSelectedCategory(categoryResponse.data);
-        
+
         // Set default unit
         if (categoryResponse.data.baseUnit) {
           setValue('unit', categoryResponse.data.baseUnit);
@@ -177,10 +203,61 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
       }
 
       if (factorsResponse.success && factorsResponse.data) {
-        setAvailableFactors(factorsResponse.data.factors);
+        const factors = factorsResponse.data.factors || [];
+        setAvailableFactors(factors);
+        // Preselect the first factor (custom org factors come first, then
+        // Egyptian, then global — matching the backend's ordering).
+        setSelectedFactorId((factors[0] as any)?.id || '');
       }
+      setCalculationResult(null);
     } catch (error) {
       console.error('Failed to load category details:', error);
+    }
+  };
+
+  /** Metadata payload from the category-specific dynamic fields. */
+  const collectMetadata = (): Record<string, any> => {
+    const all = getValues() as any;
+    const metadata: Record<string, any> = {};
+    dynamicInputs(selectedCategory).forEach((input) => {
+      const v = all[input.field];
+      if (v !== undefined && v !== '' && !(typeof v === 'number' && isNaN(v))) {
+        metadata[input.field] = v;
+      }
+    });
+    return metadata;
+  };
+
+  const handleCreateCustomFactor = async () => {
+    if (!selectedCategory) return;
+    if (!customFactor.name.trim() || !customFactor.factor || !customFactor.unit.trim()) {
+      setCustomFactorError('Name, factor value and unit are required.');
+      return;
+    }
+    try {
+      setCustomFactorSaving(true);
+      setCustomFactorError(null);
+      const response = await apiService.post<any>('/emission-factors', {
+        categoryId: selectedCategory.id,
+        name: customFactor.name.trim(),
+        factor: parseFloat(customFactor.factor),
+        unit: customFactor.unit.trim(),
+        source: customFactor.source.trim() || 'Custom',
+      });
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to create factor');
+      }
+      // Reload the factor list and select the new factor.
+      await loadCategoryDetails(selectedCategory.id);
+      setSelectedFactorId(response.data.id);
+      setShowCustomFactor(false);
+      setCustomFactor({ name: '', factor: '', unit: '', source: '' });
+    } catch (error: any) {
+      setCustomFactorError(
+        error?.response?.data?.message || error?.message || 'Failed to create factor'
+      );
+    } finally {
+      setCustomFactorSaving(false);
     }
   };
 
@@ -189,11 +266,13 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
     try {
       setCalculating(true);
-      
+
       const calculationData = {
         categoryId: selectedCategory.id,
         value: watchedValue,
         unit: watchedUnit,
+        ...(selectedFactorId ? { factorId: selectedFactorId } : {}),
+        metadata: collectMetadata(),
       };
 
       const response = await apiService.post<CalculationResult>('/calculations/calculate', calculationData);
@@ -210,15 +289,27 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   };
 
   const onSubmit = async (data: any) => {
-    if (!calculationResult) {
+    if (!calculationResult || !selectedCategory) {
       await performCalculation();
       return;
     }
 
-    // Save the calculation
+    // Hand a complete entry to the page: enough to display in the summary AND to
+    // persist via POST /calculations (which recomputes server-side).
     const calculationEntry = {
-      ...calculationResult.calculation,
-      ...data,
+      categoryId: selectedCategory.id,
+      value: data.value,
+      unit: data.unit,
+      ...(selectedFactorId ? { factorId: selectedFactorId } : {}),
+      metadata: collectMetadata(),
+      notes: data.notes,
+      period: data.period,
+      emissions: calculationResult.calculation.emissions,
+      factor: calculationResult.factor.value,
+      factorName: calculationResult.factor.name,
+      factorUnit: calculationResult.factor.unit,
+      quality: calculationResult.quality?.rating,
+      category: { category: selectedCategory.category, scope: selectedCategory.scope },
       timestamp: new Date().toISOString(),
     };
 
@@ -318,6 +409,105 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           </Alert>
         )}
 
+        {/* Emission Factor selection */}
+        {selectedCategory && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-fg/80">
+                Emission Factor
+              </label>
+              <button
+                type="button"
+                onClick={() => { setShowCustomFactor((v) => !v); setCustomFactorError(null); }}
+                className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+              >
+                {showCustomFactor ? 'Cancel custom factor' : '+ Add custom factor'}
+              </button>
+            </div>
+
+            {availableFactors.length > 0 ? (
+              <>
+                <Select
+                  value={selectedFactorId}
+                  onChange={(e) => setSelectedFactorId(e.target.value)}
+                >
+                  {availableFactors.map((f: any) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} — {f.factor} {f.unit}
+                      {f.organizationId ? ' (custom)' : ''}
+                    </option>
+                  ))}
+                </Select>
+                {(() => {
+                  const f: any = availableFactors.find((x: any) => x.id === selectedFactorId);
+                  if (!f) return null;
+                  return (
+                    <div className="text-xs text-muted flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                      <span>
+                        Factor: <span className="font-medium text-fg/80">{f.factor} {f.unit}</span>
+                      </span>
+                      <span>Source: {f.source}{f.year ? ` (${f.year})` : ''}</span>
+                      {f.region && <span>Region: {f.region}</span>}
+                      {f.qualityRating && <span>Quality: {f.qualityRating}</span>}
+                      {f.organizationId && (
+                        <span className="text-primary-600 dark:text-primary-300">Custom (your organization)</span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <p className="text-xs text-muted">
+                No factors available for this category yet — add a custom factor to proceed.
+              </p>
+            )}
+
+            {showCustomFactor && (
+              <div className="mt-2 p-3 border border-line rounded-lg space-y-3 bg-fg/[0.02]">
+                <p className="text-xs text-muted">
+                  Define your own factor for this category (admin/manager only). It will be
+                  available to your organization and used for this calculation.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Factor name (e.g. Supplier-specific electricity)"
+                    value={customFactor.name}
+                    onChange={(e) => setCustomFactor({ ...customFactor, name: e.target.value })}
+                  />
+                  <Input
+                    type="number"
+                    step="0.00001"
+                    placeholder="Factor value (e.g. 0.42)"
+                    value={customFactor.factor}
+                    onChange={(e) => setCustomFactor({ ...customFactor, factor: e.target.value })}
+                  />
+                  <Input
+                    placeholder={`Unit (e.g. kg CO2e/${selectedCategory.baseUnit || 'unit'})`}
+                    value={customFactor.unit}
+                    onChange={(e) => setCustomFactor({ ...customFactor, unit: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Source (optional, defaults to 'Custom')"
+                    value={customFactor.source}
+                    onChange={(e) => setCustomFactor({ ...customFactor, source: e.target.value })}
+                  />
+                </div>
+                {customFactorError && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{customFactorError}</p>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateCustomFactor}
+                  loading={customFactorSaving}
+                >
+                  Save Factor
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Dynamic Input Fields */}
         {selectedCategory && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -366,8 +556,8 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               />
             </div>
 
-            {/* Dynamic Category-Specific Fields */}
-            {selectedCategory.requiredInputs?.map(input => (
+            {/* Dynamic Category-Specific Fields (base fields like unit/period excluded) */}
+            {dynamicInputs(selectedCategory).map(input => (
               <div key={input.field} className="space-y-2">
                 <label className="block text-sm font-medium text-fg/80">
                   {input.field.charAt(0).toUpperCase() + input.field.slice(1).replace(/([A-Z])/g, ' $1')}
@@ -377,9 +567,12 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   name={input.field as any}
                   control={control}
                   render={({ field }) => {
+                    // Dynamic fields have no default value; coerce undefined to ''
+                    // so the input stays controlled for its whole lifetime.
+                    const value = (field.value as any) ?? '';
                     if (input.type === 'select' && input.options) {
                       return (
-                        <Select {...field} error={(errors as any)[input.field]?.message}>
+                        <Select {...field} value={value} error={(errors as any)[input.field]?.message}>
                           <option value="">Select...</option>
                           {input.options.map(option => (
                             <option key={option} value={option}>{option}</option>
@@ -390,6 +583,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          value={value}
                           type="number"
                           step="0.01"
                           error={(errors as any)[input.field]?.message}
@@ -400,6 +594,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          value={value}
                           type="date"
                           error={(errors as any)[input.field]?.message}
                         />
@@ -408,6 +603,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          value={value}
                           type="text"
                           error={(errors as any)[input.field]?.message}
                         />

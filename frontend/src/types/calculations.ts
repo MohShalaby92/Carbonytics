@@ -40,11 +40,18 @@ export interface CalculationEntry {
       source: string;
       year: number;
       region: string;
+      uncertainty?: number;
     };
     category: {
       id: string;
       name: string;
       scope: number;
+    };
+    // Data-quality assessment from the calculation engine.
+    quality?: {
+      rating: 'high' | 'medium' | 'low';
+      confidence?: number;
+      notes?: string[];
     };
   }
   

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -10,7 +11,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', loading, children, disabled, ...props }, ref) => {
+  ({ className, variant = 'primary', size = 'md', href, loading, children, disabled, ...props }, ref) => {
     const baseClasses =
       'inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]';
 
@@ -27,6 +28,23 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       md: 'h-10 px-4 text-sm',
       lg: 'h-12 px-7 text-base',
     };
+
+    // With href, render a client-side router link styled as a button
+    // (previously href was silently dropped, leaving navigation buttons dead).
+    if (href && !disabled && !loading) {
+      const { type: _type, onClick, ...anchorProps } = props as any;
+      return (
+        <Link
+          to={href}
+          className={cn(baseClasses, variants[variant], sizes[size], className)}
+          style={{ ['--tw-ring-color' as any]: 'rgb(var(--ring) / 0.55)' }}
+          onClick={onClick}
+          {...anchorProps}
+        >
+          {children}
+        </Link>
+      );
+    }
 
     return (
       <button

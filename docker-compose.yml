@@ -53,6 +53,9 @@ services:
       # Served over http://localhost locally, so cookies must NOT be Secure-only.
       - COOKIE_SECURE=false
       - CLIENT_URL=http://localhost:8080
+      # The default global limit (100 req / 15 min / IP) is too tight for an
+      # interactive SPA (the dashboard alone makes several calls per load).
+      - RATE_LIMIT_MAX=1000
     depends_on:
       mongo:
         condition: service_healthy

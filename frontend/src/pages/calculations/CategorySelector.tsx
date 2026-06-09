@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/api';
 import { EmissionCategory } from '../../types';
 import { cn } from '../../utils/cn';
-import { Factory, Zap, Truck, ChevronDown, ChevronRight } from 'lucide-react';
+import { Factory, Zap, Truck, ChevronDown, ChevronRight, HelpCircle } from 'lucide-react';
 
 interface CategorySelectorProps {
   onCategorySelect: (categoryId: string) => void;
@@ -16,6 +16,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
   const [categories, setCategories] = useState<Record<string, EmissionCategory[]>>({});
   const [loading, setLoading] = useState(true);
   const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set([1, 2, 3]));
+  const [showPriorityHelp, setShowPriorityHelp] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -89,6 +90,35 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
 
   return (
     <div className="space-y-3">
+      {/* Priority legend */}
+      <div className="flex items-center justify-between text-xs text-muted">
+        <span>Pick a category to start calculating</span>
+        <button
+          type="button"
+          onClick={() => setShowPriorityHelp((v) => !v)}
+          className="flex items-center gap-1 hover:text-fg transition-colors"
+          aria-label="What do the priority flags mean?"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          priority flags
+        </button>
+      </div>
+      {showPriorityHelp && (
+        <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300 space-y-1">
+          <p className="font-medium">What do high / medium / low mean?</p>
+          <p>
+            The flag is the category's typical <strong>materiality</strong> — how much it
+            usually contributes to an organization's footprint and how important it is to
+            measure first. It is not a data-quality rating.
+          </p>
+          <ul className="list-disc ml-4 space-y-0.5">
+            <li><span className="font-medium">high</span> — usually a major source; measure these first.</li>
+            <li><span className="font-medium">medium</span> — relevant for many organizations.</li>
+            <li><span className="font-medium">low</span> — niche; include for completeness.</li>
+          </ul>
+        </div>
+      )}
+
       {[1, 2, 3].map(scope => {
         const scopeKey = `scope${scope}`;
         const scopeCategories = categories[scopeKey] || [];
@@ -112,7 +142,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-medium bg-surface bg-opacity-50 px-2 py-1 rounded">
+                <span className="text-xs font-medium bg-surface/60 px-2 py-1 rounded">
                   {scopeCategories.length}
                 </span>
                 {isExpanded ? (
@@ -132,7 +162,8 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                     onClick={() => onCategorySelect(category.id)}
                     className={cn(
                       'w-full px-4 py-3 text-left hover:bg-fg/[0.04] transition-colors border-b border-line last:border-b-0',
-                      selectedCategoryId === category.id && 'bg-primary-50 border-primary-200'
+                      // Token-based selected state (the old bg-primary-50 was light-mode only)
+                      selectedCategoryId === category.id && 'bg-brand/10 ring-1 ring-inset ring-brand/30'
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -143,11 +174,23 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                         <p className="text-xs text-muted mt-1 line-clamp-2">
                           {category.description}
                         </p>
-                        {category.subcategory && (
-                          <span className="inline-block text-xs text-muted bg-fg/[0.06] px-2 py-1 rounded mt-2">
-                            {category.subcategory}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span
+                            className="inline-block text-xs text-muted bg-fg/[0.06] px-2 py-0.5 rounded"
+                            title={
+                              category.allowedUnits && category.allowedUnits.length > 0
+                                ? `Accepted units: ${category.allowedUnits.map((u) => u.unit).join(', ')}`
+                                : undefined
+                            }
+                          >
+                            Unit: {category.baseUnit}
                           </span>
-                        )}
+                          {category.subcategory && (
+                            <span className="inline-block text-xs text-muted bg-fg/[0.06] px-2 py-0.5 rounded">
+                              {category.subcategory}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="ml-3 text-right">
                         <span className={cn(

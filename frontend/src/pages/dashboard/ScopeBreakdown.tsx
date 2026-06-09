@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card } from '../../components/ui/Card';
+import { ChartContainer } from '../../components/ui/ChartContainer';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { formatEmissions } from '../../utils/calculations';
 
@@ -24,34 +25,56 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
 
   const total = Object.values(data).reduce((sum, value) => sum + value, 0);
 
+  const ThemedTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-surface p-3 border border-line rounded-lg shadow-lg">
+          <p className="font-medium text-fg">{payload[0].name}</p>
+          <p className="text-primary-600">{formatEmissions(Number(payload[0].value))}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold text-fg mb-6">Emissions by Scope</h3>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                formatter={(value) => [formatEmissions(Number(value)), 'Emissions']}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartContainer className="h-64">
+          {total > 0 ? (
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={0}
+              minHeight={220}
+              initialDimension={{ width: 400, height: 240 }}
+            >
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ThemedTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-sm text-muted">
+              No emissions in this period yet
+            </div>
+          )}
+        </ChartContainer>
 
         {/* Breakdown List */}
         <div className="space-y-4">

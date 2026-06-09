@@ -189,6 +189,7 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       unit: computed.calculation.unit,
       factor: computed.factor.value,
       emissions: computed.calculation.emissions,
+      quality: computed.quality?.rating,
       notes: calc.notes,
     };
 

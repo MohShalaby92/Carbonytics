@@ -3,6 +3,25 @@ import { EmissionFactor } from '../models/EmissionFactor';
 import { EmissionCategory } from '../models/EmissionCategory';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
+import { AuthenticatedRequest } from '../types';
+
+// .lean() bypasses the model's toJSON transform, so re-add the `id` field the
+// frontend relies on.
+const withId = <T extends { _id: any }>(doc: T): T & { id: string } => ({
+  ...doc,
+  id: doc._id.toString(),
+});
+
+/**
+ * Visibility filter for factors: shared factors (no organizationId) are visible to
+ * everyone; an organization's custom factors are visible only to that organization.
+ */
+const visibleToOrg = (req: Request): any[] => {
+  const orgId = (req as AuthenticatedRequest).user?.organizationId;
+  const scope: any[] = [{ organizationId: { $exists: false } }, { organizationId: null }];
+  if (orgId) scope.push({ organizationId: orgId });
+  return scope;
+};
 
 export const getEmissionFactors = asyncHandler(async (req: Request, res: Response) => {
   const { 
@@ -32,6 +51,9 @@ export const getEmissionFactors = asyncHandler(async (req: Request, res: Respons
     // generic (global) factors still appear under the default 'egypt' view.
     filter.region = region === 'global' ? 'global' : { $in: [region as string, 'global'] };
   }
+
+  // Shared factors + this organization's custom factors only.
+  filter.$or = visibleToOrg(req);
 
   if (year) {
     filter.year = parseInt(year as string);
@@ -63,7 +85,7 @@ export const getEmissionFactors = asyncHandler(async (req: Request, res: Respons
     EmissionFactor.countDocuments(filter),
   ]);
 
-  ApiResponseUtil.paginated(res, factors, pageNum, limitNum, total);
+  ApiResponseUtil.paginated(res, factors.map(withId), pageNum, limitNum, total);
 });
 
 export const getFactorsByCategory = asyncHandler(async (req: Request, res: Response) => {
@@ -76,14 +98,24 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
     return ApiResponseUtil.error(res, 'Category not found', 404);
   }
 
+  // The organization's own custom factors always come first.
+  const orgId = (req as AuthenticatedRequest).user?.organizationId;
+  const customFactors = orgId
+    ? await EmissionFactor.find({ categoryId, isActive: true, organizationId: orgId })
+        .sort({ year: -1, createdAt: -1 })
+        .lean()
+    : [];
+
+  const sharedScope = [{ organizationId: { $exists: false } }, { organizationId: null }];
   let factors;
-  
+
   if (preferLocal === 'true') {
     // First try to get Egyptian factors, fallback to global
     const egyptianFactors = await EmissionFactor.find({
       categoryId,
       region: 'egypt',
       isActive: true,
+      $or: sharedScope,
     })
       .sort({ year: -1, isDefault: -1 })
       .lean();
@@ -96,6 +128,7 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
         categoryId,
         region: 'global',
         isActive: true,
+        $or: sharedScope,
       })
         .sort({ year: -1, isDefault: -1 })
         .lean();
@@ -106,10 +139,13 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
       categoryId,
       region,
       isActive: true,
+      $or: sharedScope,
     })
       .sort({ year: -1, isDefault: -1 })
       .lean();
   }
+
+  const allFactors = [...customFactors, ...factors].map(withId);
 
   ApiResponseUtil.success(res, {
     category: {
@@ -117,9 +153,9 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
       name: category.category,
       scope: category.scope,
     },
-    factors,
+    factors: allFactors,
     region: preferLocal === 'true' ? 'egypt (with global fallback)' : region,
-    count: factors.length,
+    count: allFactors.length,
   });
 });
 
@@ -166,7 +202,7 @@ export const getDefaultFactor = asyncHandler(async (req: Request, res: Response)
     return ApiResponseUtil.error(res, 'No emission factor found for this category', 404);
   }
 
-  ApiResponseUtil.success(res, factor);
+  ApiResponseUtil.success(res, withId(factor));
 });
 
 export const searchFactors = asyncHandler(async (req: Request, res: Response) => {
@@ -194,6 +230,9 @@ export const searchFactors = asyncHandler(async (req: Request, res: Response) =>
     {
       $match: {
         isActive: true,
+        // This route is publicly cached, so org-custom factors are excluded from
+        // search results (they remain reachable via the per-category endpoint).
+        organizationId: { $in: [null, undefined] },
         $or: [
           { name: searchRegex },
           { 'category.category': searchRegex },
@@ -217,9 +256,44 @@ export const searchFactors = asyncHandler(async (req: Request, res: Response) =>
 
   ApiResponseUtil.success(res, {
     query: q,
-    factors,
+    factors: factors.map(withId),
     count: factors.length,
   });
+});
+
+/**
+ * Create an organization-scoped custom emission factor (admin/manager only).
+ * Custom factors are only visible to the creating organization and appear first
+ * in that organization's per-category factor list.
+ */
+export const createEmissionFactor = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const { categoryId, name, factor, unit, source, year, description } = req.body;
+
+  const category = await EmissionCategory.findById(categoryId);
+  if (!category) {
+    return ApiResponseUtil.error(res, 'Category not found', 404);
+  }
+
+  const doc = await EmissionFactor.create({
+    categoryId,
+    name: String(name).trim(),
+    description: description ? String(description).trim() : undefined,
+    factor: parseFloat(factor),
+    unit: String(unit).trim(),
+    source: source ? String(source).trim() : 'Custom',
+    region: 'global',
+    country: 'EG',
+    year: year ? parseInt(year, 10) : new Date().getFullYear(),
+    qualityRating: 'medium',
+    organizationId: req.user.organizationId,
+    isDefault: false,
+  });
+
+  ApiResponseUtil.success(res, doc.toJSON(), 'Custom emission factor created', 201);
 });
 
 export const getFactorSources = asyncHandler(async (req: Request, res: Response) => {

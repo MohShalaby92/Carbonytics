@@ -51,6 +51,22 @@ const organizationSchema = new Schema<IOrganization>({
       enum: ['en', 'ar'],
     },
   },
+  // Emission reduction targets shown on the dashboard.
+  targets: [
+    new Schema(
+      {
+        name: { type: String, required: true, trim: true },
+        description: { type: String, trim: true },
+        baselineYear: { type: Number, required: true, min: 2000 },
+        // Baseline annual emissions in kg CO2e for the baseline year.
+        baselineEmissions: { type: Number, required: true, min: 0 },
+        targetYear: { type: Number, required: true, min: 2000 },
+        // Reduction goal vs baseline, in percent (100 = net zero).
+        targetReduction: { type: Number, required: true, min: 1, max: 100 },
+      },
+      { _id: false }
+    ),
+  ],
   isActive: {
     type: Boolean,
     default: true,

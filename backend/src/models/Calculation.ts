@@ -27,6 +27,12 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
     required: [true, 'Emissions is required'],
     min: [0, 'Emissions cannot be negative'],
   },
+  // Data-quality rating computed by the calculation engine when the entry was saved
+  // (factor quality, regional specificity, recency).
+  quality: {
+    type: String,
+    enum: ['high', 'medium', 'low'],
+  },
   notes: {
     type: String,
     trim: true,

@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { EmissionCalculationForm } from '../../components/forms/EmissionCalculationForm';
 import { CalculationSummary } from './CalculationSummary';
 import { CategorySelector } from './CategorySelector';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { CalculationResult } from '../../types';
-import { Plus, Save, FileText } from 'lucide-react';
+import { apiService } from '../../services/api';
+import { Plus, Save } from 'lucide-react';
 
 export const CalculationPage: React.FC = () => {
   const [calculations, setCalculations] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
-  const handleCalculationComplete = (result: CalculationResult) => {
-    // Real-time calculation completed - just for display
-    console.log('Calculation completed:', result);
+  const handleCalculationComplete = (_result: CalculationResult) => {
+    // Real-time calculation completed — result is shown inside the form.
   };
 
   const handleSaveCalculation = (calculation: any) => {
@@ -26,6 +29,56 @@ export const CalculationPage: React.FC = () => {
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setShowForm(true);
+    // Bring the form into view (it sits in the right column / below on mobile).
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
+  /** Persist the session's entries as one calculation report on the server. */
+  const handleSaveReport = async () => {
+    if (calculations.length === 0) return;
+    try {
+      setSavingReport(true);
+      setReportMessage(null);
+
+      const starts = calculations.map(c => c.period?.start).filter(Boolean).sort();
+      const ends = calculations.map(c => c.period?.end).filter(Boolean).sort();
+      const now = new Date();
+      let start = starts[0] || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      let end = ends[ends.length - 1] || now.toISOString();
+      // The API requires end > start; pad by a day if entries share one date.
+      if (new Date(start) >= new Date(end)) {
+        end = new Date(new Date(start).getTime() + 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      const payload = {
+        title: `Calculation Report — ${now.toLocaleDateString()}`,
+        period: { start, end },
+        calculations: calculations.map(c => ({
+          categoryId: c.categoryId,
+          value: c.value,
+          unit: c.unit,
+          ...(c.factorId ? { factorId: c.factorId } : {}),
+          metadata: c.metadata || {},
+          notes: c.notes,
+        })),
+      };
+
+      const response = await apiService.post<any>('/calculations', payload);
+      if (!response.success) throw new Error(response.message || 'Save failed');
+
+      setCalculations([]);
+      setReportMessage({
+        type: 'success',
+        text: 'Report saved — emissions were recomputed server-side and now appear on your dashboard.',
+      });
+    } catch (error: any) {
+      setReportMessage({
+        type: 'error',
+        text: error?.response?.data?.message || error?.message || 'Failed to save report',
+      });
+    } finally {
+      setSavingReport(false);
+    }
   };
 
   const totalEmissions = calculations.reduce((sum, calc) => sum + (calc.emissions || 0), 0);
@@ -39,6 +92,18 @@ export const CalculationPage: React.FC = () => {
         </p>
       </div>
 
+      {reportMessage && (
+        <div
+          className={`mb-6 p-3 rounded-lg border text-sm ${
+            reportMessage.type === 'success'
+              ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+          }`}
+        >
+          {reportMessage.text}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Category Selection */}
         <div className="lg:col-span-1">
@@ -48,7 +113,7 @@ export const CalculationPage: React.FC = () => {
               onCategorySelect={handleCategorySelect}
               selectedCategoryId={selectedCategoryId}
             />
-            
+
             {!showForm && (
               <Button
                 onClick={() => setShowForm(true)}
@@ -66,7 +131,7 @@ export const CalculationPage: React.FC = () => {
             <Card className="p-6 mt-6">
               <h3 className="text-lg font-semibold text-fg mb-4">Summary</h3>
               <CalculationSummary calculations={calculations} />
-              
+
               <div className="pt-4 border-t border-line mt-4">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total Emissions:</span>
@@ -76,22 +141,21 @@ export const CalculationPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex space-x-2 mt-4">
-                <Button size="sm" variant="outline">
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Report
-                </Button>
-                <Button size="sm" variant="outline">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                className="w-full mt-4"
+                onClick={handleSaveReport}
+                loading={savingReport}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save Report ({calculations.length} {calculations.length === 1 ? 'entry' : 'entries'})
+              </Button>
             </Card>
           )}
         </div>
 
         {/* Right Column - Calculation Form */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2" ref={formRef}>
           {showForm ? (
             <EmissionCalculationForm
               categoryId={selectedCategoryId}

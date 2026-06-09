@@ -94,6 +94,13 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     adjustmentFactor: Number, // Adjustment for local conditions
     notes: String,
   },
+  // Set when an organization defines its own custom factor; unset for the
+  // shared/global factor library.
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true,
+  },
   // Status and versioning
   isActive: {
     type: Boolean,

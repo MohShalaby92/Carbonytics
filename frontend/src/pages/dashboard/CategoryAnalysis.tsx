@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from '../../components/ui/Card';
+import { ChartContainer } from '../../components/ui/ChartContainer';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatEmissions } from '../../utils/calculations';
 import { ChevronDown } from 'lucide-react';
@@ -53,26 +54,44 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
         )}
       </div>
 
-      <div className="h-64 mb-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="category" 
-              angle={-45}
-              textAnchor="end"
-              height={80}
-              fontSize={12}
-            />
-            <YAxis 
-              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-              fontSize={12}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="emissions" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <ChartContainer className="h-64 mb-4">
+        {displayData.length > 0 ? (
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={220}
+            initialDimension={{ width: 400, height: 240 }}
+          >
+            <BarChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--line))" />
+              <XAxis
+                dataKey="category"
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                fontSize={12}
+                tick={{ fill: 'rgb(var(--muted))' }}
+                stroke="rgb(var(--line))"
+              />
+              <YAxis
+                tickFormatter={(value) =>
+                  value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}t` : `${value}`
+                }
+                fontSize={12}
+                tick={{ fill: 'rgb(var(--muted))' }}
+                stroke="rgb(var(--line))"
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--fg) / 0.04)' }} />
+              <Bar dataKey="emissions" fill="rgb(var(--brand))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full flex items-center justify-center text-sm text-muted">
+            No category data in this period yet
+          </div>
+        )}
+      </ChartContainer>
 
       {/* Top Contributors Table */}
       <div className="border-t border-line pt-4">
@@ -85,7 +104,7 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
             return (
               <div key={index} className="flex items-center justify-between py-2 px-3 bg-fg/[0.04] rounded">
                 <div className="flex items-center space-x-3">
-                  <span className="w-6 h-6 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-medium">
+                  <span className="w-6 h-6 bg-primary-500/15 text-primary-600 dark:text-primary-300 rounded-full flex items-center justify-center text-xs font-medium">
                     {index + 1}
                   </span>
                   <span className="text-sm font-medium text-fg truncate max-w-xs">

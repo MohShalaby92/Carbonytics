@@ -7,6 +7,7 @@ import { CategoryAnalysis } from '../../pages/dashboard/CategoryAnalysis';
 import { RecentCalculations } from '../../pages/dashboard/RecentCalculations';
 import { QuickCalculator } from '../../pages/dashboard/QuickCalculator';
 import { TargetsProgress } from '../../pages/dashboard/TargetsProgress';
+import { TargetsModal } from '../../pages/dashboard/TargetsModal';
 import { QualityIndicators } from '../../pages/dashboard/QualityIndicators';
 import { useCalculations } from '../../hooks/useCalculations';
 import { calculationService } from '../../services/calculationService';
@@ -27,6 +28,9 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showTargetsModal, setShowTargetsModal] = useState(false);
+  const [targetsRefreshToken, setTargetsRefreshToken] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   const {
     calculations: sessionCalculations,
@@ -168,9 +172,26 @@ export const DashboardPage: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleExportReport = () => {
-    // TODO: Implement report export
-    console.log('Exporting report...');
+  const handleExportReport = async () => {
+    try {
+      setExporting(true);
+      // The export endpoint streams a CSV; fetch as a blob and trigger a download.
+      const blob = (await apiService.get<any>('/csv/export', {
+        responseType: 'blob',
+      })) as unknown as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `carbonytics_emissions_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) {
@@ -236,6 +257,7 @@ export const DashboardPage: React.FC = () => {
           <Button
             variant="outline"
             onClick={handleExportReport}
+            loading={exporting}
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -260,7 +282,10 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <ScopeBreakdown data={dashboardData?.scopeBreakdown} />
           <CategoryAnalysis data={dashboardData?.categoryBreakdown} />
-          <TargetsProgress />
+          <TargetsProgress
+            onConfigure={() => setShowTargetsModal(true)}
+            refreshToken={targetsRefreshToken}
+          />
         </div>
 
         {/* Right Column - Tools and Details */}
@@ -274,7 +299,11 @@ export const DashboardPage: React.FC = () => {
       {/* Bottom Section - Additional Insights */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-fg mb-4">Insights & Recommendations</h3>
+          <h3 className="text-lg font-semibold text-fg mb-1">Insights & Recommendations</h3>
+          <p className="text-xs text-muted mb-4">
+            Generated automatically from rule-based checks on your current scope mix
+            (e.g. Scope 3 &gt; 50% of total, Scope 2 &gt; 30% of total).
+          </p>
           <div className="space-y-3">
             {dashboardData && (
               <>
@@ -341,12 +370,25 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           
-          <Button variant="outline" className="w-full mt-4">
+          <Button
+            variant="outline"
+            className="w-full mt-4"
+            onClick={() => setShowTargetsModal(true)}
+          >
             <Settings className="w-4 h-4 mr-2" />
             Configure Targets
           </Button>
         </Card>
       </div>
+
+      <TargetsModal
+        isOpen={showTargetsModal}
+        onClose={() => setShowTargetsModal(false)}
+        onSaved={() => {
+          setShowTargetsModal(false);
+          setTargetsRefreshToken((v) => v + 1);
+        }}
+      />
     </div>
   );
 };

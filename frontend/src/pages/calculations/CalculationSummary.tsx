@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChartContainer } from '../../components/ui/ChartContainer';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { formatEmissions } from '../../utils/calculations';
 
@@ -95,9 +96,15 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
 
       {/* Pie Chart */}
       {pieData.length > 1 && (
-        <div className="h-48">
+        <ChartContainer className="h-48">
           <h4 className="font-medium text-fg mb-2">Distribution</h4>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={150}
+            initialDimension={{ width: 300, height: 160 }}
+          >
             <PieChart>
               <Pie
                 data={pieData}
@@ -112,12 +119,12 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
                   <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
                 ))}
               </Pie>
-              <Tooltip 
+              <Tooltip
                 formatter={(value) => [formatEmissions(Number(value)), 'Emissions']}
               />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartContainer>
       )}
 
       {/* Recent Calculations */}
