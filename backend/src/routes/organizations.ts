@@ -4,6 +4,8 @@ import {
   getOrganization,
   updateOrganization,
   updateOrganizationTargets,
+  updateOrganizationExclusions,
+  getAuditLog,
   getOrganizationUsers,
   inviteUser,
   updateUserRole,
@@ -39,6 +41,15 @@ const validateSettings = [
   body('currency').optional().isLength({ min: 3, max: 3 }).withMessage('Currency must be 3 characters'),
   body('timezone').optional().notEmpty().withMessage('Timezone cannot be empty'),
   body('language').optional().notEmpty().withMessage('Language cannot be empty'),
+  body('gwpSet').optional().isIn(['AR4', 'AR5', 'AR6']).withMessage('GWP set must be AR4, AR5 or AR6'),
+];
+
+const validateExclusions = [
+  body('exclusions').isArray().withMessage('exclusions must be an array'),
+  body('exclusions.*.source').trim().notEmpty().withMessage('Excluded source is required'),
+  body('exclusions.*.justification').trim().notEmpty().withMessage('Justification is required for every exclusion'),
+  body('exclusions.*.scope').optional().isIn([1, 2, 3]).withMessage('Scope must be 1, 2 or 3'),
+  body('exclusions.*.estimatedEmissions').optional().isFloat({ min: 0 }).withMessage('Materiality estimate must be >= 0'),
 ];
 
 const validateTargets = [
@@ -54,6 +65,10 @@ const validateTargets = [
 router.get('/', getOrganization);
 router.put('/', validate(validateOrganizationUpdate), authorize('admin', 'manager'), updateOrganization);
 router.put('/targets', validate(validateTargets), authorize('admin', 'manager'), updateOrganizationTargets);
+router.put('/exclusions', validate(validateExclusions), authorize('admin', 'manager'), updateOrganizationExclusions);
+
+// Append-only audit trail (admin read access)
+router.get('/audit-log', authorize('admin'), getAuditLog);
 
 // User management routes
 router.get('/users', getOrganizationUsers);

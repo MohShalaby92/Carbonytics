@@ -21,6 +21,10 @@ const validateCreateFactor = [
   body('unit').trim().notEmpty().withMessage('Unit is required (e.g. kg CO2e/kWh)'),
   body('source').optional().trim(),
   body('year').optional().isInt({ min: 2000 }).withMessage('Year must be 2000 or later'),
+  // Optional per-gas values (kg gas per activity unit) — enable GWP-set-aware calculation.
+  body('co2').optional().isFloat({ min: 0 }).withMessage('co2 must be >= 0'),
+  body('ch4').optional().isFloat({ min: 0 }).withMessage('ch4 must be >= 0'),
+  body('n2o').optional().isFloat({ min: 0 }).withMessage('n2o must be >= 0'),
 ];
 
 // Public routes. optionalAuth runs BEFORE cache so the cache key is scoped to the

@@ -33,6 +33,16 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
     type: String,
     enum: ['high', 'medium', 'low'],
   },
+  // ---- Calculation provenance (audit lineage) ----
+  factorId: { type: Schema.Types.ObjectId, ref: 'EmissionFactor' },
+  factorName: { type: String, trim: true },
+  factorSource: { type: String, trim: true },
+  factorYear: { type: Number },
+  // GWP set in force when computed, and whether GWPs were applied per gas or
+  // were already embedded in a CO2e-denominated factor (never both).
+  gwpSet: { type: String },
+  gwpApplied: { type: String, enum: ['per-gas', 'embedded'] },
+  method: { type: String, trim: true },
   notes: {
     type: String,
     trim: true,
@@ -102,7 +112,9 @@ const calculationSchema = new Schema<ICalculation>({
   data: [calculationEntrySchema],
   status: {
     type: String,
-    enum: ['draft', 'completed', 'verified'],
+    // 'locked' = published/immutable; corrections require an explicit unlock
+    // (admin/manager), which is itself an audited event.
+    enum: ['draft', 'completed', 'verified', 'locked'],
     default: 'draft',
   },
 }, {
@@ -124,19 +136,81 @@ calculationSchema.index({ status: 1 });
 calculationSchema.index({ 'period.start': 1, 'period.end': 1 });
 calculationSchema.index({ createdAt: -1 });
 
-// Pre-save middleware to calculate totals
-calculationSchema.pre('save', function(next) {
-  const scope1Total = this.data
-    .filter(entry => {
-      // We'll need to populate categoryId to check scope
-      // For now, assume we have scope information
-      return true; // Placeholder
-    })
-    .reduce((sum, entry) => sum + entry.emissions, 0);
+// ---- Immutability guards (assurance requirement) ----
+// A locked calculation cannot be modified or deleted. Lock/unlock transitions
+// themselves go through status-only updates (see lock/unlock controller), which
+// are the single allowed mutation; everything else is rejected at the model
+// layer so no future code path can silently restate published results.
 
-  // Similar for scope2 and scope3
+const LOCKED_MESSAGE =
+  'Calculation is locked (published) and cannot be modified or deleted. An admin/manager must unlock it first.';
+
+function isStatusOnlyUpdate(update: any): boolean {
+  if (!update || typeof update !== 'object') return false;
+  // Mongoose's `timestamps` option injects `$set.updatedAt` AND
+  // `$setOnInsert.createdAt` into every update (even without upsert), so a
+  // pure status transition legitimately carries those alongside `status`.
+  const allowed = (k: string) => k === 'status' || k === 'updatedAt';
+  const timestampOnly = (k: string) => k === 'createdAt' || k === 'updatedAt';
+  for (const op of Object.keys(update)) {
+    if (op === '$set') {
+      if (!Object.keys(update.$set).every(allowed)) return false;
+    } else if (op === '$setOnInsert') {
+      if (!Object.keys(update.$setOnInsert).every(timestampOnly)) return false;
+    } else if (op.startsWith('$')) {
+      return false;
+    } else if (!allowed(op)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+calculationSchema.pre('save', async function (next) {
+  if (!this.isNew) {
+    const prior = await (this.constructor as any)
+      .findById(this._id)
+      .select('status')
+      .lean();
+    if (prior?.status === 'locked') {
+      return next(new Error(LOCKED_MESSAGE));
+    }
+  }
+  // Keep stored totals consistent with the entries.
   this.emissions.total = this.data.reduce((sum, entry) => sum + entry.emissions, 0);
-  
+  next();
+});
+
+calculationSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate();
+  if (isStatusOnlyUpdate(update)) return next(); // lock/unlock transition
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('updateOne', async function (next) {
+  if (isStatusOnlyUpdate(this.getUpdate())) return next();
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('findOneAndDelete', async function (next) {
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('deleteOne', { document: false, query: true }, async function (next) {
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('deleteMany', async function (next) {
+  const locked = await this.model.exists({ ...this.getQuery(), status: 'locked' });
+  if (locked) return next(new Error(LOCKED_MESSAGE));
   next();
 });
 

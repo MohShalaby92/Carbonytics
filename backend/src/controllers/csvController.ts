@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CSVService } from '../services/csvService';
+import { recordAudit } from '../utils/audit';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -138,9 +139,23 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
       }
     }, 1000);
 
-    const message = importResult.failed > 0 
+    const message = importResult.failed > 0
       ? `Import completed with ${importResult.failed} errors`
       : 'Import completed successfully';
+
+    await recordAudit({
+      organizationId: req.user.organizationId,
+      userId: req.user.id,
+      userEmail: req.user.email,
+      action: 'import',
+      resourceType: 'calculation',
+      after: {
+        fileName: req.file.originalname,
+        processed: importResult.processed,
+        successful: importResult.successful,
+        failed: importResult.failed,
+      },
+    });
 
     ApiResponseUtil.success(res, {
       fileName: req.file.originalname,

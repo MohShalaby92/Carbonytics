@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
+import { recordAudit } from '../utils/audit';
 import { body, validationResult } from 'express-validator';
 
 export const calculateEmissions = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -177,6 +178,7 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
         metadata: calc.metadata || {},
         userId: req.user.id,
         organizationId: req.user.organizationId,
+        activityYear: startDate.getFullYear(),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'calculation failed';
@@ -190,6 +192,14 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       factor: computed.factor.value,
       emissions: computed.calculation.emissions,
       quality: computed.quality?.rating,
+      // Provenance: enough to reconstruct how this number was produced.
+      factorId: computed.factor.id,
+      factorName: computed.factor.name,
+      factorSource: computed.factor.source,
+      factorYear: computed.factor.year,
+      gwpSet: computed.provenance?.gwpSet,
+      gwpApplied: computed.provenance?.gwpApplied,
+      method: computed.calculation.metadata?.calculationMethod,
       notes: calc.notes,
     };
 
@@ -233,7 +243,91 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
 
   await calculation.save();
 
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'create',
+    resourceType: 'calculation',
+    resourceId: calculation._id.toString(),
+    after: { title, period: { start: startDate, end: endDate }, emissions, entries: processedCalculations.length },
+  });
+
   ApiResponseUtil.success(res, calculation, 'Calculation saved successfully', 201);
+});
+
+/** Lock (publish) a calculation: it becomes immutable until explicitly unlocked. */
+export const lockCalculation = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { id } = req.params;
+
+  const existing = await Calculation.findOne({ _id: id, organizationId: req.user.organizationId });
+  if (!existing) {
+    return ApiResponseUtil.error(res, 'Calculation not found', 404);
+  }
+  if (existing.status === 'locked') {
+    return ApiResponseUtil.success(res, existing, 'Calculation is already locked');
+  }
+
+  const before = existing.status;
+  // Status-only update — the single mutation the immutability guards allow.
+  const updated = await Calculation.findOneAndUpdate(
+    { _id: id, organizationId: req.user.organizationId },
+    { $set: { status: 'locked' } },
+    { new: true }
+  );
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'lock',
+    resourceType: 'calculation',
+    resourceId: id,
+    before: { status: before },
+    after: { status: 'locked' },
+    comment: req.body?.comment,
+  });
+
+  ApiResponseUtil.success(res, updated, 'Calculation locked — it is now immutable');
+});
+
+/** Unlock a previously locked calculation (audited; admin/manager only). */
+export const unlockCalculation = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { id } = req.params;
+
+  const existing = await Calculation.findOne({ _id: id, organizationId: req.user.organizationId });
+  if (!existing) {
+    return ApiResponseUtil.error(res, 'Calculation not found', 404);
+  }
+  if (existing.status !== 'locked') {
+    return ApiResponseUtil.success(res, existing, 'Calculation is not locked');
+  }
+
+  const updated = await Calculation.findOneAndUpdate(
+    { _id: id, organizationId: req.user.organizationId },
+    { $set: { status: 'completed' } },
+    { new: true }
+  );
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'unlock',
+    resourceType: 'calculation',
+    resourceId: id,
+    before: { status: 'locked' },
+    after: { status: 'completed' },
+    comment: req.body?.comment,
+  });
+
+  ApiResponseUtil.success(res, updated, 'Calculation unlocked');
 });
 
 export const getCalculations = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

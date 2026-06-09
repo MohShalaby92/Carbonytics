@@ -6,8 +6,10 @@ import {
   saveCalculation,
   getCalculations,
   getCalculationById,
+  lockCalculation,
+  unlockCalculation,
 } from '../controllers/calculationController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { body } from 'express-validator';
 import { clearCache } from '../middleware/cache';
@@ -64,5 +66,9 @@ router.post('/',
 
 router.get('/', getCalculations);
 router.get('/:id', getCalculationById);
+
+// Inventory lifecycle: lock = publish (immutable), unlock = audited correction path.
+router.patch('/:id/lock', authorize('admin', 'manager'), clearCache('calculations'), lockCalculation);
+router.patch('/:id/unlock', authorize('admin', 'manager'), clearCache('calculations'), unlockCalculation);
 
 export default router;

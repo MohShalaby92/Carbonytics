@@ -50,7 +50,30 @@ const organizationSchema = new Schema<IOrganization>({
       default: 'en',
       enum: ['en', 'ar'],
     },
+    // GWP-100 value set applied to per-gas factors (see data/gwpSets.ts).
+    // Selectable because different reporting regimes mandate different sets.
+    gwpSet: {
+      type: String,
+      enum: ['AR4', 'AR5', 'AR6'],
+      default: 'AR6',
+    },
   },
+  // Documented exclusions register (GHG Protocol completeness/transparency):
+  // every excluded source/category needs a justification and a materiality
+  // estimate — auditors request this list first.
+  exclusions: [
+    new Schema(
+      {
+        source: { type: String, required: true, trim: true },
+        scope: { type: Number, enum: [1, 2, 3], required: false },
+        justification: { type: String, required: true, trim: true },
+        // Rough annual materiality estimate in kg CO2e (optional but encouraged).
+        estimatedEmissions: { type: Number, min: 0 },
+        createdAt: { type: Date, default: Date.now },
+      },
+      { _id: false }
+    ),
+  ],
   // Emission reduction targets shown on the dashboard.
   targets: [
     new Schema(

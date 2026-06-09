@@ -35,7 +35,15 @@ export interface IOrganization extends Document {
     currency: string;
     timezone: string;
     language: string;
+    gwpSet?: 'AR4' | 'AR5' | 'AR6';
   };
+  exclusions?: Array<{
+    source: string;
+    scope?: 1 | 2 | 3;
+    justification: string;
+    estimatedEmissions?: number; // kg CO2e per year
+    createdAt?: Date;
+  }>;
   targets?: Array<{
     name: string;
     description?: string;
@@ -207,7 +215,7 @@ export interface ICalculation extends Document {
     total: number;
   };
   data: ICalculationEntry[];
-  status: 'draft' | 'completed' | 'verified';
+  status: 'draft' | 'completed' | 'verified' | 'locked';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -220,6 +228,14 @@ export interface ICalculationEntry {
   emissions: number;
   quality?: 'high' | 'medium' | 'low';
   notes?: string;
+  // Calculation provenance (audit lineage)
+  factorId?: Types.ObjectId;
+  factorName?: string;
+  factorSource?: string;
+  factorYear?: number;
+  gwpSet?: string; // GWP set in force when computed (e.g. 'AR6')
+  gwpApplied?: 'per-gas' | 'embedded'; // whether GWPs were applied or already embedded in a CO2e factor
+  method?: string; // calculation method (activity_based / spend_based / ...)
 }
 
 export interface ApiResponse<T = any> {

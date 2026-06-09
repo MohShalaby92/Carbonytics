@@ -4,6 +4,7 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
+import { recordAudit } from '../utils/audit';
 
 // .lean() bypasses the model's toJSON transform, so re-add the `id` field the
 // frontend relies on.
@@ -271,7 +272,7 @@ export const createEmissionFactor = asyncHandler(async (req: AuthenticatedReques
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
 
-  const { categoryId, name, factor, unit, source, year, description } = req.body;
+  const { categoryId, name, factor, unit, source, year, description, co2, ch4, n2o } = req.body;
 
   const category = await EmissionCategory.findById(categoryId);
   if (!category) {
@@ -291,6 +292,22 @@ export const createEmissionFactor = asyncHandler(async (req: AuthenticatedReques
     qualityRating: 'medium',
     organizationId: req.user.organizationId,
     isDefault: false,
+    // Optional per-gas values (kg gas per activity unit). When present, the
+    // engine computes per gas × the organization's GWP set instead of using
+    // the CO2e value directly.
+    ...(co2 !== undefined ? { co2: parseFloat(co2) } : {}),
+    ...(ch4 !== undefined ? { ch4: parseFloat(ch4) } : {}),
+    ...(n2o !== undefined ? { n2o: parseFloat(n2o) } : {}),
+  });
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'create',
+    resourceType: 'emission-factor',
+    resourceId: doc._id.toString(),
+    after: { name: doc.name, factor: doc.factor, unit: doc.unit, source: doc.source, year: doc.year, co2: doc.co2, ch4: doc.ch4, n2o: doc.n2o },
   });
 
   ApiResponseUtil.success(res, doc.toJSON(), 'Custom emission factor created', 201);

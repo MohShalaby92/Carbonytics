@@ -1,5 +1,7 @@
 import { EmissionCategory } from '../models/EmissionCategory';
 import { EmissionFactor } from '../models/EmissionFactor';
+import { Organization } from '../models/Organization';
+import { GWP_SETS, DEFAULT_GWP_SET, GwpSetName, isGwpSetName } from '../data/gwpSets';
 import { logger } from '../utils/logger';
 import { config } from '../config/config';
 import axios from 'axios';
@@ -12,6 +14,27 @@ export interface CalculationInput {
   metadata?: Record<string, any>;
   userId?: string;
   organizationId?: string;
+  /** Year the activity occurred (e.g. period start year) — used for factor-vintage checks. */
+  activityYear?: number;
+}
+
+export interface GasBreakdown {
+  co2: number;
+  ch4: number;
+  n2o: number;
+  co2e: number;
+}
+
+export interface CalculationProvenance {
+  /** GWP-100 set in force for this organization when computed. */
+  gwpSet: GwpSetName;
+  /**
+   * 'per-gas'  — factor supplied per-gas values; GWPs from gwpSet were applied.
+   * 'embedded' — factor is denominated in kg CO2e; its GWPs are embedded by the
+   *              publisher and were NOT applied again (no double application).
+   */
+  gwpApplied: 'per-gas' | 'embedded';
+  gasBreakdown?: GasBreakdown;
 }
 
 export interface CalculationResult {
@@ -44,6 +67,19 @@ export interface CalculationResult {
     confidence: number;
     notes: string[];
   };
+  provenance: CalculationProvenance;
+}
+
+// Short-lived cache of organization GWP-set choices so batch imports don't
+// query the organization per row.
+const gwpSetCache = new Map<string, { set: GwpSetName; expires: number }>();
+const GWP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** Drop the cached GWP-set choice — called when an organization changes it so
+ * the new methodology applies to the very next calculation. */
+export function invalidateGwpSetCache(organizationId?: string): void {
+  if (organizationId) gwpSetCache.delete(organizationId);
+  else gwpSetCache.clear();
 }
 
 export class CalculationEngine {
@@ -60,15 +96,31 @@ export class CalculationEngine {
       
       // 3. Perform unit conversion if needed
       const normalizedValue = await this.convertUnits(input.value, input.unit, category, factor);
-      
-      // 4. Calculate emissions
-      const emissions = this.performCalculation(normalizedValue, factor, category, input);
-      
+
+      // 4. Resolve the organization's GWP set and calculate emissions.
+      //    If the factor carries per-gas values, compute per gas × GWP;
+      //    otherwise the factor is CO2e-denominated and used directly
+      //    (its publisher's GWPs are embedded — never applied twice).
+      const gwpSet = await this.resolveGwpSet(input.organizationId);
+      const gasBreakdown = this.computePerGasEmissions(normalizedValue, factor, category, gwpSet);
+      const emissions = gasBreakdown
+        ? gasBreakdown.co2e
+        : this.performCalculation(normalizedValue, factor, category, input);
+
       // 5. Assess calculation quality
       const quality = this.assessCalculationQuality(factor, category, input);
-      
+
       // 6. Handle special calculations (e.g., business travel with distance)
       const finalEmissions = await this.handleSpecialCalculations(emissions, category, input, factor);
+
+      // Special calculations recompute from the CO2e factor, so if one
+      // overrode the result, GWPs were not applied per gas after all.
+      const usedPerGas = !!gasBreakdown && finalEmissions === emissions;
+      const provenance: CalculationProvenance = {
+        gwpSet,
+        gwpApplied: usedPerGas ? 'per-gas' : 'embedded',
+        ...(usedPerGas && gasBreakdown ? { gasBreakdown } : {}),
+      };
       
       const result: CalculationResult = {
         calculation: {
@@ -101,9 +153,10 @@ export class CalculationEngine {
           description: category.description,
         },
         quality,
+        provenance,
       };
-      
-      logger.info(`Calculation completed: ${finalEmissions} kg CO2e`);
+
+      logger.info(`Calculation completed: ${finalEmissions} kg CO2e (GWP set ${gwpSet}, ${provenance.gwpApplied})`);
       return result;
       
     } catch (error) {
@@ -400,6 +453,56 @@ export class CalculationEngine {
     };
   }
 
+  /** Organization's chosen GWP set (cached briefly for batch flows). */
+  private async resolveGwpSet(organizationId?: string): Promise<GwpSetName> {
+    if (!organizationId) return DEFAULT_GWP_SET;
+    const cached = gwpSetCache.get(organizationId);
+    if (cached && cached.expires > Date.now()) return cached.set;
+    try {
+      const org = await Organization.findById(organizationId).select('settings.gwpSet').lean();
+      const set = isGwpSetName((org as any)?.settings?.gwpSet)
+        ? ((org as any).settings.gwpSet as GwpSetName)
+        : DEFAULT_GWP_SET;
+      gwpSetCache.set(organizationId, { set, expires: Date.now() + GWP_CACHE_TTL_MS });
+      return set;
+    } catch {
+      return DEFAULT_GWP_SET;
+    }
+  }
+
+  /**
+   * Per-gas calculation: activity × gas factor × GWP, summed to CO2e.
+   * Returns null when the factor has no per-gas values (CO2e-denominated) or
+   * the method isn't a plain activity multiplication — those use the legacy path.
+   */
+  private computePerGasEmissions(
+    value: number,
+    factor: any,
+    category: any,
+    gwpSet: GwpSetName
+  ): GasBreakdown | null {
+    const hasPerGas = (factor.co2 || 0) > 0 || (factor.ch4 || 0) > 0 || (factor.n2o || 0) > 0;
+    if (!hasPerGas) return null;
+    if (category.calculationMethod !== 'activity_based') return null;
+
+    const gwp = GWP_SETS[gwpSet].values;
+    const co2 = value * (factor.co2 || 0); // kg CO2 (GWP 1)
+    const ch4 = value * (factor.ch4 || 0); // kg CH4
+    const n2o = value * (factor.n2o || 0); // kg N2O
+    // otherGhg, when present, is already CO2e-denominated by convention.
+    const otherCo2e = value * (factor.otherGhg || 0);
+
+    const co2e =
+      Math.round((co2 * gwp.co2 + ch4 * gwp.ch4 + n2o * gwp.n2o + otherCo2e) * 100) / 100;
+
+    return {
+      co2: Math.round(co2 * 10000) / 10000,
+      ch4: Math.round(ch4 * 10000) / 10000,
+      n2o: Math.round(n2o * 10000) / 10000,
+      co2e,
+    };
+  }
+
   private performCalculation(value: number, factor: any, category: any, input: CalculationInput): number {
     // Basic calculation: value * emission factor
     let emissions = value * factor.factor;
@@ -474,10 +577,20 @@ export class CalculationEngine {
       confidence -= 10;
     }
     
+    // Factor vintage vs activity period (factor-year matching requirement):
+    // activity in FY2025 should not silently use a 2022-vintage factor.
+    if (input.activityYear && factor.year && input.activityYear - factor.year >= 2) {
+      notes.push(
+        `Factor vintage (${factor.year}) is stale for activity year ${input.activityYear} — refresh the factor library for this period`
+      );
+      confidence -= 10;
+      rating = rating === 'high' ? 'medium' : rating;
+    }
+
     // Factor age assessment
     const currentYear = new Date().getFullYear();
     const factorAge = currentYear - factor.year;
-    
+
     if (factorAge <= 2) {
       notes.push('Recent emission factor (≤2 years old)');
     } else if (factorAge <= 5) {

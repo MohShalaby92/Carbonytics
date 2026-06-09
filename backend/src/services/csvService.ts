@@ -179,6 +179,7 @@ export class CSVService {
       metadata: this.extractMetadata(row, category),
       userId,
       organizationId,
+      activityYear: row.period_start ? new Date(row.period_start).getFullYear() : undefined,
     };
 
     // Perform calculation (server-side, authoritative)
@@ -201,6 +202,13 @@ export class CSVService {
         factor: calculationResult.factor?.value,
         emissions: calculationResult.calculation.emissions,
         quality: calculationResult.quality?.rating,
+        factorId: calculationResult.factor?.id,
+        factorName: calculationResult.factor?.name,
+        factorSource: calculationResult.factor?.source,
+        factorYear: calculationResult.factor?.year,
+        gwpSet: calculationResult.provenance?.gwpSet,
+        gwpApplied: calculationResult.provenance?.gwpApplied,
+        method: calculationResult.calculation.metadata?.calculationMethod,
         notes: row.notes,
       }],
       emissions: {
