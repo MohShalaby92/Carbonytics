@@ -7,6 +7,7 @@ import {
   getTrendAnalysis,
   exportReport,
   getIndustryBenchmarks,
+  getGHGInventoryReport,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -54,9 +55,13 @@ router.get('/export/:reportId',
 );
 
 // Benchmark routes
-router.get('/benchmarks', 
-  cache(3600), 
+router.get('/benchmarks',
+  cache(3600),
   getIndustryBenchmarks
 );
+
+// GHG inventory report (GHGP/ISO 14064-1 content; ?format=markdown downloads).
+// Uncached: this is an explicit export action and must reflect current data.
+router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport);
 
 export default router;

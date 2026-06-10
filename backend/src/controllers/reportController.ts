@@ -1,10 +1,265 @@
 import { Request, Response } from 'express';
 import { Calculation } from '../models/Calculation';
 import { EmissionCategory } from '../models/EmissionCategory';
+import { Organization } from '../models/Organization';
+import { Facility } from '../models/Facility';
+import { AuditLog } from '../models/AuditLog';
+import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
+
+/**
+ * GHG inventory report (GHG Protocol / ISO 14064-1 required content):
+ * boundaries + consolidation approach, period, emissions by scope, Scope 2
+ * dual figures, Scope 3 by category with method mix, exclusions register,
+ * methodology (GWP set, factor register), data-quality summary, base-year
+ * targets, and an audit-trail reference. JSON by default; ?format=markdown
+ * downloads a rendered document.
+ */
+export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const end = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
+  const start = req.query.startDate
+    ? new Date(req.query.startDate as string)
+    : new Date(new Date(end).setFullYear(end.getFullYear() - 1));
+
+  const [organization, facilities, calculations, auditCount] = await Promise.all([
+    Organization.findById(req.user.organizationId),
+    Facility.find({ organizationId: req.user.organizationId, isActive: true }).lean(),
+    Calculation.find({
+      organizationId: req.user.organizationId,
+      'period.start': { $gte: start, $lte: end },
+    })
+      .populate('data.categoryId', 'category scope subcategory')
+      .lean(),
+    AuditLog.countDocuments({
+      organizationId: req.user.organizationId,
+      createdAt: { $gte: start, $lte: end },
+    }),
+  ]);
+
+  if (!organization) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  const gwpSet = isGwpSetName(organization.settings?.gwpSet)
+    ? organization.settings!.gwpSet!
+    : DEFAULT_GWP_SET;
+
+  // Totals by scope + per-category breakdown with method mix.
+  const byScope = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
+  const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number }> = {};
+  const dual = { locationBased: 0, marketBased: 0, electricityEntries: 0, methods: new Set<string>() };
+  const quality = { high: 0, medium: 0, low: 0, unrated: 0 };
+  const factorRegister = new Map<string, { name: string; source?: string; year?: number; uses: number }>();
+  let lockedCount = 0;
+
+  for (const calc of calculations) {
+    byScope.scope1 += calc.emissions?.scope1 || 0;
+    byScope.scope2 += calc.emissions?.scope2 || 0;
+    byScope.scope3 += calc.emissions?.scope3 || 0;
+    if ((calc as any).status === 'locked') lockedCount++;
+
+    for (const entry of calc.data || []) {
+      const cat: any = entry.categoryId;
+      const name = cat?.category || 'Unknown';
+      if (!byCategory[name]) {
+        byCategory[name] = { scope: cat?.scope || 0, subcategory: cat?.subcategory, emissions: 0, methods: {}, entries: 0 };
+      }
+      byCategory[name].emissions += entry.emissions || 0;
+      byCategory[name].entries += 1;
+      const method = (entry as any).method || 'unspecified';
+      byCategory[name].methods[method] = (byCategory[name].methods[method] || 0) + (entry.emissions || 0);
+
+      if ((entry as any).scope2Location !== undefined) {
+        dual.locationBased += (entry as any).scope2Location || 0;
+        dual.marketBased += (entry as any).scope2Market || 0;
+        dual.electricityEntries += 1;
+        if ((entry as any).scope2MarketMethod) dual.methods.add((entry as any).scope2MarketMethod);
+      }
+
+      const q = (entry as any).quality;
+      if (q === 'high') quality.high++;
+      else if (q === 'medium') quality.medium++;
+      else if (q === 'low') quality.low++;
+      else quality.unrated++;
+
+      const fKey = `${(entry as any).factorName || 'unknown'}|${(entry as any).factorYear || ''}`;
+      const existing = factorRegister.get(fKey);
+      if (existing) existing.uses++;
+      else
+        factorRegister.set(fKey, {
+          name: (entry as any).factorName || 'unknown',
+          source: (entry as any).factorSource,
+          year: (entry as any).factorYear,
+          uses: 1,
+        });
+    }
+  }
+  byScope.scope1 = Math.round(byScope.scope1 * 100) / 100;
+  byScope.scope2 = Math.round(byScope.scope2 * 100) / 100;
+  byScope.scope3 = Math.round(byScope.scope3 * 100) / 100;
+  byScope.total = Math.round((byScope.scope1 + byScope.scope2 + byScope.scope3) * 100) / 100;
+  dual.locationBased = Math.round(dual.locationBased * 100) / 100;
+  dual.marketBased = Math.round(dual.marketBased * 100) / 100;
+
+  const report = {
+    title: `GHG Inventory Report — ${organization.name}`,
+    generatedAt: new Date().toISOString(),
+    generatedBy: req.user.email,
+    organization: {
+      name: organization.name,
+      industry: organization.industry,
+      country: organization.country,
+      consolidationApproach: organization.consolidationApproach || 'operational_control',
+      facilities: facilities.map((f: any) => ({
+        name: f.name,
+        country: f.country,
+        ownershipPercent: f.ownershipPercent,
+        operationalControl: f.operationalControl,
+      })),
+    },
+    reportingPeriod: { start: start.toISOString(), end: end.toISOString() },
+    methodology: {
+      standard: 'GHG Protocol Corporate Standard (operational alignment); ISO 14064-1 informed',
+      gwpSet,
+      gwpSource: GWP_SETS[gwpSet].label,
+      factorPolicy:
+        'Egyptian emission factors are the primary default; supplier-specific (custom) or other regional factors are applied when explicitly selected by the user. Factor vintage is matched to the activity year.',
+      scope2Note:
+        'Dual reporting: location-based uses the Egyptian grid-average factor; market-based uses supplier-specific rates where chosen, otherwise grid average (no contractual-instrument market in Egypt).',
+      tool: 'Carbonytics',
+    },
+    emissions: {
+      unit: 'kg CO2e',
+      byScope,
+      scope2Dual: {
+        locationBased: dual.locationBased,
+        marketBased: dual.marketBased,
+        electricityEntries: dual.electricityEntries,
+        methodsUsed: Array.from(dual.methods),
+      },
+      byCategory: Object.entries(byCategory)
+        .map(([category, v]) => ({ category, ...v, emissions: Math.round(v.emissions * 100) / 100 }))
+        .sort((a, b) => b.emissions - a.emissions),
+    },
+    dataQuality: {
+      ...quality,
+      ratedShare:
+        quality.high + quality.medium + quality.low + quality.unrated > 0
+          ? Math.round(
+              ((quality.high + quality.medium + quality.low) /
+                (quality.high + quality.medium + quality.low + quality.unrated)) * 100
+            )
+          : 0,
+    },
+    factorRegister: Array.from(factorRegister.values()).sort((a, b) => b.uses - a.uses),
+    exclusions: organization.exclusions || [],
+    targets: organization.targets || [],
+    inventoryControls: {
+      calculationsInPeriod: calculations.length,
+      lockedCalculations: lockedCount,
+      auditTrailEntriesInPeriod: auditCount,
+    },
+    uncertaintyStatement:
+      'Quantitative uncertainty analysis has not yet been performed. Data-quality ratings per entry (factor specificity, regional representativeness, vintage) are reported above; baseline factors flagged low-quality should be validated against authoritative datasets before external assurance.',
+  };
+
+  if ((req.query.format as string) === 'markdown') {
+    const md = renderInventoryMarkdown(report);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="ghg_inventory_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
+    );
+    return res.send(md);
+  }
+
+  ApiResponseUtil.success(res, report);
+});
+
+function renderInventoryMarkdown(r: any): string {
+  const lines: string[] = [];
+  const kg = (v: number) => `${v.toLocaleString()} kg CO2e`;
+  lines.push(`# ${r.title}`);
+  lines.push(`Generated ${r.generatedAt} by ${r.generatedBy}`);
+  lines.push('');
+  lines.push('## 1. Organizational boundary');
+  lines.push(`- Organization: ${r.organization.name} (${r.organization.industry}, ${r.organization.country})`);
+  lines.push(`- Consolidation approach: **${r.organization.consolidationApproach}**`);
+  if (r.organization.facilities.length > 0) {
+    lines.push(`- Facilities (${r.organization.facilities.length}):`);
+    r.organization.facilities.forEach((f: any) =>
+      lines.push(`  - ${f.name} (${f.country}) — ownership ${f.ownershipPercent}%, operational control: ${f.operationalControl ? 'yes' : 'no'}`)
+    );
+  }
+  lines.push('');
+  lines.push('## 2. Reporting period');
+  lines.push(`${r.reportingPeriod.start.split('T')[0]} → ${r.reportingPeriod.end.split('T')[0]}`);
+  lines.push('');
+  lines.push('## 3. Methodology');
+  lines.push(`- Standard: ${r.methodology.standard}`);
+  lines.push(`- GWP set: **${r.methodology.gwpSet}** (${r.methodology.gwpSource})`);
+  lines.push(`- Factor policy: ${r.methodology.factorPolicy}`);
+  lines.push(`- Scope 2: ${r.methodology.scope2Note}`);
+  lines.push('');
+  lines.push('## 4. Emissions by scope');
+  lines.push(`| Scope | kg CO2e |`);
+  lines.push(`|---|---|`);
+  lines.push(`| Scope 1 (direct) | ${r.emissions.byScope.scope1.toLocaleString()} |`);
+  lines.push(`| Scope 2 (purchased energy) | ${r.emissions.byScope.scope2.toLocaleString()} |`);
+  lines.push(`| Scope 3 (value chain) | ${r.emissions.byScope.scope3.toLocaleString()} |`);
+  lines.push(`| **Total** | **${r.emissions.byScope.total.toLocaleString()}** |`);
+  lines.push('');
+  lines.push('### Scope 2 dual reporting');
+  lines.push(`- Location-based: ${kg(r.emissions.scope2Dual.locationBased)}`);
+  lines.push(`- Market-based: ${kg(r.emissions.scope2Dual.marketBased)}`);
+  r.emissions.scope2Dual.methodsUsed.forEach((m: string) => lines.push(`  - Method: ${m}`));
+  lines.push('');
+  lines.push('## 5. Emissions by category (with method mix)');
+  lines.push(`| Category | Scope | kg CO2e | Methods |`);
+  lines.push(`|---|---|---|---|`);
+  r.emissions.byCategory.forEach((c: any) => {
+    const methods = Object.entries(c.methods)
+      .map(([m, v]: any) => `${m}: ${Math.round((v / Math.max(c.emissions, 0.01)) * 100)}%`)
+      .join(', ');
+    lines.push(`| ${c.category}${c.subcategory ? ` (${c.subcategory})` : ''} | ${c.scope} | ${c.emissions.toLocaleString()} | ${methods} |`);
+  });
+  lines.push('');
+  lines.push('## 6. Data quality');
+  lines.push(`High: ${r.dataQuality.high} · Medium: ${r.dataQuality.medium} · Low: ${r.dataQuality.low} · Unrated: ${r.dataQuality.unrated} (rated share ${r.dataQuality.ratedShare}%)`);
+  lines.push('');
+  lines.push('## 7. Emission factor register');
+  lines.push(`| Factor | Source | Year | Uses |`);
+  lines.push(`|---|---|---|---|`);
+  r.factorRegister.forEach((f: any) => lines.push(`| ${f.name} | ${f.source || '—'} | ${f.year || '—'} | ${f.uses} |`));
+  lines.push('');
+  lines.push('## 8. Exclusions register');
+  if (r.exclusions.length === 0) lines.push('No documented exclusions.');
+  r.exclusions.forEach((e: any) =>
+    lines.push(`- **${e.source}**${e.scope ? ` (Scope ${e.scope})` : ''}: ${e.justification}${e.estimatedEmissions ? ` — est. ${e.estimatedEmissions} kg CO2e/yr` : ''}`)
+  );
+  lines.push('');
+  lines.push('## 9. Base year & targets');
+  if (r.targets.length === 0) lines.push('No targets configured.');
+  r.targets.forEach((t: any) =>
+    lines.push(`- ${t.name}: ${t.targetReduction}% below ${t.baselineYear} baseline (${t.baselineEmissions.toLocaleString()} kg CO2e) by ${t.targetYear}`)
+  );
+  lines.push('');
+  lines.push('## 10. Inventory controls');
+  lines.push(`- Calculations in period: ${r.inventoryControls.calculationsInPeriod} (${r.inventoryControls.lockedCalculations} locked/published)`);
+  lines.push(`- Audit-trail entries in period: ${r.inventoryControls.auditTrailEntriesInPeriod}`);
+  lines.push('');
+  lines.push('## 11. Uncertainty statement');
+  lines.push(r.uncertaintyStatement);
+  lines.push('');
+  return lines.join('\n');
+}
 
 interface DashboardData {
   totalEmissions: {

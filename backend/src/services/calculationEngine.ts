@@ -224,20 +224,21 @@ export class CalculationEngine {
   }
 
   /**
-   * Automatic factor selection.
+   * Automatic factor selection — Egyptian-default policy.
    *
-   * Tier order (GHG Protocol method hierarchy + Egyptian-market mandate):
-   *   1. The organization's own custom factors (supplier-specific data —
-   *      the top of the GHGP hierarchy).
-   *   2. EGYPTIAN shared factors — permanently first among library factors:
-   *      this product's primary market is Egypt, so Egyptian factors are
-   *      never removed from selection and always win over other regions.
+   * EGYPTIAN factors are the PRIMARY DEFAULT (product mandate: the main
+   * market is and will remain Egypt). A different factor is used only when
+   * the user actively chooses one — by explicitly selecting it in the
+   * calculator (input.factorId, which bypasses this method entirely) or by
+   * creating/selecting their own custom factor. Tier order when nothing is
+   * explicitly selected:
+   *   1. EGYPTIAN shared factors (the default).
+   *   2. The organization's own custom factors (used automatically only when
+   *      no Egyptian factor exists for the category).
    *   3. Global, then other regional shared factors.
    *
    * Within a tier, the vintage closest to the activity year wins (preferring
    * factors published in or before that year), then isDefault as a tiebreak.
-   * Explicitly selected factors (input.factorId) bypass this entirely, so the
-   * Egyptian factors also remain directly selectable at all times.
    */
   private async findBestEmissionFactor(category: any, input: CalculationInput) {
     const searchCriteria: any = {
@@ -273,7 +274,19 @@ export class CalculationEngine {
       return pool[0];
     };
 
-    // Tier 1: organization's own custom factors (visible only to that org).
+    // Tier 1: EGYPTIAN shared factors — the primary default.
+    const egyptian = await EmissionFactor.find({
+      ...searchCriteria,
+      region: 'egypt',
+      $or: sharedScope,
+    });
+    const bestEgyptian = pickBestVintage(egyptian);
+    if (bestEgyptian) {
+      logger.info(`Selected Egyptian (default) emission factor: ${bestEgyptian.name} (${bestEgyptian.year})`);
+      return bestEgyptian;
+    }
+
+    // Tier 2: organization's own custom factors (no Egyptian factor exists).
     if (input.organizationId) {
       const customs = await EmissionFactor.find({
         ...searchCriteria,
@@ -286,8 +299,8 @@ export class CalculationEngine {
       }
     }
 
-    // Tiers 2+: shared library factors — Egypt always first.
-    const regions = ['egypt', 'global', 'mena', 'eu', 'us'];
+    // Tiers 3+: remaining shared library factors by region.
+    const regions = ['global', 'mena', 'eu', 'us'];
     for (const region of regions) {
       const factors = await EmissionFactor.find({
         ...searchCriteria,

@@ -146,7 +146,10 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
       .lean();
   }
 
-  const allFactors = [...customFactors, ...factors].map(withId);
+  // Egyptian/library factors first (the primary default — preselected by the
+  // calculator UI), then the organization's custom factors as explicit
+  // alternatives the user can switch to.
+  const allFactors = [...factors, ...customFactors].map(withId);
 
   ApiResponseUtil.success(res, {
     category: {
