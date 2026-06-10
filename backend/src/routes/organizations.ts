@@ -6,6 +6,10 @@ import {
   updateOrganizationTargets,
   updateOrganizationExclusions,
   getAuditLog,
+  getFacilities,
+  createFacility,
+  updateFacility,
+  deactivateFacility,
   getOrganizationUsers,
   inviteUser,
   updateUserRole,
@@ -25,6 +29,16 @@ const validateOrganizationUpdate = [
   body('industry').optional().notEmpty().withMessage('Industry cannot be empty'),
   body('country').optional().notEmpty().withMessage('Country cannot be empty'),
   body('size').optional().isIn(['small', 'medium', 'large']).withMessage('Invalid organization size'),
+  body('consolidationApproach')
+    .optional()
+    .isIn(['equity_share', 'financial_control', 'operational_control'])
+    .withMessage('Consolidation approach must be equity_share, financial_control or operational_control'),
+];
+
+const validateFacility = [
+  body('name').optional({ values: 'undefined' }).trim().notEmpty().withMessage('Facility name cannot be empty'),
+  body('ownershipPercent').optional().isFloat({ min: 0, max: 100 }).withMessage('Ownership must be 0-100%'),
+  body('operationalControl').optional().isBoolean().withMessage('operationalControl must be boolean'),
 ];
 
 const validateUserInvite = [
@@ -69,6 +83,12 @@ router.put('/exclusions', validate(validateExclusions), authorize('admin', 'mana
 
 // Append-only audit trail (admin read access)
 router.get('/audit-log', authorize('admin'), getAuditLog);
+
+// Facilities (organizational boundary: organization → sites)
+router.get('/facilities', getFacilities);
+router.post('/facilities', body('name').trim().notEmpty().withMessage('Facility name is required'), validate(validateFacility), authorize('admin', 'manager'), createFacility);
+router.put('/facilities/:facilityId', validate(validateFacility), authorize('admin', 'manager'), updateFacility);
+router.delete('/facilities/:facilityId', authorize('admin', 'manager'), deactivateFacility);
 
 // User management routes
 router.get('/users', getOrganizationUsers);

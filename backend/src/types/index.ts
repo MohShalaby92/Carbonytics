@@ -31,6 +31,7 @@ export interface IOrganization extends Document {
   industry: string;
   country: string;
   size: 'micro' | 'small' | 'medium' | 'large';
+  consolidationApproach?: 'equity_share' | 'financial_control' | 'operational_control';
   settings: {
     currency: string;
     timezone: string;
@@ -202,6 +203,7 @@ export interface ICalculation extends Document {
   _id: Types.ObjectId;
   organizationId: Types.ObjectId;
   userId: Types.ObjectId;
+  facilityId?: Types.ObjectId;
   title: string;
   description?: string;
   period: {
@@ -236,6 +238,10 @@ export interface ICalculationEntry {
   gwpSet?: string; // GWP set in force when computed (e.g. 'AR6')
   gwpApplied?: 'per-gas' | 'embedded'; // whether GWPs were applied or already embedded in a CO2e factor
   method?: string; // calculation method (activity_based / spend_based / ...)
+  // Scope 2 dual reporting (electricity entries only)
+  scope2Location?: number; // location-based figure (grid average), kg CO2e
+  scope2Market?: number; // market-based figure, kg CO2e
+  scope2MarketMethod?: string; // which rung of the market-based hierarchy was used
 }
 
 export interface ApiResponse<T = any> {

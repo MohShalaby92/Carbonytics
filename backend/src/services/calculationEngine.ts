@@ -68,6 +68,12 @@ export interface CalculationResult {
     notes: string[];
   };
   provenance: CalculationProvenance;
+  /** Scope 2 dual reporting (purchased electricity only). */
+  scope2Dual?: {
+    locationBased: number; // kg CO2e via grid-average factor
+    marketBased: number; // kg CO2e via the market-based hierarchy
+    marketMethod: string; // which rung of the hierarchy produced the figure
+  };
 }
 
 // Short-lived cache of organization GWP-set choices so batch imports don't
@@ -121,6 +127,15 @@ export class CalculationEngine {
         gwpApplied: usedPerGas ? 'per-gas' : 'embedded',
         ...(usedPerGas && gasBreakdown ? { gasBreakdown } : {}),
       };
+
+      // Scope 2 dual reporting for purchased electricity.
+      const scope2Dual = await this.computeScope2Dual(
+        category,
+        factor,
+        normalizedValue,
+        finalEmissions,
+        input
+      );
       
       const result: CalculationResult = {
         calculation: {
@@ -154,6 +169,7 @@ export class CalculationEngine {
         },
         quality,
         provenance,
+        ...(scope2Dual ? { scope2Dual } : {}),
       };
 
       logger.info(`Calculation completed: ${finalEmissions} kg CO2e (GWP set ${gwpSet}, ${provenance.gwpApplied})`);
@@ -183,13 +199,20 @@ export class CalculationEngine {
     let factor;
     
     if (input.factorId) {
-      // Use specific factor if provided
+      // Use specific factor if provided — but only if it is shared (library)
+      // or belongs to the caller's organization (no cross-tenant factors).
       factor = await EmissionFactor.findById(input.factorId);
       if (!factor) {
         throw new Error('Specified emission factor not found');
       }
+      if (
+        factor.organizationId &&
+        factor.organizationId.toString() !== (input.organizationId || '')
+      ) {
+        throw new Error('Specified emission factor not found');
+      }
     } else {
-      // Smart factor selection: prefer Egyptian factors
+      // Smart factor selection (GHGP method hierarchy + Egyptian-market mandate)
       factor = await this.findBestEmissionFactor(category, input);
     }
     
@@ -200,6 +223,22 @@ export class CalculationEngine {
     return factor;
   }
 
+  /**
+   * Automatic factor selection.
+   *
+   * Tier order (GHG Protocol method hierarchy + Egyptian-market mandate):
+   *   1. The organization's own custom factors (supplier-specific data —
+   *      the top of the GHGP hierarchy).
+   *   2. EGYPTIAN shared factors — permanently first among library factors:
+   *      this product's primary market is Egypt, so Egyptian factors are
+   *      never removed from selection and always win over other regions.
+   *   3. Global, then other regional shared factors.
+   *
+   * Within a tier, the vintage closest to the activity year wins (preferring
+   * factors published in or before that year), then isDefault as a tiebreak.
+   * Explicitly selected factors (input.factorId) bypass this entirely, so the
+   * Egyptian factors also remain directly selectable at all times.
+   */
   private async findBestEmissionFactor(category: any, input: CalculationInput) {
     const searchCriteria: any = {
       categoryId: category._id,
@@ -210,32 +249,61 @@ export class CalculationEngine {
     if (input.metadata?.fuelType) {
       searchCriteria.fuelType = input.metadata.fuelType;
     }
-    
+
     if (input.metadata?.vehicleType) {
       searchCriteria.vehicleType = input.metadata.vehicleType;
     }
 
-    // Priority order: Egyptian -> Global -> Others
-    const regions = ['egypt', 'global', 'mena', 'eu', 'us'];
-    
-    for (const region of regions) {
-      const factor = await EmissionFactor.findOne({
-        ...searchCriteria,
-        region,
-      }).sort({ 
-        year: -1,      // Latest year first
-        isDefault: -1,  // Default factors first
-        qualityRating: -1, // High quality first
+    const activityYear = input.activityYear ?? new Date().getFullYear();
+    const sharedScope = [{ organizationId: { $exists: false } }, { organizationId: null }];
+
+    // Best vintage for the activity year: prefer factors published in or
+    // before the year (no future factors), then smallest year distance,
+    // then default factors.
+    const pickBestVintage = (factors: any[]) => {
+      if (factors.length === 0) return null;
+      const notAfter = factors.filter((f) => (f.year ?? 0) <= activityYear);
+      const pool = notAfter.length > 0 ? notAfter : factors;
+      pool.sort((a, b) => {
+        const da = Math.abs(activityYear - (a.year ?? 0));
+        const db = Math.abs(activityYear - (b.year ?? 0));
+        if (da !== db) return da - db;
+        return (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0);
       });
-      
-      if (factor) {
-        logger.info(`Selected ${region} emission factor: ${factor.name}`);
-        return factor;
+      return pool[0];
+    };
+
+    // Tier 1: organization's own custom factors (visible only to that org).
+    if (input.organizationId) {
+      const customs = await EmissionFactor.find({
+        ...searchCriteria,
+        organizationId: input.organizationId,
+      });
+      const best = pickBestVintage(customs);
+      if (best) {
+        logger.info(`Selected org-custom emission factor: ${best.name} (${best.year})`);
+        return best;
       }
     }
 
-    // Fallback: any factor for this category
-    return EmissionFactor.findOne(searchCriteria).sort({ year: -1 });
+    // Tiers 2+: shared library factors — Egypt always first.
+    const regions = ['egypt', 'global', 'mena', 'eu', 'us'];
+    for (const region of regions) {
+      const factors = await EmissionFactor.find({
+        ...searchCriteria,
+        region,
+        $or: sharedScope,
+      });
+      const best = pickBestVintage(factors);
+      if (best) {
+        logger.info(`Selected ${region} emission factor: ${best.name} (${best.year})`);
+        return best;
+      }
+    }
+
+    // Fallback: any shared factor for this category.
+    const rest = await EmissionFactor.find({ ...searchCriteria, $or: sharedScope });
+    return pickBestVintage(rest);
   }
 
   private async convertUnits(value: number, fromUnit: string, category: any, factor: any): Promise<number> {
@@ -450,6 +518,72 @@ export class CalculationEngine {
       'kg_to_ream': 0.4,
       'sheet_to_kg': 0.005,  // standard A4 paper sheet
       'kg_to_sheet': 200,
+    };
+  }
+
+  /**
+   * Scope 2 dual reporting (GHG Protocol Scope 2 Guidance): every purchased-
+   * electricity record carries BOTH a location-based figure (grid average)
+   * and a market-based figure.
+   *
+   * Market-based hierarchy implemented so far:
+   *   - supplier-specific emission rate → the organization's own custom
+   *     factor, when one was used for the calculation;
+   *   - otherwise grid average as the final fallback. Egypt has no
+   *     contractual-instrument market (no certificate tracking system or
+   *     published residual mix), so per the Guidance the grid average is the
+   *     correct market-based figure in the absence of instruments.
+   * Certificate/PPA registry rungs are future work (see gap analysis §2.3).
+   */
+  private async computeScope2Dual(
+    category: any,
+    usedFactor: any,
+    normalizedValue: number,
+    finalEmissions: number,
+    input: CalculationInput
+  ): Promise<{ locationBased: number; marketBased: number; marketMethod: string } | null> {
+    if (category.scope !== 2 || !/electricity/i.test(category.category || '')) {
+      return null;
+    }
+
+    // Location-based figure always uses the shared grid-average factor —
+    // Egyptian grid factor first (market mandate), global as fallback.
+    const sharedScope = [{ organizationId: { $exists: false } }, { organizationId: null }];
+    let gridFactor = await EmissionFactor.findOne({
+      categoryId: category._id,
+      region: 'egypt',
+      isActive: true,
+      $or: sharedScope,
+    }).sort({ year: -1, isDefault: -1 });
+    if (!gridFactor) {
+      gridFactor = await EmissionFactor.findOne({
+        categoryId: category._id,
+        region: 'global',
+        isActive: true,
+        $or: sharedScope,
+      }).sort({ year: -1, isDefault: -1 });
+    }
+    if (!gridFactor) return null;
+
+    const locationBased = Math.round(normalizedValue * gridFactor.factor * 100) / 100;
+
+    const usedSupplierSpecific =
+      usedFactor.organizationId &&
+      usedFactor.organizationId.toString() === (input.organizationId || '');
+
+    if (usedSupplierSpecific) {
+      return {
+        locationBased,
+        marketBased: finalEmissions,
+        marketMethod: 'supplier-specific rate (organization custom factor)',
+      };
+    }
+
+    return {
+      locationBased,
+      marketBased: locationBased,
+      marketMethod:
+        'grid average — no contractual-instrument market in Egypt (Scope 2 Guidance fallback)',
     };
   }
 

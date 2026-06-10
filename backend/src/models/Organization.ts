@@ -36,6 +36,13 @@ const organizationSchema = new Schema<IOrganization>({
     enum: ['micro', 'small', 'medium', 'large'],
     required: [true, 'Organization size is required'],
   },
+  // GHG Protocol organizational boundary: the consolidation approach is chosen
+  // once, recorded, and applied consistently across reporting periods.
+  consolidationApproach: {
+    type: String,
+    enum: ['equity_share', 'financial_control', 'operational_control'],
+    default: 'operational_control',
+  },
   settings: {
     currency: {
       type: String,

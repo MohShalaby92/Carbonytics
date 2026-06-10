@@ -209,6 +209,9 @@ export class CSVService {
         gwpSet: calculationResult.provenance?.gwpSet,
         gwpApplied: calculationResult.provenance?.gwpApplied,
         method: calculationResult.calculation.metadata?.calculationMethod,
+        scope2Location: calculationResult.scope2Dual?.locationBased,
+        scope2Market: calculationResult.scope2Dual?.marketBased,
+        scope2MarketMethod: calculationResult.scope2Dual?.marketMethod,
         notes: row.notes,
       }],
       emissions: {

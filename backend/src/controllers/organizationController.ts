@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../types';
 import { generateTemporaryPassword, escapeRegex } from '../utils/security';
 import { recordAudit } from '../utils/audit';
 import { AuditLog } from '../models/AuditLog';
+import { Facility } from '../models/Facility';
 import { invalidateGwpSetCache } from '../services/calculationEngine';
 import { config } from '../config/config';
 
@@ -27,6 +28,7 @@ export const getOrganization = asyncHandler(async (req: AuthenticatedRequest, re
     industry: organization.industry,
     country: organization.country,
     size: organization.size,
+    consolidationApproach: organization.consolidationApproach || 'operational_control',
     settings: organization.settings,
     targets: organization.targets || [],
     exclusions: organization.exclusions || [],
@@ -153,13 +155,18 @@ export const updateOrganization = asyncHandler(async (req: AuthenticatedRequest,
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
 
-  const { name, industry, country, size } = req.body;
+  const { name, industry, country, size, consolidationApproach } = req.body;
   const updates: any = {};
 
   if (name) updates.name = name;
   if (industry) updates.industry = industry;
   if (country) updates.country = country;
   if (size) updates.size = size;
+  if (consolidationApproach) updates.consolidationApproach = consolidationApproach;
+
+  const prior = await Organization.findById(req.user.organizationId)
+    .select('name industry country size consolidationApproach')
+    .lean();
 
   const organization = await Organization.findByIdAndUpdate(
     req.user.organizationId,
@@ -171,7 +178,133 @@ export const updateOrganization = asyncHandler(async (req: AuthenticatedRequest,
     return ApiResponseUtil.error(res, 'Organization not found', 404);
   }
 
+  // Boundary/identity changes are methodology-relevant — always audited.
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'organization',
+    resourceId: req.user.organizationId,
+    before: prior,
+    after: updates,
+  });
+
   ApiResponseUtil.success(res, organization, 'Organization updated successfully');
+});
+
+// ---- Facilities (organizational boundary: organization → sites) ----
+
+export const getFacilities = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const includeInactive = req.query.includeInactive === 'true';
+  const filter: any = { organizationId: req.user.organizationId };
+  if (!includeInactive) filter.isActive = true;
+  const facilities = await Facility.find(filter).sort({ name: 1 });
+  ApiResponseUtil.success(res, { facilities, count: facilities.length });
+});
+
+export const createFacility = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { name, country, city, ownershipPercent, operationalControl, notes } = req.body;
+
+  const facility = await Facility.create({
+    organizationId: req.user.organizationId,
+    name: String(name).trim(),
+    country: country ? String(country).trim() : 'Egypt',
+    city: city ? String(city).trim() : undefined,
+    ownershipPercent: ownershipPercent !== undefined ? parseFloat(ownershipPercent) : 100,
+    operationalControl: operationalControl !== undefined ? Boolean(operationalControl) : true,
+    notes,
+  });
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'create',
+    resourceType: 'facility',
+    resourceId: facility._id.toString(),
+    after: { name: facility.name, country: facility.country, ownershipPercent: facility.ownershipPercent, operationalControl: facility.operationalControl },
+  });
+
+  ApiResponseUtil.success(res, facility.toJSON(), 'Facility created', 201);
+});
+
+export const updateFacility = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { facilityId } = req.params;
+  const { name, country, city, ownershipPercent, operationalControl, notes, isActive } = req.body;
+
+  const prior = await Facility.findOne({ _id: facilityId, organizationId: req.user.organizationId }).lean();
+  if (!prior) {
+    return ApiResponseUtil.error(res, 'Facility not found', 404);
+  }
+
+  const updates: any = {};
+  if (name !== undefined) updates.name = String(name).trim();
+  if (country !== undefined) updates.country = String(country).trim();
+  if (city !== undefined) updates.city = String(city).trim();
+  if (ownershipPercent !== undefined) updates.ownershipPercent = parseFloat(ownershipPercent);
+  if (operationalControl !== undefined) updates.operationalControl = Boolean(operationalControl);
+  if (notes !== undefined) updates.notes = notes;
+  if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+  const facility = await Facility.findOneAndUpdate(
+    { _id: facilityId, organizationId: req.user.organizationId },
+    updates,
+    { new: true, runValidators: true }
+  );
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'facility',
+    resourceId: facilityId,
+    before: { name: (prior as any).name, ownershipPercent: (prior as any).ownershipPercent, operationalControl: (prior as any).operationalControl, isActive: (prior as any).isActive },
+    after: updates,
+  });
+
+  ApiResponseUtil.success(res, facility!.toJSON(), 'Facility updated');
+});
+
+/** Soft-delete: facilities referenced by calculations must stay resolvable. */
+export const deactivateFacility = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { facilityId } = req.params;
+
+  const facility = await Facility.findOneAndUpdate(
+    { _id: facilityId, organizationId: req.user.organizationId },
+    { isActive: false },
+    { new: true }
+  );
+  if (!facility) {
+    return ApiResponseUtil.error(res, 'Facility not found', 404);
+  }
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'delete',
+    resourceType: 'facility',
+    resourceId: facilityId,
+    before: { isActive: true },
+    after: { isActive: false },
+    comment: 'Soft-deleted (deactivated) — historical calculations keep referencing it',
+  });
+
+  ApiResponseUtil.success(res, facility.toJSON(), 'Facility deactivated');
 });
 
 export const getOrganizationUsers = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

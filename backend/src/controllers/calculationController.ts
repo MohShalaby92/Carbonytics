@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Calculation } from '../models/Calculation';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { EmissionCategory } from '../models/EmissionCategory';
+import { Facility } from '../models/Facility';
 import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -131,6 +132,7 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     title,
     description,
     period,
+    facilityId,
     calculations, // Array of calculation entries
   } = req.body;
 
@@ -140,6 +142,14 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
 
   if (!title || !period || !calculations || !Array.isArray(calculations)) {
     return ApiResponseUtil.error(res, 'Title, period, and calculations array are required', 400);
+  }
+
+  // Optional facility tag must belong to this organization.
+  if (facilityId) {
+    const facility = await Facility.findOne({ _id: facilityId, organizationId: req.user.organizationId });
+    if (!facility) {
+      return ApiResponseUtil.error(res, 'Facility not found in your organization', 400);
+    }
   }
 
   // Validate period
@@ -200,6 +210,10 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       gwpSet: computed.provenance?.gwpSet,
       gwpApplied: computed.provenance?.gwpApplied,
       method: computed.calculation.metadata?.calculationMethod,
+      // Scope 2 dual figures (purchased electricity only)
+      scope2Location: computed.scope2Dual?.locationBased,
+      scope2Market: computed.scope2Dual?.marketBased,
+      scope2MarketMethod: computed.scope2Dual?.marketMethod,
       notes: calc.notes,
     };
 
@@ -230,6 +244,7 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
   const calculation = new Calculation({
     organizationId: req.user.organizationId,
     userId: req.user.id,
+    ...(facilityId ? { facilityId } : {}),
     title,
     description,
     period: {
@@ -335,12 +350,13 @@ export const getCalculations = asyncHandler(async (req: AuthenticatedRequest, re
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
 
-  const { 
-    status, 
-    startDate, 
-    endDate, 
-    page = '1', 
-    limit = '10' 
+  const {
+    status,
+    startDate,
+    endDate,
+    facilityId,
+    page = '1',
+    limit = '10'
   } = req.query;
 
   const filter: any = {
@@ -349,6 +365,10 @@ export const getCalculations = asyncHandler(async (req: AuthenticatedRequest, re
 
   if (status) {
     filter.status = status;
+  }
+
+  if (facilityId) {
+    filter.facilityId = facilityId;
   }
 
   if (startDate || endDate) {

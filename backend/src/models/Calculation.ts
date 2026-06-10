@@ -43,6 +43,11 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   gwpSet: { type: String },
   gwpApplied: { type: String, enum: ['per-gas', 'embedded'] },
   method: { type: String, trim: true },
+  // Scope 2 dual reporting (populated for purchased-electricity entries):
+  // both figures are stored per the GHG Protocol Scope 2 Guidance.
+  scope2Location: { type: Number },
+  scope2Market: { type: Number },
+  scope2MarketMethod: { type: String, trim: true },
   notes: {
     type: String,
     trim: true,
@@ -59,6 +64,12 @@ const calculationSchema = new Schema<ICalculation>({
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User is required'],
+  },
+  // Optional facility/site tag (organizational boundary dimension).
+  facilityId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Facility',
+    index: true,
   },
   title: {
     type: String,
