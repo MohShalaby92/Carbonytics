@@ -162,3 +162,9 @@
 - **Phase 1 items done in this session (🔧):** GWP set management + per-gas engine, calculation provenance, audit trail, inventory locking, exclusions register, factor-vintage warnings.
 - **Phase 1 items still open (largest first):** entity/boundary model · Scope 2 dual reporting + instrument registry · real factor libraries (DEFRA/EPA/IPCC vintages) · 15th Scope 3 category + relevance screening · gap-filling/estimation engine · inventory object with snapshots · GHG inventory report export · PCAF-style 1–5 DQ.
 - **Phases 2–3:** not started (as expected).
+
+## 14. Increment 2 addendum (2026-06-10, P0-2) - commit 158148b
+
+- **1.2 boundaries (done):** consolidationApproach on Organization (equity_share / financial_control / operational_control, audited); Facility model (country defaults to Egypt, ownership %, operational-control flag) with audited CRUD + soft-delete; Calculation.facilityId tagging + per-facility filtering. Still open: multi-level hierarchy (subsidiaries), equity roll-up math, M&A effective dates.
+- **2.3 Scope 2 dual reporting (partial, done for Egypt):** every purchased-electricity entry now stores scope2Location (grid average, Egyptian grid factor first), scope2Market, and scope2MarketMethod. Rungs implemented: supplier-specific rate (org custom factor) -> grid-average fallback, the correct market-based figure for Egypt (no contractual-instrument market / residual mix). Still open: certificate/PPA registry + Scope 2 Quality Criteria for instrument-bearing markets.
+- **3 factor selection (done):** auto-selection follows the GHGP method hierarchy - org custom (supplier-specific) -> EGYPTIAN shared factors (PERMANENT, market mandate: never removed, always above other regions) -> global -> other regions; within a tier the vintage closest to (and not after) the activity year wins. Explicit factor selection always available. Also fixed cross-tenant factor leaks (auto-selection org-scoped; foreign factorIds rejected).
