@@ -111,29 +111,19 @@ export const getFactorsByCategory = asyncHandler(async (req: Request, res: Respo
   let factors;
 
   if (preferLocal === 'true') {
-    // First try to get Egyptian factors, fallback to global
-    const egyptianFactors = await EmissionFactor.find({
-      categoryId,
-      region: 'egypt',
-      isActive: true,
-      $or: sharedScope,
-    })
-      .sort({ year: -1, isDefault: -1 })
-      .lean();
-
-    if (egyptianFactors.length > 0) {
-      factors = egyptianFactors;
-    } else {
-      // Fallback to global factors
-      factors = await EmissionFactor.find({
-        categoryId,
-        region: 'global',
-        isActive: true,
-        $or: sharedScope,
-      })
+    // Egyptian factors first (the primary default), then the rest of the
+    // shared library as selectable alternatives — never either/or, because
+    // users may explicitly choose a non-Egyptian factor when they judge it
+    // more representative.
+    const [egyptianFactors, libraryFactors] = await Promise.all([
+      EmissionFactor.find({ categoryId, region: 'egypt', isActive: true, $or: sharedScope })
         .sort({ year: -1, isDefault: -1 })
-        .lean();
-    }
+        .lean(),
+      EmissionFactor.find({ categoryId, region: { $ne: 'egypt' }, isActive: true, $or: sharedScope })
+        .sort({ isDefault: -1, year: -1, name: 1 })
+        .lean(),
+    ]);
+    factors = [...egyptianFactors, ...libraryFactors];
   } else {
     // Get factors for specified region
     factors = await EmissionFactor.find({
