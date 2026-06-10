@@ -4,6 +4,7 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { Organization } from '../models/Organization';
 import { Facility } from '../models/Facility';
 import { AuditLog } from '../models/AuditLog';
+import { CalculationSnapshot } from '../models/CalculationSnapshot';
 import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -18,33 +19,28 @@ import { BenchmarkService } from '../services/benchmarkService';
  * targets, and an audit-trail reference. JSON by default; ?format=markdown
  * downloads a rendered document.
  */
-export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  if (!req.user) {
-    return ApiResponseUtil.error(res, 'Authentication required', 401);
-  }
-
-  const end = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
-  const start = req.query.startDate
-    ? new Date(req.query.startDate as string)
-    : new Date(new Date(end).setFullYear(end.getFullYear() - 1));
-
+async function buildGHGInventoryReport(
+  user: { organizationId: string; email: string },
+  start: Date,
+  end: Date
+) {
   const [organization, facilities, calculations, auditCount] = await Promise.all([
-    Organization.findById(req.user.organizationId),
-    Facility.find({ organizationId: req.user.organizationId, isActive: true }).lean(),
+    Organization.findById(user.organizationId),
+    Facility.find({ organizationId: user.organizationId, isActive: true }).lean(),
     Calculation.find({
-      organizationId: req.user.organizationId,
+      organizationId: user.organizationId,
       'period.start': { $gte: start, $lte: end },
     })
       .populate('data.categoryId', 'category scope subcategory')
       .lean(),
     AuditLog.countDocuments({
-      organizationId: req.user.organizationId,
+      organizationId: user.organizationId,
       createdAt: { $gte: start, $lte: end },
     }),
   ]);
 
   if (!organization) {
-    return ApiResponseUtil.error(res, 'Organization not found', 404);
+    throw new Error('Organization not found');
   }
 
   const gwpSet = isGwpSetName(organization.settings?.gwpSet)
@@ -111,7 +107,7 @@ export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedReque
   const report = {
     title: `GHG Inventory Report — ${organization.name}`,
     generatedAt: new Date().toISOString(),
-    generatedBy: req.user.email,
+    generatedBy: user.email,
     organization: {
       name: organization.name,
       industry: organization.industry,
@@ -170,6 +166,24 @@ export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedReque
       'Quantitative uncertainty analysis has not yet been performed. Data-quality ratings per entry (factor specificity, regional representativeness, vintage) are reported above; baseline factors flagged low-quality should be validated against authoritative datasets before external assurance.',
   };
 
+  return report;
+}
+
+function parsePeriod(req: AuthenticatedRequest): { start: Date; end: Date } {
+  const end = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
+  const start = req.query.startDate
+    ? new Date(req.query.startDate as string)
+    : new Date(new Date(end).setFullYear(end.getFullYear() - 1));
+  return { start, end };
+}
+
+export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+  const report = await buildGHGInventoryReport(req.user, start, end);
+
   if ((req.query.format as string) === 'markdown') {
     const md = renderInventoryMarkdown(report);
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
@@ -181,6 +195,78 @@ export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedReque
   }
 
   ApiResponseUtil.success(res, report);
+});
+
+/**
+ * Assurance package (ISO 14064-3 / ISSA 5000 readiness): one bundle a verifier
+ * samples from — inventory report, complete activity-data register with
+ * per-entry provenance, audit-trail extract, and publication snapshots.
+ */
+export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+
+  const [report, calcs, audit, snapshots] = await Promise.all([
+    buildGHGInventoryReport(req.user, start, end),
+    Calculation.find({
+      organizationId: req.user.organizationId,
+      'period.start': { $gte: start, $lte: end },
+    })
+      .populate('data.categoryId', 'category scope')
+      .lean(),
+    AuditLog.find({
+      organizationId: req.user.organizationId,
+      createdAt: { $gte: start, $lte: end },
+    })
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean(),
+    CalculationSnapshot.find({ organizationId: req.user.organizationId })
+      .select('calculationId version reason comment createdBy createdAt')
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  // Flat activity-data register: every entry with its full provenance chain —
+  // the sampling surface for a verifier.
+  const activityRegister = calcs.flatMap((c: any) =>
+    (c.data || []).map((e: any) => ({
+      calculationId: c._id.toString(),
+      calculationTitle: c.title,
+      status: c.status,
+      period: c.period,
+      facilityId: c.facilityId,
+      category: e.categoryId?.category,
+      scope: e.categoryId?.scope,
+      value: e.value,
+      unit: e.unit,
+      emissions: e.emissions,
+      factor: e.factor,
+      factorId: e.factorId,
+      factorName: e.factorName,
+      factorSource: e.factorSource,
+      factorYear: e.factorYear,
+      gwpSet: e.gwpSet,
+      gwpApplied: e.gwpApplied,
+      method: e.method,
+      quality: e.quality,
+      scope2Location: e.scope2Location,
+      scope2Market: e.scope2Market,
+      scope2MarketMethod: e.scope2MarketMethod,
+      notes: e.notes,
+    }))
+  );
+
+  ApiResponseUtil.success(res, {
+    inventoryReport: report,
+    activityRegister,
+    auditTrail: audit.map((a: any) => ({ ...a, id: a._id.toString() })),
+    snapshots: snapshots.map((s: any) => ({ ...s, id: s._id.toString() })),
+    contents: ['inventoryReport', 'activityRegister', 'auditTrail', 'snapshots'],
+    note: 'Per-data-line evidence attachments are not yet supported (gap analysis §4.3); audit extract capped at 500 entries.',
+  });
 });
 
 function renderInventoryMarkdown(r: any): string {

@@ -8,6 +8,8 @@ import {
   getCalculationById,
   lockCalculation,
   unlockCalculation,
+  getCalculationSnapshots,
+  getSnapshotDiff,
 } from '../controllers/calculationController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -70,5 +72,9 @@ router.get('/:id', getCalculationById);
 // Inventory lifecycle: lock = publish (immutable), unlock = audited correction path.
 router.patch('/:id/lock', authorize('admin', 'manager'), clearCache('calculations'), lockCalculation);
 router.patch('/:id/unlock', authorize('admin', 'manager'), clearCache('calculations'), unlockCalculation);
+
+// Publication snapshots + restatement diffs.
+router.get('/:id/snapshots', getCalculationSnapshots);
+router.get('/:id/snapshots/diff', getSnapshotDiff);
 
 export default router;

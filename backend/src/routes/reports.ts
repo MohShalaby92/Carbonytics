@@ -8,6 +8,7 @@ import {
   exportReport,
   getIndustryBenchmarks,
   getGHGInventoryReport,
+  getAssurancePackage,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -63,5 +64,8 @@ router.get('/benchmarks',
 // GHG inventory report (GHGP/ISO 14064-1 content; ?format=markdown downloads).
 // Uncached: this is an explicit export action and must reflect current data.
 router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport);
+
+// Assurance package (verifier bundle). Uncached export action.
+router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);
 
 export default router;

@@ -3,6 +3,7 @@ import { Calculation } from '../models/Calculation';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { EmissionCategory } from '../models/EmissionCategory';
 import { Facility } from '../models/Facility';
+import { CalculationSnapshot } from '../models/CalculationSnapshot';
 import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -294,6 +295,19 @@ export const lockCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     { new: true }
   );
 
+  // Versioned snapshot at every publication — restatement history (§7.3).
+  const version =
+    (await CalculationSnapshot.countDocuments({ calculationId: id })) + 1;
+  await CalculationSnapshot.create({
+    organizationId: req.user.organizationId,
+    calculationId: id,
+    version,
+    snapshot: updated!.toJSON(),
+    reason: 'lock',
+    comment: req.body?.comment,
+    createdBy: req.user.email,
+  });
+
   await recordAudit({
     organizationId: req.user.organizationId,
     userId: req.user.id,
@@ -302,11 +316,80 @@ export const lockCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     resourceType: 'calculation',
     resourceId: id,
     before: { status: before },
-    after: { status: 'locked' },
+    after: { status: 'locked', snapshotVersion: version },
     comment: req.body?.comment,
   });
 
-  ApiResponseUtil.success(res, updated, 'Calculation locked — it is now immutable');
+  ApiResponseUtil.success(res, updated, `Calculation locked — snapshot v${version} recorded`);
+});
+
+/** List snapshot versions for a calculation (metadata only). */
+export const getCalculationSnapshots = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const snapshots = await CalculationSnapshot.find({
+    calculationId: req.params.id,
+    organizationId: req.user.organizationId,
+  })
+    .select('version reason comment createdBy createdAt')
+    .sort({ version: -1 })
+    .lean();
+  ApiResponseUtil.success(res, {
+    snapshots: snapshots.map((s: any) => ({ ...s, id: s._id.toString() })),
+    count: snapshots.length,
+  });
+});
+
+/**
+ * Restatement diff between two snapshot versions: "what changed and why".
+ * GET /:id/snapshots/diff?from=1&to=2
+ */
+export const getSnapshotDiff = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const from = parseInt(req.query.from as string, 10);
+  const to = parseInt(req.query.to as string, 10);
+  if (!from || !to) {
+    return ApiResponseUtil.error(res, 'from and to version query params are required', 400);
+  }
+
+  const [a, b] = await Promise.all([
+    CalculationSnapshot.findOne({ calculationId: req.params.id, organizationId: req.user.organizationId, version: from }).lean(),
+    CalculationSnapshot.findOne({ calculationId: req.params.id, organizationId: req.user.organizationId, version: to }).lean(),
+  ]);
+  if (!a || !b) {
+    return ApiResponseUtil.error(res, 'One or both snapshot versions not found', 404);
+  }
+
+  const changes: Array<{ path: string; from: any; to: any }> = [];
+  const sa: any = (a as any).snapshot, sb: any = (b as any).snapshot;
+  const compare = (path: string, va: any, vb: any) => {
+    if (JSON.stringify(va) !== JSON.stringify(vb)) changes.push({ path, from: va, to: vb });
+  };
+  compare('title', sa.title, sb.title);
+  compare('period', sa.period, sb.period);
+  compare('emissions.scope1', sa.emissions?.scope1, sb.emissions?.scope1);
+  compare('emissions.scope2', sa.emissions?.scope2, sb.emissions?.scope2);
+  compare('emissions.scope3', sa.emissions?.scope3, sb.emissions?.scope3);
+  compare('emissions.total', sa.emissions?.total, sb.emissions?.total);
+  compare('entryCount', (sa.data || []).length, (sb.data || []).length);
+  const n = Math.max((sa.data || []).length, (sb.data || []).length);
+  for (let i = 0; i < n; i++) {
+    const ea: any = (sa.data || [])[i] || {}, eb: any = (sb.data || [])[i] || {};
+    compare(`data[${i}].value`, ea.value, eb.value);
+    compare(`data[${i}].emissions`, ea.emissions, eb.emissions);
+    compare(`data[${i}].factor`, ea.factor, eb.factor);
+  }
+
+  ApiResponseUtil.success(res, {
+    calculationId: req.params.id,
+    from: { version: from, lockedAt: (a as any).createdAt, comment: (a as any).comment },
+    to: { version: to, lockedAt: (b as any).createdAt, comment: (b as any).comment },
+    identical: changes.length === 0,
+    changes,
+  });
 });
 
 /** Unlock a previously locked calculation (audited; admin/manager only). */
