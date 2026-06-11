@@ -73,14 +73,9 @@ Source files live at `C:\Users\Shalaby\Desktop\ALX\Carbonytics_ ALX_Graduation_P
 
 **Phase 1 (P0): essentially complete.** Every P0 section has a working implementation or documented deferral. Honest partials: per-inventory-year GWP locking (needs an inventory/reporting-year object), factor version history (edits overwrite), HHV/LHV+imperial unit engine, relevance-screening workflow (exclusions register covers justification), completeness gates.
 
-**IMMEDIATE NEXT STEP — the Compliance UI pass** (everything enterprise is API-only; report §10 P0 "inline methodology help / guided onboarding" also lands here). Concrete scope:
-1. **Calculator:** "Suggest estimate" button (calls `/api/calculations/estimate`, fills value, sets isEstimate + method on save); show per-entry dqScore; estimate badge on entries.
-2. **Dashboard:** weighted DQ score + estimated-share in the Data Quality card; lock/unlock buttons + status badges on Recent Calculations; facility filter dropdown.
-3. **New "Compliance" page (or Settings tabs):** GHG report download (markdown), assurance-package download (JSON), exclusions register editor, facilities manager (CRUD), consolidation-approach + GWP-set pickers (Settings → Organization), audit-log viewer (paginated table), snapshot history + diff view per calculation.
-4. **Frontend types** need the new fields (dqScore, isEstimate, scope2*, facilityId…).
-All endpoints exist and are verified — this is pure frontend wiring (React/Vite, tokens-based design system, `apiService` in `frontend/src/services/api.ts`).
+**The Compliance UI pass is DONE (P0-8, 2026-06-12 — see gap analysis §20):** calculator estimate suggestion + DQ/provenance/dual-Scope-2 display, dashboard weighted-DQ + estimate-share + lock/unlock + facility filter, new `/compliance` page (reports & exports with inventory preview, exclusions editor, facilities manager, snapshots + restatement diffs, audit-trail viewer), Settings → Organization → Methodology (GWP set + consolidation approach), full frontend types + `complianceService` (`frontend/src/services/complianceService.ts`). All verified in-browser against the live backend; production image rebuilt.
 
-**After the UI pass, report order continues (P1):** intensity metrics + denominators (unblocks the estimation intensity-proxy rung) → IMP auto-generation (§7.3, builds on the methodology data already collected) → supplier data module → completeness dashboard/gates → SSO/verifier roles → CDP/SBTi mapping exports → remaining factor tables (EPA imperial + eGRID; EFDB-USA policy) → instrument registry (RECs/PPAs — only when expanding beyond Egypt) → PDF report rendering (currently markdown/JSON) → evidence attachments per data line.
+**IMMEDIATE NEXT STEP — report order continues (P1):** intensity metrics + denominators (unblocks the estimation intensity-proxy rung) → IMP auto-generation (§7.3, builds on the methodology data already collected) → supplier data module → completeness dashboard/gates → SSO/verifier roles → CDP/SBTi mapping exports → remaining factor tables (EPA imperial + eGRID; EFDB-USA policy) → instrument registry (RECs/PPAs — only when expanding beyond Egypt) → PDF report rendering (currently markdown/JSON) → evidence attachments per data line.
 
 ## 6. Known cosmetic/test debris (safe to clean)
 

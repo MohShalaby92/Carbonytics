@@ -11,7 +11,9 @@ import { TargetsModal } from '../../pages/dashboard/TargetsModal';
 import { QualityIndicators } from '../../pages/dashboard/QualityIndicators';
 import { useCalculations } from '../../hooks/useCalculations';
 import { calculationService } from '../../services/calculationService';
+import { complianceService } from '../../services/complianceService';
 import { apiService } from '../../services/api';
+import { Facility } from '../../types';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -31,6 +33,10 @@ export const DashboardPage: React.FC = () => {
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   const [targetsRefreshToken, setTargetsRefreshToken] = useState(0);
   const [exporting, setExporting] = useState(false);
+  // Facility filter (organizational-boundary dimension); hidden when the org
+  // has no facilities defined.
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilityId, setFacilityId] = useState<string>('');
 
   const {
     calculations: sessionCalculations,
@@ -40,7 +46,12 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
-  }, [timeframe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeframe, facilityId]);
+
+  useEffect(() => {
+    complianceService.getFacilities().then(setFacilities).catch(() => setFacilities([]));
+  }, []);
 
   const loadDashboardData = async () => {
     try {
@@ -71,11 +82,13 @@ export const DashboardPage: React.FC = () => {
         calculationService.getCalculations({
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
+          ...(facilityId ? { facilityId } : {}),
           limit: 100,
         }),
         calculationService.getCalculations({
           startDate: prevStart.toISOString(),
           endDate: prevEnd.toISOString(),
+          ...(facilityId ? { facilityId } : {}),
           limit: 100,
         }),
         apiService.get<any[]>('/emission-categories').then((r) => r?.data ?? []).catch(() => []),
@@ -91,7 +104,11 @@ export const DashboardPage: React.FC = () => {
         if (id) catMap[id] = c.category || 'Other';
       });
 
-      const allCalculations = [...currentCalcs, ...sessionCalculations];
+      // Unsaved session entries carry no facility tag — only meaningful in the
+      // whole-organization view.
+      const allCalculations = facilityId
+        ? currentCalcs
+        : [...currentCalcs, ...sessionCalculations];
       setDashboardData(processDashboardData(allCalculations, previousCalcs, catMap));
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -225,6 +242,21 @@ export const DashboardPage: React.FC = () => {
         </div>
         
         <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-3">
+          {/* Facility filter (only when facilities exist) */}
+          {facilities.length > 0 && (
+            <select
+              value={facilityId}
+              onChange={(e) => setFacilityId(e.target.value)}
+              className="px-3 py-2 text-sm font-medium bg-surface text-fg/80 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              aria-label="Filter by facility"
+            >
+              <option value="">All facilities</option>
+              {facilities.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}{f.city ? ` — ${f.city}` : ''}</option>
+              ))}
+            </select>
+          )}
+
           {/* Timeframe Selector */}
           <div className="flex rounded-md shadow-sm">
             {(['month', 'quarter', 'year'] as const).map((period) => (
@@ -292,7 +324,10 @@ export const DashboardPage: React.FC = () => {
         <div className="space-y-6">
           <QuickCalculator />
           <QualityIndicators calculations={dashboardData?.calculations} />
-          <RecentCalculations calculations={dashboardData?.calculations?.slice(0, 5)} />
+          <RecentCalculations
+            calculations={dashboardData?.calculations?.slice(0, 5)}
+            onChanged={loadDashboardData}
+          />
         </div>
       </div>
 

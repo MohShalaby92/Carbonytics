@@ -1,15 +1,50 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatEmissions } from '../../utils/calculations';
-import { Clock, ExternalLink } from 'lucide-react';
+import { complianceService } from '../../services/complianceService';
+import { useAuth } from '../../hooks/useAuth';
+import { Clock, ExternalLink, Lock, LockOpen } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface RecentCalculationsProps {
   calculations: any[];
+  /** Called after a lock/unlock so the parent can refetch. */
+  onChanged?: () => void;
 }
 
-export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculations }) => {
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-fg/[0.06] text-fg/70 border-line' },
+  completed: { label: 'Completed', className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/20' },
+  verified: { label: 'Verified', className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/20' },
+  locked: { label: 'Locked', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/20' },
+};
+
+export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculations, onChanged }) => {
+  const { user } = useAuth();
+  const canLock = user?.role === 'admin' || user?.role === 'manager';
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLockToggle = async (calc: any) => {
+    const id = calc.id || calc._id;
+    if (!id) return;
+    try {
+      setBusyId(id);
+      setError(null);
+      if (calc.status === 'locked') {
+        await complianceService.unlockCalculation(id);
+      } else {
+        await complianceService.lockCalculation(id);
+      }
+      onChanged?.();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Lock change failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (!calculations || calculations.length === 0) {
     return (
       <Card className="p-6">
@@ -52,37 +87,63 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
         </Button>
       </div>
 
+      {error && (
+        <div className="mb-3 p-2 bg-red-500/10 border border-red-500/25 rounded text-xs text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-3">
-        {recentCalcs.map((calc, index) => (
-          <div key={calc.id || calc._id || index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2 mb-1">
-                {getScopes(calc).map((s) => (
-                  <span key={s} className={`px-2 py-0.5 text-xs font-medium rounded-full ${getScopeColor(s)}`}>
-                    S{s}
+        {recentCalcs.map((calc, index) => {
+          const id = calc.id || calc._id;
+          const badge = STATUS_BADGE[calc.status] || STATUS_BADGE.draft;
+          const isLocked = calc.status === 'locked';
+          return (
+            <div key={id || index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  {getScopes(calc).map((s) => (
+                    <span key={s} className={`px-2 py-0.5 text-xs font-medium rounded-full ${getScopeColor(s)}`}>
+                      S{s}
+                    </span>
+                  ))}
+                  <span className="text-sm font-medium text-fg truncate">
+                    {calc.title || 'Untitled calculation'}
                   </span>
-                ))}
-                <span className="text-sm font-medium text-fg truncate">
-                  {calc.title || 'Untitled calculation'}
-                </span>
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-muted">
+                  <span className={`px-1.5 py-0.5 font-semibold rounded-full border ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                  <Clock className="w-3 h-3" />
+                  <span>
+                    {calc.createdAt ? format(new Date(calc.createdAt), 'MMM dd, HH:mm') : 'Just now'}
+                  </span>
+                  {Array.isArray(calc.data) && (
+                    <span>· {calc.data.length} {calc.data.length === 1 ? 'entry' : 'entries'}</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center space-x-2 text-xs text-muted">
-                <Clock className="w-3 h-3" />
-                <span>
-                  {calc.createdAt ? format(new Date(calc.createdAt), 'MMM dd, HH:mm') : 'Just now'}
-                </span>
-                {Array.isArray(calc.data) && (
-                  <span>· {calc.data.length} {calc.data.length === 1 ? 'entry' : 'entries'}</span>
+              <div className="flex items-center gap-2 ml-3">
+                <p className="text-sm font-medium text-fg whitespace-nowrap">
+                  {formatEmissions(calc.emissions?.total || 0)}
+                </p>
+                {canLock && id && (
+                  <button
+                    onClick={() => handleLockToggle(calc)}
+                    disabled={busyId === id}
+                    title={isLocked
+                      ? 'Unlock (audited) — allows corrections, then re-lock'
+                      : 'Lock (publish) — makes the calculation immutable and records a snapshot'}
+                    className="p-1.5 rounded-lg text-muted hover:text-fg hover:bg-fg/[0.08] transition-colors disabled:opacity-50"
+                  >
+                    {isLocked ? <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <LockOpen className="w-4 h-4" />}
+                  </button>
                 )}
               </div>
             </div>
-            <div className="text-right ml-3">
-              <p className="text-sm font-medium text-fg">
-                {formatEmissions(calc.emissions?.total || 0)}
-              </p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <Button variant="outline" className="w-full mt-4" href="/calculations">

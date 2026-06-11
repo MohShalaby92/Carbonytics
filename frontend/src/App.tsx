@@ -21,6 +21,9 @@ const ImportExportPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const CompliancePage = lazy(() =>
+  import('./pages/compliance/CompliancePage').then((m) => ({ default: m.CompliancePage }))
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +52,7 @@ function App() {
                     <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                     <Route path="/calculations" element={<ProtectedRoute><CalculationPage /></ProtectedRoute>} />
                     <Route path="/import-export" element={<ProtectedRoute><ImportExportPage /></ProtectedRoute>} />
+                    <Route path="/compliance" element={<ProtectedRoute><CompliancePage /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                     <Route path="/profile" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />

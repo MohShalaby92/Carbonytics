@@ -133,7 +133,22 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
         <div className="space-y-2 max-h-32 overflow-y-auto">
           {calculations.slice(-5).reverse().map((calc, index) => (
             <div key={index} className="flex justify-between items-center text-sm p-2 bg-fg/[0.04] rounded">
-              <span className="truncate">{calc.category?.category || 'Unknown'}</span>
+              <span className="truncate flex items-center gap-1.5 min-w-0">
+                <span className="truncate">{calc.category?.category || 'Unknown'}</span>
+                {calc.isEstimate && (
+                  <span
+                    className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/20"
+                    title={calc.estimationMethod || 'Gap-filled estimate'}
+                  >
+                    estimate
+                  </span>
+                )}
+                {calc.dqScore != null && (
+                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-fg/[0.06] text-fg/70 border border-line" title="PCAF-style data quality score (1 best – 5 worst)">
+                    DQ {calc.dqScore}
+                  </span>
+                )}
+              </span>
               <span className="font-medium">{formatEmissions(calc.emissions || 0)}</span>
             </div>
           ))}

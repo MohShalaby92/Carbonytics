@@ -6,6 +6,7 @@ import {
   BarChart3,
   Calculator,
   Settings,
+  ShieldCheck,
   User,
   LogOut,
   Menu,
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
   { name: 'Calculate', href: '/calculations', icon: Calculator },
   { name: 'Import / Export', href: '/import-export', icon: Upload },
+  { name: 'Compliance', href: '/compliance', icon: ShieldCheck },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

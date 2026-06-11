@@ -31,6 +31,28 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
   const averageQuality =
     rated > 0 ? ((counts.high * 3 + counts.medium * 2 + counts.low * 1) / rated / 3) * 100 : 0;
 
+  // Emissions-weighted PCAF-style DQ score (1 best … 5 worst), matching the
+  // GHG inventory report's weightedDqScore: big emitters dominate the score.
+  let dqWeightedSum = 0;
+  let dqEmissionsSum = 0;
+  let estimateCount = 0;
+  let estimateEmissions = 0;
+  let allEmissions = 0;
+  entries.forEach((entry: any) => {
+    const emissions = entry.emissions || 0;
+    allEmissions += emissions;
+    if (typeof entry.dqScore === 'number') {
+      dqWeightedSum += entry.dqScore * emissions;
+      dqEmissionsSum += emissions;
+    }
+    if (entry.isEstimate) {
+      estimateCount++;
+      estimateEmissions += emissions;
+    }
+  });
+  const weightedDqScore = dqEmissionsSum > 0 ? dqWeightedSum / dqEmissionsSum : null;
+  const estimateShare = allEmissions > 0 ? (estimateEmissions / allEmissions) * 100 : 0;
+
   const helpPanel = showHelp && (
     <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
       <p className="font-medium">How quality is assessed</p>
@@ -140,6 +162,26 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
           Across {total} saved {total === 1 ? 'entry' : 'entries'}
           {counts.unrated > 0 ? ` (${counts.unrated} unrated excluded from the score)` : ''}
         </p>
+      </div>
+
+      {/* PCAF-style weighted DQ + estimated-data share */}
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <div className="p-3 bg-fg/[0.04] rounded-lg" title="Emissions-weighted PCAF-style data quality score: 1 (supplier-specific) … 5 (estimate). Entries without a DQ score are excluded.">
+          <p className="text-xs font-medium text-fg/80">Weighted DQ score</p>
+          <p className="text-xl font-bold text-primary-600 mt-1">
+            {weightedDqScore != null ? weightedDqScore.toFixed(2) : '—'}
+            <span className="text-xs font-normal text-muted ml-1">/ 5 (1 = best)</span>
+          </p>
+        </div>
+        <div className="p-3 bg-fg/[0.04] rounded-lg" title="Share of total emissions backed by gap-filled estimates rather than measured activity data.">
+          <p className="text-xs font-medium text-fg/80">Estimated data</p>
+          <p className="text-xl font-bold text-primary-600 mt-1">
+            {estimateShare.toFixed(0)}%
+            <span className="text-xs font-normal text-muted ml-1">
+              ({estimateCount} {estimateCount === 1 ? 'entry' : 'entries'})
+            </span>
+          </p>
+        </div>
       </div>
 
       {/* Quality Breakdown */}

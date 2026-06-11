@@ -13,8 +13,82 @@ export interface User {
 	name: string;
 	industry: string;
 	country: string;
-	size: 'small' | 'medium' | 'large';
+	size: 'micro' | 'small' | 'medium' | 'large';
+	consolidationApproach?: 'equity_share' | 'financial_control' | 'operational_control';
+	settings?: {
+		currency?: string;
+		timezone?: string;
+		language?: string;
+		gwpSet?: 'AR4' | 'AR5' | 'AR6';
+	};
+	exclusions?: OrgExclusion[];
 	createdAt: string;
+  }
+
+  /** Documented exclusion (GHG Protocol completeness/transparency register). */
+  export interface OrgExclusion {
+	source: string;
+	scope?: 1 | 2 | 3;
+	justification: string;
+	estimatedEmissions?: number;
+	createdAt?: string;
+  }
+
+  /** Facility/site within the organizational boundary. */
+  export interface Facility {
+	id: string;
+	organizationId?: string;
+	name: string;
+	country?: string;
+	city?: string;
+	ownershipPercent?: number;
+	operationalControl?: boolean;
+	notes?: string;
+	isActive?: boolean;
+	createdAt?: string;
+  }
+
+  /** Append-only audit trail entry (who/when/action/resource). */
+  export interface AuditLogEntry {
+	id: string;
+	userEmail?: string;
+	action: string;
+	resourceType: string;
+	resourceId?: string;
+	before?: Record<string, any>;
+	after?: Record<string, any>;
+	comment?: string;
+	createdAt: string;
+  }
+
+  /** Snapshot version metadata recorded at every calculation lock. */
+  export interface SnapshotMeta {
+	id: string;
+	version: number;
+	reason: string;
+	comment?: string;
+	createdBy?: string;
+	createdAt: string;
+  }
+
+  /** Field-level restatement diff between two snapshot versions. */
+  export interface SnapshotDiff {
+	calculationId: string;
+	from: { version: number; lockedAt: string; comment?: string };
+	to: { version: number; lockedAt: string; comment?: string };
+	identical: boolean;
+	changes: Array<{ path: string; from: any; to: any }>;
+  }
+
+  /** Conservative gap-filling suggestion from POST /calculations/estimate. */
+  export interface EstimateSuggestion {
+	suggestedValue: number;
+	rawValue: number;
+	unit: string;
+	method: string;
+	conservativenessUplift: number;
+	basedOnCalculations: Array<{ id: string; title: string; periodStart: string; value: number }>;
+	notes: string[];
   }
   
   export interface EmissionCategory {
@@ -66,6 +140,7 @@ export interface User {
 	id: string;
 	organizationId: string;
 	userId: string;
+	facilityId?: string;
 	title: string;
 	description?: string;
 	period: {
@@ -79,11 +154,11 @@ export interface User {
 	  total: number;
 	};
 	data: CalculationEntry[];
-	status: 'draft' | 'completed' | 'verified';
+	status: 'draft' | 'completed' | 'verified' | 'locked';
 	createdAt: string;
 	updatedAt: string;
   }
-  
+
   export interface CalculationEntry {
 	categoryId: string;
 	value: number;
@@ -91,6 +166,23 @@ export interface User {
 	factor: number;
 	emissions: number;
 	notes?: string;
+	// Data quality + provenance (stored server-side on save)
+	quality?: 'high' | 'medium' | 'low';
+	dqScore?: number; // PCAF-style 1 (best) … 5 (worst)
+	factorId?: string;
+	factorName?: string;
+	factorSource?: string;
+	factorYear?: number;
+	gwpSet?: string;
+	gwpApplied?: 'per-gas' | 'embedded';
+	method?: string;
+	// Scope 2 dual reporting (purchased-electricity entries)
+	scope2Location?: number;
+	scope2Market?: number;
+	scope2MarketMethod?: string;
+	// Estimation flags — estimates are never silently mixed with measured data
+	isEstimate?: boolean;
+	estimationMethod?: string;
   }
   
   export interface ApiResponse<T> {
@@ -98,6 +190,12 @@ export interface User {
 	data?: T;
 	message?: string;
 	errors?: Record<string, string[]>;
+	pagination?: {
+	  page: number;
+	  limit: number;
+	  total: number;
+	  pages: number;
+	};
   }
   
   export * from './calculations'; 

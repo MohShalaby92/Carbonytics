@@ -9,9 +9,10 @@ import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Alert } from '../ui/Alert';
 import { apiService } from '../../services/api';
-import { EmissionCategory, EmissionFactor, CalculationResult } from '../../types';
+import { complianceService } from '../../services/complianceService';
+import { EmissionCategory, EmissionFactor, CalculationResult, EstimateSuggestion } from '../../types';
 import { formatEmissions } from '../../utils/calculations';
-import { Calculator, Zap, Truck, Factory } from 'lucide-react';
+import { Calculator, Zap, Truck, Factory, Lightbulb } from 'lucide-react';
 
 // Category requiredInputs that duplicate the form's own base fields. Rendering
 // them twice bound the same form path twice (and the 'period' one clobbered the
@@ -93,6 +94,11 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const [customFactor, setCustomFactor] = useState({ name: '', factor: '', unit: '', source: '' });
   const [customFactorError, setCustomFactorError] = useState<string | null>(null);
   const [customFactorSaving, setCustomFactorSaving] = useState(false);
+  // Gap-filling estimate suggestion: when applied, the entry is saved flagged
+  // isEstimate + estimationMethod so it stays distinguishable from measured data.
+  const [estimate, setEstimate] = useState<EstimateSuggestion | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
 
   // Dynamic form setup
   const emptySchema = z.object({
@@ -134,6 +140,16 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const watchedValue = watch('value');
   const watchedUnit = watch('unit');
   const watchedCategoryId = watch('categoryId');
+  const watchedPeriod = watch('period');
+
+  // The estimate flag only survives as long as the suggested value is what's in
+  // the field — a manual edit makes it the user's own (measured) figure again.
+  useEffect(() => {
+    if (estimate && watchedValue !== estimate.suggestedValue) {
+      setEstimate(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedValue]);
 
   // Load categories on mount
   useEffect(() => {
@@ -210,6 +226,8 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         setSelectedFactorId((factors[0] as any)?.id || '');
       }
       setCalculationResult(null);
+      setEstimate(null);
+      setEstimateError(null);
     } catch (error) {
       console.error('Failed to load category details:', error);
     }
@@ -261,6 +279,41 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     }
   };
 
+  /**
+   * Conservative gap-filling: ask the server for a suggestion from the org's
+   * own history (prior-year first, adjacent-period fallback, +10% uplift).
+   */
+  const handleSuggestEstimate = async () => {
+    if (!selectedCategory) return;
+    const period = getValues('period');
+    if (!period?.start || !period?.end) {
+      setEstimateError('Set the period first — estimates are based on your history for the same period.');
+      return;
+    }
+    try {
+      setEstimating(true);
+      setEstimateError(null);
+      const suggestion = await complianceService.suggestEstimate({
+        categoryId: selectedCategory.id,
+        period,
+      });
+      setValue('value', suggestion.suggestedValue, { shouldValidate: true });
+      if (suggestion.unit) {
+        setValue('unit', suggestion.unit, { shouldValidate: true });
+      }
+      // The clearing effect won't wipe this: it only clears when the field
+      // value diverges from suggestedValue, and we just set them equal.
+      setEstimate(suggestion);
+    } catch (error: any) {
+      setEstimate(null);
+      setEstimateError(
+        error?.response?.data?.message || error?.message || 'No estimate available'
+      );
+    } finally {
+      setEstimating(false);
+    }
+  };
+
   const performCalculation = async () => {
     if (!selectedCategory || !watchedValue || !watchedUnit) return;
 
@@ -308,7 +361,12 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
       factor: calculationResult.factor.value,
       factorName: calculationResult.factor.name,
       factorUnit: calculationResult.factor.unit,
-      quality: calculationResult.quality?.rating,
+      // Estimates are forced to quality=low / DQ 5 at save time (server rule);
+      // mirror that here so the session summary matches what will be stored.
+      quality: estimate ? 'low' : calculationResult.quality?.rating,
+      dqScore: estimate ? 5 : calculationResult.quality?.dqScore,
+      // The method string from the server already documents the uplift.
+      ...(estimate ? { isEstimate: true, estimationMethod: estimate.method } : {}),
       category: { category: selectedCategory.category, scope: selectedCategory.scope },
       timestamp: new Date().toISOString(),
     };
@@ -316,6 +374,8 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
     onSave?.(calculationEntry);
     reset();
     setCalculationResult(null);
+    setEstimate(null);
+    setEstimateError(null);
   };
 
   const getScopeIcon = (scope: number) => {
@@ -513,9 +573,25 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Primary Value Input */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-fg/80">
-                Value *
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-fg/80">
+                  Value *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSuggestEstimate}
+                  disabled={estimating || !watchedPeriod?.start || !watchedPeriod?.end}
+                  title={
+                    !watchedPeriod?.start || !watchedPeriod?.end
+                      ? 'Set the period first — estimates come from your history for the same period'
+                      : 'Suggest a conservative estimate from your historical data'
+                  }
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Lightbulb className="w-3.5 h-3.5" />
+                  {estimating ? 'Estimating…' : 'Suggest estimate'}
+                </button>
+              </div>
               <Controller
                 name="value"
                 control={control}
@@ -616,6 +692,36 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           </div>
         )}
 
+        {/* Gap-filling estimate status */}
+        {estimateError && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-700 dark:text-amber-300">
+            {estimateError}
+          </div>
+        )}
+        {estimate && (
+          <div className="p-3 bg-sky-500/10 border border-sky-500/25 rounded-lg text-xs text-sky-700 dark:text-sky-300 space-y-1">
+            <p className="font-medium flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5" />
+              Estimated value applied — will be saved flagged as an estimate (quality low, DQ 5)
+            </p>
+            <p>
+              Method: <span className="font-medium">{estimate.method}</span> · raw average{' '}
+              {estimate.rawValue} {estimate.unit} +{Math.round(estimate.conservativenessUplift * 100)}%
+              conservativeness uplift → <span className="font-medium">{estimate.suggestedValue} {estimate.unit}</span>
+            </p>
+            {estimate.basedOnCalculations?.length > 0 && (
+              <p>
+                Based on {estimate.basedOnCalculations.length}{' '}
+                {estimate.basedOnCalculations.length === 1 ? 'entry' : 'entries'}:{' '}
+                {estimate.basedOnCalculations.map((b) => b.title).join(', ')}
+              </p>
+            )}
+            <p className="text-sky-600/80 dark:text-sky-400/80">
+              Review before saving — editing the value reverts it to a measured entry.
+            </p>
+          </div>
+        )}
+
         {/* Period Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -694,6 +800,48 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   {calculationResult.factor.source} ({calculationResult.factor.year})
                 </span>
               </div>
+              {calculationResult.quality?.dqScore != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted">Data quality (PCAF 1–5):</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    DQ {calculationResult.quality.dqScore}
+                    {calculationResult.quality.rating ? ` · ${calculationResult.quality.rating}` : ''}
+                  </span>
+                </div>
+              )}
+              {calculationResult.provenance?.gwpSet && (
+                <div className="flex justify-between">
+                  <span className="text-muted">GWP set:</span>
+                  <span className="text-green-700 dark:text-green-300">
+                    {calculationResult.provenance.gwpSet}
+                    {calculationResult.provenance.gwpApplied === 'per-gas'
+                      ? ' (applied per gas)'
+                      : ' (embedded in CO₂e factor)'}
+                  </span>
+                </div>
+              )}
+              {calculationResult.scope2Dual && (
+                <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
+                  <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                    Scope 2 dual reporting
+                  </p>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Location-based:</span>
+                    <span className="text-green-700 dark:text-green-300">
+                      {formatEmissions(calculationResult.scope2Dual.locationBased)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Market-based:</span>
+                    <span className="text-green-700 dark:text-green-300">
+                      {formatEmissions(calculationResult.scope2Dual.marketBased)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {calculationResult.scope2Dual.marketMethod}
+                  </p>
+                </div>
+              )}
               {calculationResult.factor.region === 'egypt' && (
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                   🇪🇬 Using Egyptian-specific emission factor
@@ -728,6 +876,8 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             onClick={() => {
               reset();
               setCalculationResult(null);
+              setEstimate(null);
+              setEstimateError(null);
             }}
           >
             Clear

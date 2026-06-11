@@ -7,6 +7,8 @@ export interface OrganizationSettings {
   currency: string;
   timezone: string;
   language: string;
+  // GWP-100 value set applied to per-gas factors (methodology setting).
+  gwpSet?: 'AR4' | 'AR5' | 'AR6';
 }
 
 export interface OrganizationUser extends User {

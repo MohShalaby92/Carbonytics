@@ -1,11 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { EmissionCalculationForm } from '../../components/forms/EmissionCalculationForm';
 import { CalculationSummary } from './CalculationSummary';
 import { CategorySelector } from './CategorySelector';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { CalculationResult } from '../../types';
+import { Select } from '../../components/ui/Select';
+import { CalculationResult, Facility } from '../../types';
 import { apiService } from '../../services/api';
+import { complianceService } from '../../services/complianceService';
 import { Plus, Save } from 'lucide-react';
 
 export const CalculationPage: React.FC = () => {
@@ -14,7 +16,14 @@ export const CalculationPage: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilityId, setFacilityId] = useState<string>('');
   const formRef = useRef<HTMLDivElement>(null);
+
+  // Facilities are optional; when the org has none the picker stays hidden.
+  useEffect(() => {
+    complianceService.getFacilities().then(setFacilities).catch(() => setFacilities([]));
+  }, []);
 
   const handleCalculationComplete = (_result: CalculationResult) => {
     // Real-time calculation completed — result is shown inside the form.
@@ -53,11 +62,15 @@ export const CalculationPage: React.FC = () => {
       const payload = {
         title: `Calculation Report — ${now.toLocaleDateString()}`,
         period: { start, end },
+        ...(facilityId ? { facilityId } : {}),
         calculations: calculations.map(c => ({
           categoryId: c.categoryId,
           value: c.value,
           unit: c.unit,
           ...(c.factorId ? { factorId: c.factorId } : {}),
+          // Estimate provenance travels with the entry; the server forces
+          // quality=low / DQ 5 for estimates.
+          ...(c.isEstimate ? { isEstimate: true, estimationMethod: c.estimationMethod } : {}),
           metadata: c.metadata || {},
           notes: c.notes,
         })),
@@ -67,6 +80,7 @@ export const CalculationPage: React.FC = () => {
       if (!response.success) throw new Error(response.message || 'Save failed');
 
       setCalculations([]);
+      setFacilityId('');
       setReportMessage({
         type: 'success',
         text: 'Report saved — emissions were recomputed server-side and now appear on your dashboard.',
@@ -140,6 +154,20 @@ export const CalculationPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {facilities.length > 0 && (
+                <div className="mt-4 space-y-1">
+                  <label className="block text-xs font-medium text-fg/80">
+                    Facility (optional)
+                  </label>
+                  <Select value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
+                    <option value="">Whole organization</option>
+                    {facilities.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}{f.city ? ` — ${f.city}` : ''}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
 
               <Button
                 size="sm"

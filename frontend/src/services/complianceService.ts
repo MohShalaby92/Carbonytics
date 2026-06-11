@@ -1,0 +1,149 @@
+import { apiService } from './api';
+import {
+  AuditLogEntry,
+  EstimateSuggestion,
+  Facility,
+  OrgExclusion,
+  SnapshotDiff,
+  SnapshotMeta,
+} from '../types';
+
+/**
+ * Client for the enterprise/compliance endpoints: gap-filling estimates,
+ * inventory locking + snapshots, facilities, exclusions register, audit trail,
+ * and the GHG inventory / assurance package exports.
+ */
+
+/** Trigger a browser download for a Blob. */
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+const dateRangeQuery = (startDate: string, endDate: string) =>
+  `startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+
+export const complianceService = {
+  // ---- Gap-filling estimation ----
+  suggestEstimate: async (params: {
+    categoryId: string;
+    period: { start: string; end: string };
+    facilityId?: string;
+  }): Promise<EstimateSuggestion> => {
+    const response = await apiService.post<EstimateSuggestion>('/calculations/estimate', params);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'No estimate available');
+    }
+    return response.data;
+  },
+
+  // ---- Inventory lifecycle (lock/unlock + snapshots) ----
+  lockCalculation: async (id: string, comment?: string) => {
+    const response = await apiService.patch<any>(`/calculations/${id}/lock`, { comment });
+    if (!response.success) throw new Error(response.message || 'Lock failed');
+    return response;
+  },
+
+  unlockCalculation: async (id: string, comment?: string) => {
+    const response = await apiService.patch<any>(`/calculations/${id}/unlock`, { comment });
+    if (!response.success) throw new Error(response.message || 'Unlock failed');
+    return response;
+  },
+
+  getSnapshots: async (calculationId: string): Promise<SnapshotMeta[]> => {
+    const response = await apiService.get<{ snapshots: SnapshotMeta[]; count: number }>(
+      `/calculations/${calculationId}/snapshots`
+    );
+    return response.data?.snapshots || [];
+  },
+
+  getSnapshotDiff: async (calculationId: string, from: number, to: number): Promise<SnapshotDiff> => {
+    const response = await apiService.get<SnapshotDiff>(
+      `/calculations/${calculationId}/snapshots/diff?from=${from}&to=${to}`
+    );
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Diff failed');
+    }
+    return response.data;
+  },
+
+  // ---- Facilities (organizational boundary) ----
+  getFacilities: async (includeInactive = false): Promise<Facility[]> => {
+    const response = await apiService.get<{ facilities: Facility[]; count: number }>(
+      `/organizations/facilities${includeInactive ? '?includeInactive=true' : ''}`
+    );
+    return response.data?.facilities || [];
+  },
+
+  createFacility: async (data: Partial<Facility>): Promise<Facility> => {
+    const response = await apiService.post<Facility>('/organizations/facilities', data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Create failed');
+    return response.data;
+  },
+
+  updateFacility: async (id: string, data: Partial<Facility>): Promise<Facility> => {
+    const response = await apiService.put<Facility>(`/organizations/facilities/${id}`, data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Update failed');
+    return response.data;
+  },
+
+  deactivateFacility: async (id: string) => {
+    const response = await apiService.delete<any>(`/organizations/facilities/${id}`);
+    if (!response.success) throw new Error(response.message || 'Deactivate failed');
+    return response;
+  },
+
+  // ---- Exclusions register ----
+  updateExclusions: async (exclusions: OrgExclusion[]): Promise<OrgExclusion[]> => {
+    const response = await apiService.put<{ exclusions: OrgExclusion[] }>(
+      '/organizations/exclusions',
+      { exclusions }
+    );
+    if (!response.success) throw new Error(response.message || 'Update failed');
+    return response.data?.exclusions || [];
+  },
+
+  // ---- Audit trail (admin read) ----
+  getAuditLog: async (params?: { resourceType?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.resourceType) query.append('resourceType', params.resourceType);
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    const response = await apiService.get<AuditLogEntry[]>(
+      `/organizations/audit-log?${query.toString()}`
+    );
+    return { entries: response.data || [], pagination: response.pagination };
+  },
+
+  // ---- Reports / exports ----
+  getGhgInventoryReport: async (startDate: string, endDate: string) => {
+    const response = await apiService.get<any>(
+      `/reports/ghg-inventory?${dateRangeQuery(startDate, endDate)}`
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Report failed');
+    return response.data;
+  },
+
+  downloadGhgInventoryMarkdown: async (startDate: string, endDate: string) => {
+    const blob = (await apiService.get<any>(
+      `/reports/ghg-inventory?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `ghg-inventory_${startDate}_${endDate}.md`);
+  },
+
+  downloadAssurancePackage: async (startDate: string, endDate: string) => {
+    const response = await apiService.get<any>(
+      `/reports/assurance-package?${dateRangeQuery(startDate, endDate)}`
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Export failed');
+    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `assurance-package_${startDate}_${endDate}.json`);
+  },
+};
