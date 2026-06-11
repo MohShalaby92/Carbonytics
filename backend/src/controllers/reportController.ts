@@ -52,6 +52,8 @@ async function buildGHGInventoryReport(
   const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number }> = {};
   const dual = { locationBased: 0, marketBased: 0, electricityEntries: 0, methods: new Set<string>() };
   const quality = { high: 0, medium: 0, low: 0, unrated: 0 };
+  // PCAF-style weighted DQ (emissions-weighted) + estimated-data share.
+  let dqWeighted = 0, dqEmissions = 0, estimateCount = 0, estimateEmissions = 0, totalEntryEmissions = 0;
   const factorRegister = new Map<string, { name: string; source?: string; year?: number; uses: number }>();
   let lockedCount = 0;
 
@@ -84,6 +86,17 @@ async function buildGHGInventoryReport(
       else if (q === 'medium') quality.medium++;
       else if (q === 'low') quality.low++;
       else quality.unrated++;
+
+      const em = entry.emissions || 0;
+      totalEntryEmissions += em;
+      if ((entry as any).dqScore) {
+        dqWeighted += (entry as any).dqScore * em;
+        dqEmissions += em;
+      }
+      if ((entry as any).isEstimate) {
+        estimateCount++;
+        estimateEmissions += em;
+      }
 
       const fKey = `${(entry as any).factorName || 'unknown'}|${(entry as any).factorYear || ''}`;
       const existing = factorRegister.get(fKey);
@@ -146,6 +159,16 @@ async function buildGHGInventoryReport(
     },
     dataQuality: {
       ...quality,
+      // Emissions-weighted PCAF-style score (1 best … 5 worst); null until
+      // entries carry dqScore (older entries predate scoring).
+      weightedDqScore: dqEmissions > 0 ? Math.round((dqWeighted / dqEmissions) * 100) / 100 : null,
+      estimates: {
+        count: estimateCount,
+        emissionsShare:
+          totalEntryEmissions > 0
+            ? Math.round((estimateEmissions / totalEntryEmissions) * 1000) / 10
+            : 0,
+      },
       ratedShare:
         quality.high + quality.medium + quality.low + quality.unrated > 0
           ? Math.round(
@@ -319,6 +342,10 @@ function renderInventoryMarkdown(r: any): string {
   lines.push('');
   lines.push('## 6. Data quality');
   lines.push(`High: ${r.dataQuality.high} · Medium: ${r.dataQuality.medium} · Low: ${r.dataQuality.low} · Unrated: ${r.dataQuality.unrated} (rated share ${r.dataQuality.ratedShare}%)`);
+  if (r.dataQuality.weightedDqScore) {
+    lines.push(`PCAF-style weighted DQ score: **${r.dataQuality.weightedDqScore}** (1 best … 5 worst, emissions-weighted)`);
+  }
+  lines.push(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions — estimates carry +10% conservativeness and DQ 5.`);
   lines.push('');
   lines.push('## 7. Emission factor register');
   lines.push(`| Factor | Source | Year | Uses |`);

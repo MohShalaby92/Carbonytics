@@ -66,6 +66,8 @@ export interface CalculationResult {
     rating: 'high' | 'medium' | 'low';
     confidence: number;
     notes: string[];
+    /** PCAF-style data-quality score: 1 (best) … 5 (worst). */
+    dqScore?: number;
   };
   provenance: CalculationProvenance;
   /** Scope 2 dual reporting (purchased electricity only). */
@@ -787,15 +789,25 @@ export class CalculationEngine {
     
     // Final confidence adjustment
     confidence = Math.max(0, Math.min(100, confidence));
-    
+
     // Adjust rating based on final confidence
     if (confidence < 50) {
       rating = 'low';
     } else if (confidence < 75) {
       rating = rating === 'low' ? 'low' : 'medium';
     }
-    
+
+    // PCAF-style data-quality score (1 best … 5 worst), derived from the
+    // factor tier and calculation method. Estimates are forced to 5 by the
+    // save path (the engine never sees the isEstimate flag).
+    let dqScore = 3; // global/average factor with activity data
+    if (factor.organizationId) dqScore = 1; // supplier/organization-specific
+    else if (factor.region === 'egypt') dqScore = 2; // region-specific
+    if (category.calculationMethod === 'spend_based') dqScore = Math.max(dqScore, 4);
+    if (factor.qualityRating === 'low') dqScore = Math.max(dqScore, 4);
+
     return {
+      dqScore,
       rating,
       confidence,
       notes,

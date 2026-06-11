@@ -10,6 +10,7 @@ import {
   unlockCalculation,
   getCalculationSnapshots,
   getSnapshotDiff,
+  estimateCalculationValue,
 } from '../controllers/calculationController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -58,6 +59,14 @@ router.post('/calculate-batch',
 router.post('/calculate-business-travel',
   validate(validateBusinessTravel),
   calculateBusinessTravel
+);
+
+// Conservative gap-filling suggestion (does not save anything).
+router.post('/estimate',
+  body('categoryId').isMongoId().withMessage('Valid category ID is required'),
+  body('period.start').isISO8601().withMessage('Valid period start is required'),
+  body('period.end').isISO8601().withMessage('Valid period end is required'),
+  estimateCalculationValue
 );
 
 router.post('/', 

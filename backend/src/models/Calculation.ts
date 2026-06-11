@@ -48,6 +48,12 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   scope2Location: { type: Number },
   scope2Market: { type: Number },
   scope2MarketMethod: { type: String, trim: true },
+  // Estimation flags: gap-filled values are never silently mixed with
+  // measured data (estimates carry the method and force low quality / DQ 5).
+  isEstimate: { type: Boolean, default: false },
+  estimationMethod: { type: String, trim: true },
+  // PCAF-style data-quality score (1 best … 5 worst).
+  dqScore: { type: Number, min: 1, max: 5 },
   notes: {
     type: String,
     trim: true,

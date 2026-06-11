@@ -242,6 +242,11 @@ export interface ICalculationEntry {
   scope2Location?: number; // location-based figure (grid average), kg CO2e
   scope2Market?: number; // market-based figure, kg CO2e
   scope2MarketMethod?: string; // which rung of the market-based hierarchy was used
+  // Gap-filling / estimation flags (estimates must be distinguishable)
+  isEstimate?: boolean;
+  estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'
+  // PCAF-style data-quality score: 1 (best, supplier-specific measured) … 5 (rough estimate)
+  dqScore?: number;
 }
 
 export interface ApiResponse<T = any> {

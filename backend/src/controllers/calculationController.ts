@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
+import { suggestEstimate } from '../services/estimationService';
 import { recordAudit } from '../utils/audit';
 import { body, validationResult } from 'express-validator';
 
@@ -196,13 +197,19 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       return ApiResponseUtil.error(res, `Could not compute entry for category ${calc.categoryId}: ${reason}`, 400);
     }
 
+    // Gap-filled values stay distinguishable: estimates force quality low
+    // and the worst PCAF score; the method used is stored verbatim.
+    const isEstimate = calc.isEstimate === true;
     const entry = {
       categoryId: calc.categoryId,
       value: computed.calculation.value,
       unit: computed.calculation.unit,
       factor: computed.factor.value,
       emissions: computed.calculation.emissions,
-      quality: computed.quality?.rating,
+      quality: isEstimate ? ('low' as const) : computed.quality?.rating,
+      dqScore: isEstimate ? 5 : computed.quality?.dqScore,
+      isEstimate,
+      ...(isEstimate && calc.estimationMethod ? { estimationMethod: String(calc.estimationMethod) } : {}),
       // Provenance: enough to reconstruct how this number was produced.
       factorId: computed.factor.id,
       factorName: computed.factor.name,
@@ -270,6 +277,39 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
   });
 
   ApiResponseUtil.success(res, calculation, 'Calculation saved successfully', 201);
+});
+
+/**
+ * Suggest a conservative gap-filling estimate for a missing period
+ * (same-period-prior-year → adjacent-period-average, +10% conservativeness).
+ * Returns a suggestion only — saving it is a normal save with isEstimate=true.
+ */
+export const estimateCalculationValue = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { categoryId, facilityId, period } = req.body;
+  if (!categoryId || !period?.start || !period?.end) {
+    return ApiResponseUtil.error(res, 'categoryId and period {start,end} are required', 400);
+  }
+
+  const suggestion = await suggestEstimate({
+    organizationId: req.user.organizationId,
+    categoryId: String(categoryId),
+    facilityId: facilityId ? String(facilityId) : undefined,
+    periodStart: new Date(period.start),
+    periodEnd: new Date(period.end),
+  });
+
+  if (!suggestion) {
+    return ApiResponseUtil.error(
+      res,
+      'No historical data available to estimate from (needs prior-year or adjacent-period entries for this category). Enter the value manually or document the gap in the exclusions register.',
+      404
+    );
+  }
+
+  ApiResponseUtil.success(res, suggestion, 'Estimate suggested — review before saving');
 });
 
 /** Lock (publish) a calculation: it becomes immutable until explicitly unlocked. */

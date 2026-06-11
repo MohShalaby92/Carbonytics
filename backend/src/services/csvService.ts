@@ -202,6 +202,7 @@ export class CSVService {
         factor: calculationResult.factor?.value,
         emissions: calculationResult.calculation.emissions,
         quality: calculationResult.quality?.rating,
+        dqScore: calculationResult.quality?.dqScore,
         factorId: calculationResult.factor?.id,
         factorName: calculationResult.factor?.name,
         factorSource: calculationResult.factor?.source,
