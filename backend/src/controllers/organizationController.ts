@@ -32,6 +32,7 @@ export const getOrganization = asyncHandler(async (req: AuthenticatedRequest, re
     settings: organization.settings,
     targets: organization.targets || [],
     exclusions: organization.exclusions || [],
+    denominators: organization.denominators || [],
     isActive: organization.isActive,
     createdAt: organization.createdAt,
     updatedAt: organization.updatedAt,
@@ -73,6 +74,64 @@ export const updateOrganizationTargets = asyncHandler(async (req: AuthenticatedR
   });
 
   ApiResponseUtil.success(res, { targets: organization.targets || [] }, 'Targets updated successfully');
+});
+
+/**
+ * Replace the denominator series for intensity metrics (admin/manager).
+ * One value per (year, metric) — duplicates are rejected so intensity figures
+ * are never ambiguous.
+ */
+export const updateOrganizationDenominators = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const { denominators } = req.body;
+  if (!Array.isArray(denominators)) {
+    return ApiResponseUtil.error(res, 'denominators must be an array', 400);
+  }
+
+  const seen = new Set<string>();
+  for (const d of denominators) {
+    const key = `${d.year}|${d.metric}${d.metric === 'custom' ? `|${(d.label || '').trim().toLowerCase()}` : ''}`;
+    if (seen.has(key)) {
+      return ApiResponseUtil.error(
+        res,
+        `Duplicate denominator for ${d.metric}${d.label ? ` (${d.label})` : ''} in ${d.year} — one value per year and metric`,
+        400
+      );
+    }
+    seen.add(key);
+  }
+
+  const prior = await Organization.findById(req.user.organizationId).select('denominators').lean();
+
+  const organization = await Organization.findByIdAndUpdate(
+    req.user.organizationId,
+    { denominators },
+    { new: true, runValidators: true }
+  );
+
+  if (!organization) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'organization-denominators',
+    resourceId: req.user.organizationId,
+    before: { denominators: (prior as any)?.denominators || [] },
+    after: { denominators: organization.denominators || [] },
+  });
+
+  ApiResponseUtil.success(
+    res,
+    { denominators: organization.denominators || [] },
+    'Denominator series updated'
+  );
 });
 
 /**

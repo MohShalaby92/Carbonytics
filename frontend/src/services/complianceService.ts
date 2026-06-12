@@ -1,6 +1,7 @@
 import { apiService } from './api';
 import {
   AuditLogEntry,
+  Denominator,
   EstimateSuggestion,
   Facility,
   OrgExclusion,
@@ -109,6 +110,16 @@ export const complianceService = {
     return response.data?.exclusions || [];
   },
 
+  // ---- Denominator series (intensity metrics) ----
+  updateDenominators: async (denominators: Denominator[]): Promise<Denominator[]> => {
+    const response = await apiService.put<{ denominators: Denominator[] }>(
+      '/organizations/denominators',
+      { denominators }
+    );
+    if (!response.success) throw new Error(response.message || 'Update failed');
+    return response.data?.denominators || [];
+  },
+
   // ---- Audit trail (admin read) ----
   getAuditLog: async (params?: { resourceType?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
@@ -145,5 +156,13 @@ export const complianceService = {
     if (!response.success || !response.data) throw new Error(response.message || 'Export failed');
     const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
     downloadBlob(blob, `assurance-package_${startDate}_${endDate}.json`);
+  },
+
+  downloadImpMarkdown: async (startDate: string, endDate: string) => {
+    const blob = (await apiService.get<any>(
+      `/reports/imp?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `imp_${startDate}_${endDate}.md`);
   },
 };

@@ -81,6 +81,27 @@ const organizationSchema = new Schema<IOrganization>({
       { _id: false }
     ),
   ],
+  // Denominator series for intensity metrics (tCO2e per unit of activity):
+  // one value per (year, metric). Physical production denominators are
+  // preferred for intensity tracking; revenue/FTE/floor-area are common
+  // fallbacks. Also powers the estimation engine's intensity-proxy rung.
+  denominators: [
+    new Schema(
+      {
+        year: { type: Number, required: true, min: 2000, max: 2100 },
+        metric: {
+          type: String,
+          required: true,
+          enum: ['production', 'revenue', 'employees', 'floor_area', 'custom'],
+        },
+        // Human label, mainly for metric=custom (e.g. "tonnes of cement").
+        label: { type: String, trim: true },
+        value: { type: Number, required: true, min: 0 },
+        unit: { type: String, required: true, trim: true },
+      },
+      { _id: false }
+    ),
+  ],
   // Emission reduction targets shown on the dashboard.
   targets: [
     new Schema(

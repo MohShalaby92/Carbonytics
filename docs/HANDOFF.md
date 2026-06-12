@@ -75,7 +75,9 @@ Source files live at `C:\Users\Shalaby\Desktop\ALX\Carbonytics_ ALX_Graduation_P
 
 **The Compliance UI pass is DONE (P0-8, 2026-06-12 — see gap analysis §20):** calculator estimate suggestion + DQ/provenance/dual-Scope-2 display, dashboard weighted-DQ + estimate-share + lock/unlock + facility filter, new `/compliance` page (reports & exports with inventory preview, exclusions editor, facilities manager, snapshots + restatement diffs, audit-trail viewer), Settings → Organization → Methodology (GWP set + consolidation approach), full frontend types + `complianceService` (`frontend/src/services/complianceService.ts`). All verified in-browser against the live backend; production image rebuilt.
 
-**IMMEDIATE NEXT STEP — report order continues (P1):** intensity metrics + denominators (unblocks the estimation intensity-proxy rung) → IMP auto-generation (§7.3, builds on the methodology data already collected) → supplier data module → completeness dashboard/gates → SSO/verifier roles → CDP/SBTi mapping exports → remaining factor tables (EPA imperial + eGRID; EFDB-USA policy) → instrument registry (RECs/PPAs — only when expanding beyond Egypt) → PDF report rendering (currently markdown/JSON) → evidence attachments per data line.
+**P1-1 is DONE (2026-06-13 — see gap analysis §21):** denominator series + intensity metrics in the GHG report (`PUT /api/organizations/denominators`, Compliance → Intensity & Denominators tab), the estimation intensity-proxy rung (rung 3, denominator-scaled, +10% uplift), and IMP auto-generation (`GET /api/reports/imp`, download card on Compliance → Reports; documents the rounding policy). All verified with hand-computed values + in-browser.
+
+**IMMEDIATE NEXT STEP — report order continues (P1):** supplier data module → completeness dashboard/gates → SSO/verifier roles → CDP/SBTi mapping exports → remaining factor tables (EPA imperial + eGRID; EFDB-USA policy) → instrument registry (RECs/PPAs — only when expanding beyond Egypt) → PDF report rendering (currently markdown/JSON) → evidence attachments per data line.
 
 ## 6. Known cosmetic/test debris (safe to clean)
 

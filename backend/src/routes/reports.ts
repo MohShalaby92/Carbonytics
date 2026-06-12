@@ -9,6 +9,7 @@ import {
   getIndustryBenchmarks,
   getGHGInventoryReport,
   getAssurancePackage,
+  getInventoryManagementPlan,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -67,5 +68,9 @@ router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport)
 
 // Assurance package (verifier bundle). Uncached export action.
 router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);
+
+// Inventory Management Plan (process document, auto-generated from live
+// configuration; ?format=markdown downloads). Uncached export action.
+router.get('/imp', validate(validateDateRange), getInventoryManagementPlan);
 
 export default router;

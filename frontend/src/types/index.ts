@@ -22,7 +22,17 @@ export interface User {
 		gwpSet?: 'AR4' | 'AR5' | 'AR6';
 	};
 	exclusions?: OrgExclusion[];
+	denominators?: Denominator[];
 	createdAt: string;
+  }
+
+  /** Per-year denominator for intensity metrics (one value per year+metric). */
+  export interface Denominator {
+	year: number;
+	metric: 'production' | 'revenue' | 'employees' | 'floor_area' | 'custom';
+	label?: string;
+	value: number;
+	unit: string;
   }
 
   /** Documented exclusion (GHG Protocol completeness/transparency register). */

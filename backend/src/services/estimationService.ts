@@ -1,4 +1,5 @@
 import { Calculation } from '../models/Calculation';
+import { Organization } from '../models/Organization';
 
 /**
  * Conservative gap-filling estimation (GHGP completeness + ISO 14064-1
@@ -10,7 +11,10 @@ import { Calculation } from '../models/Calculation';
  *   1. same-period-prior-year — entries for the category whose calculation
  *      period started ~one year before the target period;
  *   2. adjacent-period-average — average of the category's entries in
- *      calculations starting within ±120 days of the target period.
+ *      calculations starting within ±120 days of the target period;
+ *   3. intensity-proxy — the category's most recent historical year, scaled
+ *      by the ratio of organization denominators (production preferred, then
+ *      revenue, employees, floor area) between that year and the target year.
  *
  * A documented conservativeness uplift (+10%) is applied so estimation
  * defaults do not underestimate. The caller saves the result as a normal
@@ -85,8 +89,58 @@ export async function suggestEstimate(params: {
     return finish(raw, adjacent, 'adjacent-period-average');
   }
 
-  // No proxy data: the intensity-proxy rung needs denominator series
-  // (kWh/m², per-FTE) that do not exist yet.
+  // 3. Intensity proxy: scale the most recent historical year's value by the
+  // organization's denominator ratio. Only fires when a denominator for the
+  // SAME metric exists in both the historical and the target year.
+  const targetYear = periodStart.getFullYear();
+  const lookback = new Date(periodStart);
+  lookback.setFullYear(lookback.getFullYear() - 3);
+  const [histCalcs, org] = await Promise.all([
+    Calculation.find({
+      ...baseFilter,
+      'period.start': { $gte: lookback, $lt: periodStart },
+    }).lean(),
+    Organization.findById(organizationId).select('denominators').lean(),
+  ]);
+  const denominators = (org as any)?.denominators || [];
+  const hist = collect(histCalcs).filter(
+    (h) => h.periodStart && new Date(h.periodStart).getFullYear() < targetYear
+  );
+  if (hist.length > 0 && denominators.length > 0) {
+    // Most recent historical year first; within it, prefer the most causal
+    // metric available in BOTH years.
+    const years = [...new Set(hist.map((h) => new Date(h.periodStart).getFullYear()))].sort((a, b) => b - a);
+    const METRIC_PRIORITY = ['production', 'revenue', 'employees', 'floor_area', 'custom'] as const;
+    for (const histYear of years) {
+      for (const metric of METRIC_PRIORITY) {
+        const histDenom = denominators.find((d: any) => d.year === histYear && d.metric === metric && d.value > 0);
+        const targetDenom = denominators.find((d: any) => d.year === targetYear && d.metric === metric && d.value > 0);
+        if (!histDenom || !targetDenom) continue;
+
+        const yearHits = hist.filter((h) => new Date(h.periodStart).getFullYear() === histYear);
+        const histAvg = yearHits.reduce((s, h) => s + h.value, 0) / yearHits.length;
+        const ratio = targetDenom.value / histDenom.value;
+        const result = finish(
+          histAvg * ratio,
+          yearHits,
+          `intensity-proxy (${metric}: ${histYear}→${targetYear})`
+        );
+        result.notes.splice(
+          1,
+          0,
+          `Scaled by ${metric} ratio ${targetDenom.value.toLocaleString()} ${targetDenom.unit} (${targetYear}) / ${histDenom.value.toLocaleString()} ${histDenom.unit} (${histYear}) = ${Math.round(ratio * 1000) / 1000}.`
+        );
+        if (ratio > 2 || ratio < 0.5) {
+          result.notes.splice(2, 0, 'Denominator changed more than 2× between years — review this estimate carefully before saving.');
+        }
+        return result;
+      }
+    }
+  }
+
+  // No usable proxy data (no history, or no denominator recorded for both the
+  // historical and target year): the gap must be entered manually or
+  // documented in the exclusions register — never silently invented.
   return null;
 
   function finish(

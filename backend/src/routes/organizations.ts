@@ -5,6 +5,7 @@ import {
   updateOrganization,
   updateOrganizationTargets,
   updateOrganizationExclusions,
+  updateOrganizationDenominators,
   getAuditLog,
   getFacilities,
   createFacility,
@@ -66,6 +67,17 @@ const validateExclusions = [
   body('exclusions.*.estimatedEmissions').optional().isFloat({ min: 0 }).withMessage('Materiality estimate must be >= 0'),
 ];
 
+const validateDenominators = [
+  body('denominators').isArray().withMessage('denominators must be an array'),
+  body('denominators.*.year').isInt({ min: 2000, max: 2100 }).withMessage('Year must be 2000-2100'),
+  body('denominators.*.metric')
+    .isIn(['production', 'revenue', 'employees', 'floor_area', 'custom'])
+    .withMessage('Metric must be production, revenue, employees, floor_area or custom'),
+  body('denominators.*.value').isFloat({ gt: 0 }).withMessage('Denominator value must be > 0'),
+  body('denominators.*.unit').trim().notEmpty().withMessage('Unit is required for every denominator'),
+  body('denominators.*.label').optional().trim(),
+];
+
 const validateTargets = [
   body('targets').isArray().withMessage('targets must be an array'),
   body('targets.*.name').trim().notEmpty().withMessage('Target name is required'),
@@ -80,6 +92,7 @@ router.get('/', getOrganization);
 router.put('/', validate(validateOrganizationUpdate), authorize('admin', 'manager'), updateOrganization);
 router.put('/targets', validate(validateTargets), authorize('admin', 'manager'), updateOrganizationTargets);
 router.put('/exclusions', validate(validateExclusions), authorize('admin', 'manager'), updateOrganizationExclusions);
+router.put('/denominators', validate(validateDenominators), authorize('admin', 'manager'), updateOrganizationDenominators);
 
 // Append-only audit trail (admin read access)
 router.get('/audit-log', authorize('admin'), getAuditLog);

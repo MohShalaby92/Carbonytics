@@ -4,12 +4,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { ReportsTab } from './ReportsTab';
 import { ExclusionsTab } from './ExclusionsTab';
 import { FacilitiesTab } from './FacilitiesTab';
+import { DenominatorsTab } from './DenominatorsTab';
 import { AuditLogTab } from './AuditLogTab';
 import { SnapshotsTab } from './SnapshotsTab';
 import {
   FileText,
   ListX,
   Building2,
+  Divide,
   ScrollText,
   History,
 } from 'lucide-react';
@@ -27,6 +29,7 @@ export const CompliancePage: React.FC = () => {
     { id: 'reports', name: 'Reports & Exports', icon: FileText, component: ReportsTab },
     { id: 'exclusions', name: 'Exclusions Register', icon: ListX, component: ExclusionsTab },
     { id: 'facilities', name: 'Facilities', icon: Building2, component: FacilitiesTab },
+    { id: 'denominators', name: 'Intensity & Denominators', icon: Divide, component: DenominatorsTab },
     { id: 'snapshots', name: 'Snapshots & Restatements', icon: History, component: SnapshotsTab },
     { id: 'audit', name: 'Audit Trail', icon: ScrollText, component: AuditLogTab, adminOnly: true },
   ];

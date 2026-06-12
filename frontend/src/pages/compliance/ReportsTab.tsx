@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { complianceService } from '../../services/complianceService';
 import { formatEmissions } from '../../utils/calculations';
-import { Download, FileText, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
@@ -17,7 +17,7 @@ export const ReportsTab: React.FC = () => {
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | null>(null);
+  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPreview = async () => {
@@ -34,12 +34,14 @@ export const ReportsTab: React.FC = () => {
     }
   };
 
-  const handleDownload = async (kind: 'ghg' | 'assurance') => {
+  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp') => {
     try {
       setDownloading(kind);
       setError(null);
       if (kind === 'ghg') {
         await complianceService.downloadGhgInventoryMarkdown(startDate, endDate);
+      } else if (kind === 'imp') {
+        await complianceService.downloadImpMarkdown(startDate, endDate);
       } else {
         await complianceService.downloadAssurancePackage(startDate, endDate);
       }
@@ -80,7 +82,7 @@ export const ReportsTab: React.FC = () => {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-2">
             <FileText className="w-5 h-5 text-primary-600" />
@@ -119,6 +121,26 @@ export const ReportsTab: React.FC = () => {
             Download (JSON)
           </Button>
         </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <ClipboardList className="w-5 h-5 text-primary-600" />
+            <h3 className="text-lg font-semibold text-fg">Inventory Management Plan</h3>
+          </div>
+          <p className="text-sm text-muted mb-4">
+            The process document auditors ask for first: boundary, roles, methodology,
+            estimation and rounding policies, QA/QC controls, DQ rubric and recalculation
+            policy — generated from the live system configuration so it never drifts from
+            actual behavior.
+          </p>
+          <Button
+            onClick={() => handleDownload('imp')}
+            loading={downloading === 'imp'}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download (Markdown)
+          </Button>
+        </Card>
       </div>
 
       {report && (
@@ -151,6 +173,29 @@ export const ReportsTab: React.FC = () => {
                 Location-based: {formatEmissions(scope2.locationBased || 0)} · Market-based:{' '}
                 {formatEmissions(scope2.marketBased || 0)}
               </p>
+            </div>
+          )}
+
+          {report.intensity && (
+            <div className="mb-6 p-3 bg-fg/[0.04] rounded-lg text-sm">
+              <p className="font-medium text-fg mb-1">
+                Intensity metrics ({report.intensity.year})
+              </p>
+              {report.intensity.metrics?.length > 0 ? (
+                <div className="space-y-0.5">
+                  {report.intensity.metrics.map((m: any, i: number) => (
+                    <p key={i} className="text-muted">
+                      <span className="text-fg/80">{m.label}</span>:{' '}
+                      {m.intensityKgCo2ePerUnit} kg CO₂e per {m.denominatorUnit}{' '}
+                      <span className="text-xs">
+                        (denominator {m.denominatorValue.toLocaleString()} {m.denominatorUnit})
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted text-xs">{report.intensity.note}</p>
+              )}
             </div>
           )}
 

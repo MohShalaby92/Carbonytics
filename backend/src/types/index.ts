@@ -45,6 +45,13 @@ export interface IOrganization extends Document {
     estimatedEmissions?: number; // kg CO2e per year
     createdAt?: Date;
   }>;
+  denominators?: Array<{
+    year: number;
+    metric: 'production' | 'revenue' | 'employees' | 'floor_area' | 'custom';
+    label?: string; // human label, mainly for metric=custom
+    value: number;
+    unit: string;
+  }>;
   targets?: Array<{
     name: string;
     description?: string;
