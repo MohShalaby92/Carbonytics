@@ -11,6 +11,8 @@ import {
   getCompletenessReport,
   getAssurancePackage,
   getInventoryManagementPlan,
+  getCdpMapping,
+  getSbtiSummary,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -76,5 +78,9 @@ router.get('/assurance-package', validate(validateDateRange), getAssurancePackag
 // Inventory Management Plan (process document, auto-generated from live
 // configuration; ?format=markdown downloads). Uncached export action.
 router.get('/imp', validate(validateDateRange), getInventoryManagementPlan);
+
+// Disclosure-framework mappings (preparation aids; ?format=markdown downloads).
+router.get('/cdp', validate(validateDateRange), getCdpMapping);
+router.get('/sbti', validate(validateDateRange), getSbtiSummary);
 
 export default router;

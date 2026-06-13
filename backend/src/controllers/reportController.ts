@@ -518,11 +518,11 @@ async function buildInventoryManagementPlan(
         'Restatements of published figures occur only through the audited unlock → correct → re-lock path, each producing a new snapshot version with the operator and comment recorded. A formal significance threshold (e.g. 5% of base-year emissions) and frozen base-year inventories await the reporting-year object (planned).',
     },
     improvementPlan: [
-      'Completeness dashboard and publish gates (planned).',
       'Evidence attachments per data line (planned).',
       'Factor version history for in-place edits (planned).',
       'Reporting-year object: per-year GWP locking, frozen base year, recalculation threshold engine (planned).',
       'PDF/DOCX report rendering (currently markdown/JSON).',
+      'Hard publish gate on the full-year inventory (soft completeness gate on lock is in place).',
     ],
   };
 }
@@ -548,6 +548,268 @@ export const getInventoryManagementPlan = asyncHandler(async (req: Authenticated
 
   ApiResponseUtil.success(res, imp);
 });
+
+// kg CO2e → metric tonnes CO2e (CDP/SBTi report in tonnes), 3 dp.
+const toTonnes = (kg: number) => Math.round((kg / 1000) * 1000) / 1000;
+
+/**
+ * CDP Climate Change questionnaire mapping. Reshapes the GHG inventory onto the
+ * emissions-relevant CDP modules (C0/C5/C6/C7/C10) in metric tonnes CO2e. This
+ * is a PREPARATION AID, not a submission — CDP is disclosed through CDP's own
+ * portal and figures should be reviewed before filing.
+ */
+async function buildCdpMapping(user: { organizationId: string; email: string }, start: Date, end: Date) {
+  const r = await buildGHGInventoryReport(user, start, end);
+  const baseTarget = (r.targets || [])[0] as any;
+
+  // Scope 3 categories present, mapped to CDP C6.5 relevance rows.
+  const scope3Categories = r.emissions.byCategory
+    .filter((c: any) => c.scope === 3)
+    .map((c: any) => ({
+      category: c.category,
+      tCO2e: toTonnes(c.emissions),
+      methodsUsed: Object.keys(c.methods),
+      relevance: 'Relevant, calculated',
+    }));
+
+  return {
+    title: `CDP Climate Change mapping — ${r.organization.name}`,
+    generatedAt: new Date().toISOString(),
+    generatedBy: user.email,
+    disclaimer:
+      'Preparation aid only — not an official CDP response. Figures are mapped from the Carbonytics inventory to CDP Climate Change emissions modules (metric tonnes CO2e). Review and submit through CDP\'s own portal; some qualitative questions are not auto-fillable.',
+    unit: 'metric tonnes CO2e (t CO2e)',
+    C0_introduction: {
+      'C0.1 organization': r.organization.name,
+      'C0.2 reporting period': { start: r.reportingPeriod.start, end: r.reportingPeriod.end },
+      'C0.5 boundary (consolidation approach)': r.organization.consolidationApproach,
+    },
+    C5_emissions_methodology: {
+      'C5.1 base year': baseTarget
+        ? { year: baseTarget.baselineYear, scope1and2_tCO2e: toTonnes(baseTarget.baselineEmissions) }
+        : 'No base year set (configure a target/base year).',
+      'C5.2 standard, protocols, methodologies': [
+        r.methodology.standard,
+        `GWP set: ${r.methodology.gwpSet} (${r.methodology.gwpSource})`,
+      ],
+    },
+    C6_emissions_data: {
+      'C6.1 Scope 1 (t CO2e)': toTonnes(r.emissions.byScope.scope1),
+      'C6.3 Scope 2 (t CO2e)': {
+        locationBased: toTonnes(r.emissions.scope2Dual.locationBased),
+        marketBased: toTonnes(r.emissions.scope2Dual.marketBased),
+        methodsUsed: r.emissions.scope2Dual.methodsUsed,
+      },
+      'C6.5 Scope 3 by category (t CO2e)': scope3Categories,
+      'C6.5 Scope 3 total (t CO2e)': toTonnes(r.emissions.byScope.scope3),
+      'C6.10 intensity': r.intensity.metrics.map((m: any) => ({
+        denominator: `${m.denominatorValue} ${m.denominatorUnit}`,
+        // CDP intensity uses tonnes per unit.
+        intensity_tCO2e_per_unit: toTonnes(r.emissions.byScope.total) / m.denominatorValue,
+        metric: m.label,
+      })),
+    },
+    C7_emissions_breakdowns: {
+      'C7.1 by scope': {
+        scope1_tCO2e: toTonnes(r.emissions.byScope.scope1),
+        scope2_location_tCO2e: toTonnes(r.emissions.scope2Dual.locationBased),
+        scope2_market_tCO2e: toTonnes(r.emissions.scope2Dual.marketBased),
+        scope3_tCO2e: toTonnes(r.emissions.byScope.scope3),
+      },
+      'C7.x by category (t CO2e)': r.emissions.byCategory.map((c: any) => ({
+        category: c.category,
+        scope: c.scope,
+        tCO2e: toTonnes(c.emissions),
+      })),
+    },
+    C10_verification: {
+      'C10.1 verification status':
+        r.inventoryControls.verifiedCalculations > 0
+          ? `${r.inventoryControls.verifiedCalculations} of ${r.inventoryControls.calculationsInPeriod} calculations independently verified in-platform; ${r.inventoryControls.lockedCalculations} locked/published.`
+          : 'No third-party verification recorded yet. Inventory controls: audit trail, lock/snapshot immutability, PCAF-style data-quality scoring.',
+      dataQualityWeighted: r.dataQuality.weightedDqScore,
+      completenessPercent: r.completeness.completenessPercent,
+    },
+  };
+}
+
+/**
+ * SBTi target-readiness summary. Frames the inventory + targets against SBTi
+ * near-term criteria (1.5°C, linear annual reduction, the Scope 3 >40% rule).
+ * NOT an official SBTi validation — targets are validated by SBTi directly.
+ */
+async function buildSbtiSummary(user: { organizationId: string; email: string }, start: Date, end: Date) {
+  const r = await buildGHGInventoryReport(user, start, end);
+  const scope12 = r.emissions.byScope.scope1 + r.emissions.byScope.scope2;
+  const total = r.emissions.byScope.total;
+  const scope3Share = total > 0 ? Math.round((r.emissions.byScope.scope3 / total) * 1000) / 10 : 0;
+  const scope3TargetRequired = scope3Share >= 40; // SBTi: Scope 3 target required if >40% of total
+
+  // SBTi cross-sector near-term minimum: ~4.2%/yr linear reduction for 1.5°C.
+  const SBTI_MIN_ANNUAL_LINEAR = 4.2;
+
+  const targets = (r.targets || []).map((t: any) => {
+    const years = Math.max(1, t.targetYear - t.baselineYear);
+    const impliedAnnualLinear = Math.round((t.targetReduction / years) * 100) / 100;
+    return {
+      name: t.name,
+      baselineYear: t.baselineYear,
+      targetYear: t.targetYear,
+      reductionPercent: t.targetReduction,
+      impliedAnnualLinearPercent: impliedAnnualLinear,
+      meetsNearTerm1p5Ambition: impliedAnnualLinear >= SBTI_MIN_ANNUAL_LINEAR,
+      note:
+        impliedAnnualLinear >= SBTI_MIN_ANNUAL_LINEAR
+          ? `Implied ${impliedAnnualLinear}%/yr meets the ~${SBTI_MIN_ANNUAL_LINEAR}%/yr linear minimum for a 1.5°C near-term target.`
+          : `Implied ${impliedAnnualLinear}%/yr is below the ~${SBTI_MIN_ANNUAL_LINEAR}%/yr linear minimum for a 1.5°C near-term target — increase ambition or shorten the horizon.`,
+    };
+  });
+
+  return {
+    title: `SBTi target-readiness summary — ${r.organization.name}`,
+    generatedAt: new Date().toISOString(),
+    generatedBy: user.email,
+    disclaimer:
+      'Preparation aid only — not an official SBTi validation. Science Based Targets are validated by the SBTi directly against the current criteria. This summary frames your inventory and configured targets against headline near-term criteria to gauge readiness.',
+    unit: 'metric tonnes CO2e (t CO2e)',
+    reportingPeriod: { start: r.reportingPeriod.start, end: r.reportingPeriod.end },
+    inventory: {
+      scope1_tCO2e: toTonnes(r.emissions.byScope.scope1),
+      scope2_tCO2e: toTonnes(r.emissions.byScope.scope2),
+      scope1and2_tCO2e: toTonnes(scope12),
+      scope3_tCO2e: toTonnes(r.emissions.byScope.scope3),
+      total_tCO2e: toTonnes(total),
+      scope3SharePercent: scope3Share,
+    },
+    boundaryAndScreening: {
+      scope3TargetRequired,
+      scope3Rule: 'SBTi requires a Scope 3 target when Scope 3 is ≥40% of total emissions.',
+      completenessPercent: r.completeness.completenessPercent,
+      relevantCategoriesScreened: r.completeness.screened,
+    },
+    targets:
+      targets.length > 0
+        ? targets
+        : ['No targets configured — set a base year and reduction target to assess SBTi near-term readiness.'],
+    nextSteps: [
+      'Confirm a base-year inventory and recalculation policy (a frozen base year is pending the reporting-year object).',
+      scope3TargetRequired
+        ? 'A Scope 3 target is required (Scope 3 ≥40% of total) — ensure Scope 3 categories are screened and covered.'
+        : 'A Scope 3 target may still be recommended even below the 40% threshold.',
+      'Submit targets to the SBTi for official validation.',
+    ],
+  };
+}
+
+export const getCdpMapping = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+  const mapping = await buildCdpMapping(req.user, start, end);
+
+  if ((req.query.format as string) === 'markdown') {
+    const md = renderCdpMarkdown(mapping);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="cdp_mapping_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
+    );
+    return res.send(md);
+  }
+  ApiResponseUtil.success(res, mapping);
+});
+
+export const getSbtiSummary = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+  const summary = await buildSbtiSummary(req.user, start, end);
+
+  if ((req.query.format as string) === 'markdown') {
+    const md = renderSbtiMarkdown(summary);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="sbti_summary_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
+    );
+    return res.send(md);
+  }
+  ApiResponseUtil.success(res, summary);
+});
+
+function renderCdpMarkdown(m: any): string {
+  const lines: string[] = [];
+  lines.push(`# ${m.title}`);
+  lines.push(`Generated ${m.generatedAt} by ${m.generatedBy}`);
+  lines.push('');
+  lines.push(`> ${m.disclaimer}`);
+  lines.push('');
+  lines.push(`All figures in **${m.unit}**.`);
+  lines.push('');
+  lines.push('## C0. Introduction');
+  lines.push(`- C0.1 Organization: ${m.C0_introduction['C0.1 organization']}`);
+  lines.push(`- C0.2 Reporting period: ${m.C0_introduction['C0.2 reporting period'].start.split('T')[0]} → ${m.C0_introduction['C0.2 reporting period'].end.split('T')[0]}`);
+  lines.push(`- C0.5 Boundary (consolidation): ${m.C0_introduction['C0.5 boundary (consolidation approach)']}`);
+  lines.push('');
+  lines.push('## C5. Emissions methodology');
+  const by = m.C5_emissions_methodology['C5.1 base year'];
+  lines.push(`- C5.1 Base year: ${typeof by === 'string' ? by : `${by.year} (Scope 1+2: ${by.scope1and2_tCO2e} t CO2e)`}`);
+  (m.C5_emissions_methodology['C5.2 standard, protocols, methodologies'] as string[]).forEach((s) => lines.push(`- C5.2 ${s}`));
+  lines.push('');
+  lines.push('## C6. Emissions data');
+  lines.push(`- C6.1 Scope 1: **${m.C6_emissions_data['C6.1 Scope 1 (t CO2e)']}** t CO2e`);
+  const s2 = m.C6_emissions_data['C6.3 Scope 2 (t CO2e)'];
+  lines.push(`- C6.3 Scope 2 location-based: **${s2.locationBased}** · market-based: **${s2.marketBased}** t CO2e`);
+  lines.push(`- C6.5 Scope 3 total: **${m.C6_emissions_data['C6.5 Scope 3 total (t CO2e)']}** t CO2e`);
+  const s3 = m.C6_emissions_data['C6.5 Scope 3 by category (t CO2e)'];
+  if (s3.length > 0) {
+    lines.push('');
+    lines.push('| Scope 3 category | t CO2e | Relevance | Methods |');
+    lines.push('|---|---|---|---|');
+    s3.forEach((c: any) => lines.push(`| ${c.category} | ${c.tCO2e} | ${c.relevance} | ${c.methodsUsed.join(', ')} |`));
+  }
+  lines.push('');
+  lines.push('## C10. Verification');
+  lines.push(`- ${m.C10_verification['C10.1 verification status']}`);
+  lines.push(`- Weighted data-quality score: ${m.C10_verification.dataQualityWeighted ?? '—'} / 5 · Completeness: ${m.C10_verification.completenessPercent}%`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderSbtiMarkdown(s: any): string {
+  const lines: string[] = [];
+  lines.push(`# ${s.title}`);
+  lines.push(`Generated ${s.generatedAt} by ${s.generatedBy}`);
+  lines.push('');
+  lines.push(`> ${s.disclaimer}`);
+  lines.push('');
+  lines.push(`All figures in **${s.unit}**.`);
+  lines.push('');
+  lines.push('## Inventory');
+  lines.push(`- Scope 1+2: **${s.inventory.scope1and2_tCO2e}** t CO2e (S1 ${s.inventory.scope1_tCO2e} · S2 ${s.inventory.scope2_tCO2e})`);
+  lines.push(`- Scope 3: **${s.inventory.scope3_tCO2e}** t CO2e (${s.inventory.scope3SharePercent}% of total)`);
+  lines.push(`- Total: **${s.inventory.total_tCO2e}** t CO2e`);
+  lines.push('');
+  lines.push('## Boundary & screening');
+  lines.push(`- Scope 3 target required (≥40% rule): **${s.boundaryAndScreening.scope3TargetRequired ? 'yes' : 'no'}** — ${s.boundaryAndScreening.scope3Rule}`);
+  lines.push(`- Completeness: ${s.boundaryAndScreening.completenessPercent}% · relevance screened: ${s.boundaryAndScreening.relevantCategoriesScreened ? 'yes' : 'no'}`);
+  lines.push('');
+  lines.push('## Targets vs near-term 1.5°C ambition');
+  if (Array.isArray(s.targets) && typeof s.targets[0] === 'string') {
+    lines.push(s.targets[0]);
+  } else {
+    s.targets.forEach((t: any) => {
+      lines.push(`- **${t.name}**: ${t.reductionPercent}% by ${t.targetYear} vs ${t.baselineYear} → ~${t.impliedAnnualLinearPercent}%/yr linear. ${t.meetsNearTerm1p5Ambition ? '✅' : '⚠️'} ${t.note}`);
+    });
+  }
+  lines.push('');
+  lines.push('## Next steps');
+  s.nextSteps.forEach((n: string) => lines.push(`- ${n}`));
+  lines.push('');
+  return lines.join('\n');
+}
 
 function renderImpMarkdown(p: any): string {
   const lines: string[] = [];

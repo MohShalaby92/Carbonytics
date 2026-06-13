@@ -296,4 +296,20 @@ export const complianceService = {
     )) as unknown as Blob;
     downloadBlob(blob, `imp_${startDate}_${endDate}.md`);
   },
+
+  downloadCdpMapping: async (startDate: string, endDate: string) => {
+    const blob = (await apiService.get<any>(
+      `/reports/cdp?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `cdp-mapping_${startDate}_${endDate}.md`);
+  },
+
+  downloadSbtiSummary: async (startDate: string, endDate: string) => {
+    const blob = (await apiService.get<any>(
+      `/reports/sbti?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `sbti-summary_${startDate}_${endDate}.md`);
+  },
 };

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { complianceService } from '../../services/complianceService';
 import { formatEmissions } from '../../utils/calculations';
-import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList } from 'lucide-react';
+import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList, Globe, Target } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
@@ -17,7 +17,7 @@ export const ReportsTab: React.FC = () => {
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | null>(null);
+  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPreview = async () => {
@@ -34,7 +34,7 @@ export const ReportsTab: React.FC = () => {
     }
   };
 
-  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp') => {
+  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti') => {
     try {
       setDownloading(kind);
       setError(null);
@@ -42,6 +42,10 @@ export const ReportsTab: React.FC = () => {
         await complianceService.downloadGhgInventoryMarkdown(startDate, endDate);
       } else if (kind === 'imp') {
         await complianceService.downloadImpMarkdown(startDate, endDate);
+      } else if (kind === 'cdp') {
+        await complianceService.downloadCdpMapping(startDate, endDate);
+      } else if (kind === 'sbti') {
+        await complianceService.downloadSbtiSummary(startDate, endDate);
       } else {
         await complianceService.downloadAssurancePackage(startDate, endDate);
       }
@@ -141,6 +145,47 @@ export const ReportsTab: React.FC = () => {
             Download (Markdown)
           </Button>
         </Card>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-fg/80 mb-1">Disclosure framework mappings</h3>
+        <p className="text-xs text-muted mb-4">
+          Preparation aids that reshape your inventory onto external frameworks — not official
+          submissions. File through each framework's own portal after review.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="w-5 h-5 text-primary-600" />
+              <h3 className="text-lg font-semibold text-fg">CDP Climate Change</h3>
+            </div>
+            <p className="text-sm text-muted mb-4">
+              Maps emissions onto CDP's climate modules (C0/C5/C6/C7/C10) in metric tonnes CO₂e:
+              Scope 1, dual Scope 2 (location + market), Scope 3 by category with methods,
+              intensity and verification status.
+            </p>
+            <Button onClick={() => handleDownload('cdp')} loading={downloading === 'cdp'}>
+              <Download className="w-4 h-4 mr-2" />
+              Download (Markdown)
+            </Button>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-5 h-5 text-primary-600" />
+              <h3 className="text-lg font-semibold text-fg">SBTi Target Readiness</h3>
+            </div>
+            <p className="text-sm text-muted mb-4">
+              Frames your inventory and targets against SBTi near-term criteria: Scope 1+2 and
+              Scope 3 share (the ≥40% Scope 3 rule), implied annual linear reduction vs the
+              ~4.2%/yr 1.5°C minimum, and readiness next steps.
+            </p>
+            <Button onClick={() => handleDownload('sbti')} loading={downloading === 'sbti'}>
+              <Download className="w-4 h-4 mr-2" />
+              Download (Markdown)
+            </Button>
+          </Card>
+        </div>
       </div>
 
       {report && (
