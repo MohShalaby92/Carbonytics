@@ -138,6 +138,15 @@ const calculationSchema = new Schema<ICalculation>({
     enum: ['draft', 'completed', 'verified', 'locked'],
     default: 'draft',
   },
+  // Independent verification (verifier role): a locked inventory can be marked
+  // verified. Cleared automatically on unlock (a restatement invalidates prior
+  // verification). Kept separate from `status` so it never weakens the lock.
+  verification: {
+    verified: { type: Boolean, default: false },
+    verifiedBy: { type: String, trim: true },
+    verifiedAt: { type: Date },
+    comment: { type: String, trim: true },
+  },
 }, {
   timestamps: true,
   toJSON: {
@@ -171,7 +180,13 @@ function isStatusOnlyUpdate(update: any): boolean {
   // Mongoose's `timestamps` option injects `$set.updatedAt` AND
   // `$setOnInsert.createdAt` into every update (even without upsert), so a
   // pure status transition legitimately carries those alongside `status`.
-  const allowed = (k: string) => k === 'status' || k === 'updatedAt';
+  //
+  // The only mutations allowed on a locked calculation are controlled
+  // lifecycle transitions that never touch emissions data: the status itself
+  // (lock/unlock) and the verification annotation (verifier role). Both are
+  // audited at the controller layer.
+  const allowed = (k: string) =>
+    k === 'status' || k === 'updatedAt' || k === 'verification' || k.startsWith('verification.');
   const timestampOnly = (k: string) => k === 'createdAt' || k === 'updatedAt';
   for (const op of Object.keys(update)) {
     if (op === '$set') {

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { formatEmissions } from '../../utils/calculations';
 import { complianceService } from '../../services/complianceService';
 import { useAuth } from '../../hooks/useAuth';
-import { Clock, ExternalLink, Lock, LockOpen } from 'lucide-react';
+import { Clock, ExternalLink, Lock, LockOpen, BadgeCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface RecentCalculationsProps {
@@ -23,6 +23,8 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculations, onChanged }) => {
   const { user } = useAuth();
   const canLock = user?.role === 'admin' || user?.role === 'manager';
+  // Verifier (or admin) can independently sign off a locked inventory.
+  const canVerify = user?.role === 'verifier' || user?.role === 'admin';
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +42,21 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
       onChanged?.();
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Lock change failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleVerify = async (calc: any) => {
+    const id = calc.id || calc._id;
+    if (!id) return;
+    try {
+      setBusyId(id);
+      setError(null);
+      await complianceService.verifyCalculation(id);
+      onChanged?.();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Verify failed');
     } finally {
       setBusyId(null);
     }
@@ -128,6 +145,23 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
                 <p className="text-sm font-medium text-fg whitespace-nowrap">
                   {formatEmissions(calc.emissions?.total || 0)}
                 </p>
+                {calc.verification?.verified && (
+                  <span
+                    title={`Independently verified${calc.verification.verifiedBy ? ` by ${calc.verification.verifiedBy}` : ''}`}
+                  >
+                    <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </span>
+                )}
+                {canVerify && isLocked && !calc.verification?.verified && id && (
+                  <button
+                    onClick={() => handleVerify(calc)}
+                    disabled={busyId === id}
+                    title="Mark this locked inventory as independently verified (audited)"
+                    className="p-1.5 rounded-lg text-muted hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                  >
+                    <BadgeCheck className="w-4 h-4" />
+                  </button>
+                )}
                 {canLock && id && (
                   <button
                     onClick={() => handleLockToggle(calc)}

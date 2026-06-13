@@ -153,6 +153,16 @@ export const API_ENDPOINTS = {
 	  permissions: ['read', 'write'],
 	  description: 'Can create and view calculations',
 	},
+	verifier: {
+	  name: 'Verifier',
+	  permissions: ['read', 'verify'],
+	  description: 'Read-only plus sign-off of locked inventories',
+	},
+	viewer: {
+	  name: 'Viewer',
+	  permissions: ['read'],
+	  description: 'Read-only access',
+	},
   } as const;
   
   export const REGIONS = {

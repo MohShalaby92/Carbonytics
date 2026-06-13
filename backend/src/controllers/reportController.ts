@@ -70,12 +70,14 @@ async function buildGHGInventoryReport(
   let supplierEntryCount = 0, supplierEntryEmissions = 0;
   const factorRegister = new Map<string, { name: string; source?: string; year?: number; uses: number }>();
   let lockedCount = 0;
+  let verifiedCount = 0;
 
   for (const calc of calculations) {
     byScope.scope1 += calc.emissions?.scope1 || 0;
     byScope.scope2 += calc.emissions?.scope2 || 0;
     byScope.scope3 += calc.emissions?.scope3 || 0;
     if ((calc as any).status === 'locked') lockedCount++;
+    if ((calc as any).verification?.verified) verifiedCount++;
 
     for (const entry of calc.data || []) {
       const cat: any = entry.categoryId;
@@ -262,6 +264,7 @@ async function buildGHGInventoryReport(
     inventoryControls: {
       calculationsInPeriod: calculations.length,
       lockedCalculations: lockedCount,
+      verifiedCalculations: verifiedCount,
       auditTrailEntriesInPeriod: auditCount,
     },
     uncertaintyStatement:
@@ -724,7 +727,7 @@ function renderInventoryMarkdown(r: any): string {
   );
   lines.push('');
   lines.push('## 12. Inventory controls');
-  lines.push(`- Calculations in period: ${r.inventoryControls.calculationsInPeriod} (${r.inventoryControls.lockedCalculations} locked/published)`);
+  lines.push(`- Calculations in period: ${r.inventoryControls.calculationsInPeriod} (${r.inventoryControls.lockedCalculations} locked/published, ${r.inventoryControls.verifiedCalculations} independently verified)`);
   lines.push(`- Audit-trail entries in period: ${r.inventoryControls.auditTrailEntriesInPeriod}`);
   lines.push('');
   lines.push('## 13. Uncertainty statement');

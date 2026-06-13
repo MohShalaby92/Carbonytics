@@ -3,7 +3,7 @@ export interface User {
 	email: string;
 	name: string;
 	organizationId: string;
-	role: 'admin' | 'manager' | 'user';
+	role: 'admin' | 'manager' | 'user' | 'viewer' | 'verifier';
 	createdAt: string;
 	updatedAt: string;
   }
@@ -225,6 +225,12 @@ export interface User {
 	};
 	data: CalculationEntry[];
 	status: 'draft' | 'completed' | 'verified' | 'locked';
+	verification?: {
+	  verified: boolean;
+	  verifiedBy?: string;
+	  verifiedAt?: string;
+	  comment?: string;
+	};
 	createdAt: string;
 	updatedAt: string;
   }

@@ -43,14 +43,16 @@ const validateFacility = [
   body('operationalControl').optional().isBoolean().withMessage('operationalControl must be boolean'),
 ];
 
+const ALL_ROLES = ['admin', 'manager', 'user', 'viewer', 'verifier'];
+
 const validateUserInvite = [
   body('email').isEmail().withMessage('Valid email is required'),
-  body('role').isIn(['admin', 'manager', 'user']).withMessage('Valid role is required'),
+  body('role').isIn(ALL_ROLES).withMessage('Valid role is required'),
   body('name').notEmpty().withMessage('Name is required'),
 ];
 
 const validateUserRoleUpdate = [
-  body('role').isIn(['admin', 'manager', 'user']).withMessage('Valid role is required'),
+  body('role').isIn(ALL_ROLES).withMessage('Valid role is required'),
 ];
 
 const validateSettings = [

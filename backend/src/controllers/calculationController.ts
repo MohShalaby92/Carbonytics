@@ -476,9 +476,12 @@ export const unlockCalculation = asyncHandler(async (req: AuthenticatedRequest, 
     return ApiResponseUtil.success(res, existing, 'Calculation is not locked');
   }
 
+  // Unlocking invalidates any prior verification — a restatement may change the
+  // numbers a verifier signed off on, so verified state is cleared.
+  const wasVerified = !!existing.verification?.verified;
   const updated = await Calculation.findOneAndUpdate(
     { _id: id, organizationId: req.user.organizationId },
-    { $set: { status: 'completed' } },
+    { $set: { status: 'completed', verification: { verified: false } } },
     { new: true }
   );
 
@@ -489,12 +492,65 @@ export const unlockCalculation = asyncHandler(async (req: AuthenticatedRequest, 
     action: 'unlock',
     resourceType: 'calculation',
     resourceId: id,
-    before: { status: 'locked' },
-    after: { status: 'completed' },
+    before: { status: 'locked', verified: wasVerified },
+    after: { status: 'completed', verified: false },
     comment: req.body?.comment,
   });
 
-  ApiResponseUtil.success(res, updated, 'Calculation unlocked');
+  ApiResponseUtil.success(res, updated, wasVerified ? 'Calculation unlocked — prior verification cleared' : 'Calculation unlocked');
+});
+
+/**
+ * Mark a locked calculation as verified (verifier or admin). Verification is an
+ * independent assurance annotation on a published (locked) inventory; it never
+ * unlocks or mutates the emissions data, and is cleared automatically if the
+ * calculation is later unlocked for restatement.
+ */
+export const verifyCalculation = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { id } = req.params;
+  const { comment } = req.body;
+
+  const existing = await Calculation.findOne({ _id: id, organizationId: req.user.organizationId });
+  if (!existing) {
+    return ApiResponseUtil.error(res, 'Calculation not found', 404);
+  }
+  if (existing.status !== 'locked') {
+    return ApiResponseUtil.error(
+      res,
+      'Only a locked (published) calculation can be verified — lock it first so the figures are immutable.',
+      400
+    );
+  }
+
+  const verification = {
+    verified: true,
+    verifiedBy: req.user.email,
+    verifiedAt: new Date(),
+    ...(comment ? { comment: String(comment).trim() } : {}),
+  };
+
+  const updated = await Calculation.findOneAndUpdate(
+    { _id: id, organizationId: req.user.organizationId },
+    { $set: { verification } },
+    { new: true }
+  );
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'calculation-verification',
+    resourceId: id,
+    before: { verified: !!existing.verification?.verified },
+    after: { verified: true, verifiedBy: req.user.email },
+    comment: req.body?.comment,
+  });
+
+  ApiResponseUtil.success(res, updated, 'Calculation verified');
 });
 
 export const getCalculations = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

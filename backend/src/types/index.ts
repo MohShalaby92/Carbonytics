@@ -17,7 +17,7 @@ export interface IUser extends Document {
   password: string;
   name: string;
   organizationId: Types.ObjectId;
-  role: 'admin' | 'manager' | 'user';
+  role: 'admin' | 'manager' | 'user' | 'viewer' | 'verifier';
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
@@ -231,6 +231,12 @@ export interface ICalculation extends Document {
   };
   data: ICalculationEntry[];
   status: 'draft' | 'completed' | 'verified' | 'locked';
+  verification?: {
+    verified: boolean;
+    verifiedBy?: string;
+    verifiedAt?: Date;
+    comment?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

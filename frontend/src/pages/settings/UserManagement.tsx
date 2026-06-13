@@ -25,7 +25,7 @@ export const UserManagement: React.FC = () => {
   const [inviteData, setInviteData] = useState({
     name: '',
     email: '',
-    role: 'user' as 'admin' | 'manager' | 'user',
+    role: 'user' as 'admin' | 'manager' | 'user' | 'viewer' | 'verifier',
   });
   const [userMenuOpen, setUserMenuOpen] = useState<string | null>(null);
 
@@ -225,32 +225,20 @@ export const UserManagement: React.FC = () => {
                   </button>
 
                   {userMenuOpen === user.id && (
-                    <div className="absolute right-0 mt-2 w-48 bg-surface rounded-md shadow-lg border border-line z-10">
+                    <div className="absolute right-0 mt-2 w-56 bg-surface rounded-md shadow-lg border border-line z-10">
                       <div className="py-1">
-                        <button
-                          onClick={() => handleUpdateRole(user.id, 'admin')}
-                          className="w-full text-left px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center"
-                          disabled={user.role === 'admin'}
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make Admin
-                        </button>
-                        <button
-                          onClick={() => handleUpdateRole(user.id, 'manager')}
-                          className="w-full text-left px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center"
-                          disabled={user.role === 'manager'}
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make Manager
-                        </button>
-                        <button
-                          onClick={() => handleUpdateRole(user.id, 'user')}
-                          className="w-full text-left px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center"
-                          disabled={user.role === 'user'}
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make User
-                        </button>
+                        {Object.entries(USER_ROLES).map(([key, config]) => (
+                          <button
+                            key={key}
+                            onClick={() => handleUpdateRole(user.id, key)}
+                            className="w-full text-left px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center disabled:opacity-40"
+                            disabled={user.role === key}
+                            title={config.description}
+                          >
+                            <Shield className="w-4 h-4 mr-2 shrink-0" />
+                            Make {config.name}
+                          </button>
+                        ))}
                         <div className="border-t border-line my-1"></div>
                         <button
                           onClick={() => handleRemoveUser(user.id)}

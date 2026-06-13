@@ -60,6 +60,13 @@ export const complianceService = {
     return response;
   },
 
+  /** Independent verification of a locked inventory (verifier/admin). */
+  verifyCalculation: async (id: string, comment?: string) => {
+    const response = await apiService.patch<any>(`/calculations/${id}/verify`, { comment });
+    if (!response.success) throw new Error(response.message || 'Verify failed');
+    return response;
+  },
+
   getSnapshots: async (calculationId: string): Promise<SnapshotMeta[]> => {
     const response = await apiService.get<{ snapshots: SnapshotMeta[]; count: number }>(
       `/calculations/${calculationId}/snapshots`
