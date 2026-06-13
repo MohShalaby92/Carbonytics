@@ -101,6 +101,18 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     ref: 'Organization',
     index: true,
   },
+  // Set when the factor came from a specific supplier (supplier engagement
+  // module). Only meaningful on org custom factors; entries computed with a
+  // supplier-linked factor record the supplier-specific method (DQ 1).
+  supplierId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Supplier',
+    index: true,
+  },
+  supplierName: {
+    type: String,
+    trim: true,
+  },
   // Status and versioning
   isActive: {
     type: Boolean,

@@ -7,6 +7,8 @@ import {
   OrgExclusion,
   SnapshotDiff,
   SnapshotMeta,
+  Supplier,
+  SupplierEngagementSummary,
 } from '../types';
 
 /**
@@ -118,6 +120,109 @@ export const complianceService = {
     );
     if (!response.success) throw new Error(response.message || 'Update failed');
     return response.data?.denominators || [];
+  },
+
+  // ---- Suppliers (Scope 3 supplier engagement) ----
+  getSuppliers: async (
+    includeInactive = false
+  ): Promise<{ suppliers: Supplier[]; engagement: SupplierEngagementSummary }> => {
+    const response = await apiService.get<{
+      suppliers: Supplier[];
+      count: number;
+      engagement: SupplierEngagementSummary;
+    }>(`/suppliers${includeInactive ? '?includeInactive=true' : ''}`);
+    return {
+      suppliers: response.data?.suppliers || [],
+      engagement:
+        response.data?.engagement || {
+          total: 0,
+          notEngaged: 0,
+          awaitingResponse: 0,
+          dataReceived: 0,
+          dataIntegrated: 0,
+        },
+    };
+  },
+
+  createSupplier: async (data: {
+    name: string;
+    contactName?: string;
+    contactEmail?: string;
+    categories?: string[];
+    notes?: string;
+  }): Promise<Supplier> => {
+    const response = await apiService.post<Supplier>('/suppliers', data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Create failed');
+    return response.data;
+  },
+
+  updateSupplier: async (id: string, data: Partial<{
+    name: string;
+    contactName: string;
+    contactEmail: string;
+    categories: string[];
+    notes: string;
+    isActive: boolean;
+  }>): Promise<Supplier> => {
+    const response = await apiService.put<Supplier>(`/suppliers/${id}`, data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Update failed');
+    return response.data;
+  },
+
+  deactivateSupplier: async (id: string) => {
+    const response = await apiService.delete<any>(`/suppliers/${id}`);
+    if (!response.success) throw new Error(response.message || 'Deactivate failed');
+    return response;
+  },
+
+  createSupplierRequest: async (
+    supplierId: string,
+    data: { period: { start: string; end: string }; categoryId?: string; message?: string }
+  ): Promise<Supplier> => {
+    const response = await apiService.post<Supplier>(`/suppliers/${supplierId}/requests`, data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Request failed');
+    return response.data;
+  },
+
+  updateSupplierRequest: async (
+    supplierId: string,
+    requestId: string,
+    data: { status: 'received' | 'declined'; notes?: string }
+  ): Promise<Supplier> => {
+    const response = await apiService.patch<Supplier>(
+      `/suppliers/${supplierId}/requests/${requestId}`,
+      data
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Update failed');
+    return response.data;
+  },
+
+  fulfillSupplierRequest: async (
+    supplierId: string,
+    requestId: string,
+    data:
+      | {
+          type: 'custom-factor';
+          factor: {
+            categoryId: string;
+            name: string;
+            factor: number;
+            unit: string;
+            source?: string;
+            year?: number;
+            description?: string;
+          };
+          notes?: string;
+        }
+      | { type: 'activity-data'; calculationId: string; notes?: string }
+      | { type: 'document'; notes: string }
+  ): Promise<{ supplier: Supplier; factor?: any }> => {
+    const response = await apiService.post<{ supplier: Supplier; factor?: any }>(
+      `/suppliers/${supplierId}/requests/${requestId}/fulfill`,
+      data
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Fulfill failed');
+    return response.data;
   },
 
   // ---- Audit trail (admin read) ----

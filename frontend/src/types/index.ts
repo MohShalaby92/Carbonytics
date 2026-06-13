@@ -144,6 +144,51 @@ export interface User {
 	source: string;
 	region: 'egypt' | 'global';
 	year: number;
+	// Set when the factor came from a specific supplier (supplier engagement)
+	supplierId?: string;
+	supplierName?: string;
+  }
+
+  /** Supplier data request lifecycle (sent → received → fulfilled/declined). */
+  export interface SupplierDataRequest {
+	id: string;
+	period: { start: string; end: string };
+	categoryId?: string;
+	message?: string;
+	status: 'sent' | 'received' | 'fulfilled' | 'declined';
+	sentAt: string;
+	respondedAt?: string;
+	fulfillment?: {
+	  type?: 'custom-factor' | 'activity-data' | 'document';
+	  factorId?: string;
+	  calculationId?: string;
+	  notes?: string;
+	};
+  }
+
+  /** Supplier registry entry with derived engagement status. */
+  export interface Supplier {
+	id: string;
+	organizationId?: string;
+	name: string;
+	contactName?: string;
+	contactEmail?: string;
+	categories: Array<string | { id?: string; _id?: string; category: string; scope: number }>;
+	notes?: string;
+	isActive?: boolean;
+	dataRequests: SupplierDataRequest[];
+	engagementStatus: 'not_engaged' | 'awaiting_response' | 'data_received' | 'data_integrated';
+	requestCounts: { sent: number; received: number; fulfilled: number; declined: number };
+	createdAt?: string;
+  }
+
+  /** Org-wide supplier engagement summary returned by GET /suppliers. */
+  export interface SupplierEngagementSummary {
+	total: number;
+	notEngaged: number;
+	awaitingResponse: number;
+	dataReceived: number;
+	dataIntegrated: number;
   }
   
   export interface Calculation {
@@ -186,6 +231,9 @@ export interface User {
 	gwpSet?: string;
 	gwpApplied?: 'per-gas' | 'embedded';
 	method?: string;
+	// Supplier provenance (entry computed with a supplier-linked factor)
+	supplierId?: string;
+	supplierName?: string;
 	// Scope 2 dual reporting (purchased-electricity entries)
 	scope2Location?: number;
 	scope2Market?: number;

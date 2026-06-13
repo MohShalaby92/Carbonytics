@@ -55,6 +55,9 @@ export interface CalculationResult {
     year: number;
     region: string;
     uncertainty?: number;
+    /** Set when the factor came from a specific supplier (supplier engagement). */
+    supplierId?: string;
+    supplierName?: string;
   };
   category: {
     id: string;
@@ -148,7 +151,9 @@ export class CalculationEngine {
           emissions: finalEmissions,
           metadata: {
             ...input.metadata,
-            calculationMethod: category.calculationMethod,
+            // Supplier-linked factors are primary data — the entry records the
+            // supplier-specific method (top of the GHGP Scope 3 method hierarchy).
+            calculationMethod: factor.supplierId ? 'supplier-specific' : category.calculationMethod,
             factorRegion: factor.region,
             qualityRating: quality.rating,
           },
@@ -162,6 +167,9 @@ export class CalculationEngine {
           year: factor.year,
           region: factor.region,
           uncertainty: factor.uncertainty,
+          ...(factor.supplierId
+            ? { supplierId: factor.supplierId.toString(), supplierName: factor.supplierName }
+            : {}),
         },
         category: {
           id: category.id,
@@ -590,7 +598,9 @@ export class CalculationEngine {
       return {
         locationBased,
         marketBased: finalEmissions,
-        marketMethod: 'supplier-specific rate (organization custom factor)',
+        marketMethod: usedFactor.supplierName
+          ? `supplier-specific rate (${usedFactor.supplierName})`
+          : 'supplier-specific rate (organization custom factor)',
       };
     }
 
@@ -718,7 +728,10 @@ export class CalculationEngine {
     let rating: 'high' | 'medium' | 'low' = 'high';
     
     // Factor quality assessment
-    if (factor.region === 'egypt') {
+    if (factor.supplierId) {
+      notes.push(`Using supplier-specific emission factor (primary data: ${factor.supplierName || 'supplier'})`);
+      confidence += 10;
+    } else if (factor.region === 'egypt') {
       notes.push('Using Egyptian-specific emission factor');
       confidence += 10;
     } else {
@@ -800,11 +813,17 @@ export class CalculationEngine {
     // PCAF-style data-quality score (1 best … 5 worst), derived from the
     // factor tier and calculation method. Estimates are forced to 5 by the
     // save path (the engine never sees the isEstimate flag).
+    //
+    // A supplier-linked factor is PRIMARY data: the entry uses the
+    // supplier-specific method (top of the GHGP Scope 3 hierarchy) regardless
+    // of the category's default method, so the spend-based downgrade does not
+    // apply to it — it pins DQ 1.
+    const isSupplierSpecific = !!factor.supplierId;
     let dqScore = 3; // global/average factor with activity data
     if (factor.organizationId) dqScore = 1; // supplier/organization-specific
     else if (factor.region === 'egypt') dqScore = 2; // region-specific
-    if (category.calculationMethod === 'spend_based') dqScore = Math.max(dqScore, 4);
-    if (factor.qualityRating === 'low') dqScore = Math.max(dqScore, 4);
+    if (!isSupplierSpecific && category.calculationMethod === 'spend_based') dqScore = Math.max(dqScore, 4);
+    if (!isSupplierSpecific && factor.qualityRating === 'low') dqScore = Math.max(dqScore, 4);
 
     return {
       dqScore,

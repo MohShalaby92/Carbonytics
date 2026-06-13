@@ -43,6 +43,10 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   gwpSet: { type: String },
   gwpApplied: { type: String, enum: ['per-gas', 'embedded'] },
   method: { type: String, trim: true },
+  // Supplier provenance: set when the entry was computed with a factor that
+  // came from a specific supplier (supplier-specific method, DQ 1).
+  supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+  supplierName: { type: String, trim: true },
   // Scope 2 dual reporting (populated for purchased-electricity entries):
   // both figures are stored per the GHG Protocol Scope 2 Guidance.
   scope2Location: { type: Number },

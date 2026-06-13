@@ -127,6 +127,8 @@ export interface IEmissionFactor extends Document {
   uncertainty?: number;
   isActive: boolean;
   organizationId?: Types.ObjectId; // set for org-scoped custom factors
+  supplierId?: Types.ObjectId; // set when the factor came from a specific supplier
+  supplierName?: string; // denormalized for display/provenance
   metadata?: Record<string, any>;
   egyptianData?: {
     adjustmentFactor?: number;
@@ -244,7 +246,10 @@ export interface ICalculationEntry {
   factorYear?: number;
   gwpSet?: string; // GWP set in force when computed (e.g. 'AR6')
   gwpApplied?: 'per-gas' | 'embedded'; // whether GWPs were applied or already embedded in a CO2e factor
-  method?: string; // calculation method (activity_based / spend_based / ...)
+  method?: string; // calculation method (activity_based / spend_based / supplier-specific / ...)
+  // Supplier provenance (entries computed with a supplier-linked factor)
+  supplierId?: Types.ObjectId;
+  supplierName?: string;
   // Scope 2 dual reporting (electricity entries only)
   scope2Location?: number; // location-based figure (grid average), kg CO2e
   scope2Market?: number; // market-based figure, kg CO2e

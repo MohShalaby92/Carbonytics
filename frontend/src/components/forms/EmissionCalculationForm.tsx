@@ -494,7 +494,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   {availableFactors.map((f: any) => (
                     <option key={f.id} value={f.id}>
                       {f.name} — {f.factor} {f.unit}
-                      {f.organizationId ? ' (custom)' : ''}
+                      {f.supplierName ? ` (supplier: ${f.supplierName})` : f.organizationId ? ' (custom)' : ''}
                     </option>
                   ))}
                 </Select>
@@ -800,6 +800,14 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   {calculationResult.factor.source} ({calculationResult.factor.year})
                 </span>
               </div>
+              {(calculationResult.factor as any).supplierName && (
+                <div className="flex justify-between">
+                  <span className="text-muted">Method:</span>
+                  <span className="font-medium text-green-700 dark:text-green-300">
+                    supplier-specific ({(calculationResult.factor as any).supplierName})
+                  </span>
+                </div>
+              )}
               {calculationResult.quality?.dqScore != null && (
                 <div className="flex justify-between">
                   <span className="text-muted">Data quality (PCAF 1–5):</span>

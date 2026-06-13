@@ -218,6 +218,10 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       gwpSet: computed.provenance?.gwpSet,
       gwpApplied: computed.provenance?.gwpApplied,
       method: computed.calculation.metadata?.calculationMethod,
+      // Supplier provenance (factor came from a specific supplier)
+      ...(computed.factor.supplierId
+        ? { supplierId: computed.factor.supplierId, supplierName: computed.factor.supplierName }
+        : {}),
       // Scope 2 dual figures (purchased electricity only)
       scope2Location: computed.scope2Dual?.locationBased,
       scope2Market: computed.scope2Dual?.marketBased,

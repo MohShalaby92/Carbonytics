@@ -3,6 +3,7 @@ import { Calculation } from '../models/Calculation';
 import { EmissionCategory } from '../models/EmissionCategory';
 import { Organization } from '../models/Organization';
 import { Facility } from '../models/Facility';
+import { Supplier, deriveEngagementStatus } from '../models/Supplier';
 import { User } from '../models/User';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { AuditLog } from '../models/AuditLog';
@@ -27,7 +28,7 @@ async function buildGHGInventoryReport(
   start: Date,
   end: Date
 ) {
-  const [organization, facilities, calculations, auditCount] = await Promise.all([
+  const [organization, facilities, calculations, auditCount, suppliers] = await Promise.all([
     Organization.findById(user.organizationId),
     Facility.find({ organizationId: user.organizationId, isActive: true }).lean(),
     Calculation.find({
@@ -40,6 +41,7 @@ async function buildGHGInventoryReport(
       organizationId: user.organizationId,
       createdAt: { $gte: start, $lte: end },
     }),
+    Supplier.find({ organizationId: user.organizationId, isActive: true }).lean(),
   ]);
 
   if (!organization) {
@@ -57,6 +59,8 @@ async function buildGHGInventoryReport(
   const quality = { high: 0, medium: 0, low: 0, unrated: 0 };
   // PCAF-style weighted DQ (emissions-weighted) + estimated-data share.
   let dqWeighted = 0, dqEmissions = 0, estimateCount = 0, estimateEmissions = 0, totalEntryEmissions = 0;
+  // Supplier-specific (primary-data) entry share.
+  let supplierEntryCount = 0, supplierEntryEmissions = 0;
   const factorRegister = new Map<string, { name: string; source?: string; year?: number; uses: number }>();
   let lockedCount = 0;
 
@@ -99,6 +103,10 @@ async function buildGHGInventoryReport(
       if ((entry as any).isEstimate) {
         estimateCount++;
         estimateEmissions += em;
+      }
+      if ((entry as any).supplierId) {
+        supplierEntryCount++;
+        supplierEntryEmissions += em;
       }
 
       const fKey = `${(entry as any).factorName || 'unknown'}|${(entry as any).factorYear || ''}`;
@@ -143,6 +151,39 @@ async function buildGHGInventoryReport(
       yearDenominators.length === 0
         ? `No denominators recorded for ${intensityYear} — add them under Compliance → Intensity & Denominators to report intensity metrics.`
         : undefined,
+  };
+
+  // Supplier engagement (Scope 3 method hierarchy): registry size, request
+  // lifecycle counts for requests whose period overlaps the reporting period,
+  // and the share of emissions computed from supplier-specific factors.
+  const requestsInPeriod = suppliers.flatMap((s: any) =>
+    (s.dataRequests || []).filter(
+      (r: any) => new Date(r.period?.start) <= end && new Date(r.period?.end) >= start
+    )
+  );
+  const supplierEngagement = {
+    suppliers: suppliers.length,
+    engagementStatuses: {
+      notEngaged: suppliers.filter((s: any) => deriveEngagementStatus(s) === 'not_engaged').length,
+      awaitingResponse: suppliers.filter((s: any) => deriveEngagementStatus(s) === 'awaiting_response').length,
+      dataReceived: suppliers.filter((s: any) => deriveEngagementStatus(s) === 'data_received').length,
+      dataIntegrated: suppliers.filter((s: any) => deriveEngagementStatus(s) === 'data_integrated').length,
+    },
+    dataRequestsInPeriod: {
+      total: requestsInPeriod.length,
+      sent: requestsInPeriod.filter((r: any) => r.status === 'sent').length,
+      received: requestsInPeriod.filter((r: any) => r.status === 'received').length,
+      fulfilled: requestsInPeriod.filter((r: any) => r.status === 'fulfilled').length,
+      declined: requestsInPeriod.filter((r: any) => r.status === 'declined').length,
+    },
+    supplierSpecificData: {
+      entries: supplierEntryCount,
+      emissionsKgCo2e: Math.round(supplierEntryEmissions * 100) / 100,
+      emissionsShare:
+        totalEntryEmissions > 0
+          ? Math.round((supplierEntryEmissions / totalEntryEmissions) * 1000) / 10
+          : 0,
+    },
   };
 
   const report = {
@@ -206,6 +247,7 @@ async function buildGHGInventoryReport(
             )
           : 0,
     },
+    supplierEngagement,
     factorRegister: Array.from(factorRegister.values()).sort((a, b) => b.uses - a.uses),
     exclusions: organization.exclusions || [],
     targets: organization.targets || [],
@@ -303,7 +345,12 @@ export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest
       gwpSet: e.gwpSet,
       gwpApplied: e.gwpApplied,
       method: e.method,
+      supplierId: e.supplierId,
+      supplierName: e.supplierName,
       quality: e.quality,
+      dqScore: e.dqScore,
+      isEstimate: e.isEstimate,
+      estimationMethod: e.estimationMethod,
       scope2Location: e.scope2Location,
       scope2Market: e.scope2Market,
       scope2MarketMethod: e.scope2MarketMethod,
@@ -403,6 +450,8 @@ async function buildInventoryManagementPlan(
     dataManagement: {
       collection:
         'Activity data enters via the guided calculator (per-category forms with required inputs) or CSV/XLSX import with row-level validation; entries without a valid unit are rejected.',
+      supplierEngagement:
+        'Suppliers are registered with the categories they feed; data requests are tracked through a sent → received → fulfilled/declined lifecycle. Supplier data lands as a supplier-linked custom factor (entries computed with it record the supplier-specific method and DQ 1) or as linked activity data; every step is audited.',
       estimationPolicy: `Gaps are filled only on explicit request, using the documented hierarchy: same-period-prior-year → adjacent-period-average → intensity-proxy (denominator-scaled). Every suggestion carries a +${CONSERVATIVENESS_UPLIFT_PCT}% conservativeness uplift (ISO: do not underestimate); saved estimates are flagged isEstimate with the method stored verbatim, forced to quality=low and DQ 5, and are never chained off other estimates. Gaps with no usable proxy are directed to manual entry or the exclusions register.`,
       denominators:
         (organization.denominators || []).length > 0
@@ -510,6 +559,7 @@ function renderImpMarkdown(p: any): string {
   lines.push('');
   lines.push('## 5. Data management');
   lines.push(`- Collection: ${p.dataManagement.collection}`);
+  lines.push(`- Supplier engagement: ${p.dataManagement.supplierEngagement}`);
   lines.push(`- Estimation policy: ${p.dataManagement.estimationPolicy}`);
   lines.push('- Denominator series:');
   p.dataManagement.denominators.forEach((d: string) => lines.push(`  - ${d}`));
@@ -610,28 +660,38 @@ function renderInventoryMarkdown(r: any): string {
   }
   lines.push(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions — estimates carry +10% conservativeness and DQ 5.`);
   lines.push('');
-  lines.push('## 7. Emission factor register');
+  lines.push('## 7. Supplier engagement');
+  if (r.supplierEngagement.suppliers === 0) {
+    lines.push('No suppliers registered. Supplier-specific (primary) data raises the Scope 3 method hierarchy and DQ — register suppliers under Compliance → Suppliers.');
+  } else {
+    const se = r.supplierEngagement;
+    lines.push(`- Registered suppliers: ${se.suppliers} (integrated: ${se.engagementStatuses.dataIntegrated}, received: ${se.engagementStatuses.dataReceived}, awaiting: ${se.engagementStatuses.awaitingResponse}, not engaged: ${se.engagementStatuses.notEngaged})`);
+    lines.push(`- Data requests covering this period: ${se.dataRequestsInPeriod.total} (fulfilled: ${se.dataRequestsInPeriod.fulfilled}, received: ${se.dataRequestsInPeriod.received}, open: ${se.dataRequestsInPeriod.sent}, declined: ${se.dataRequestsInPeriod.declined})`);
+    lines.push(`- Supplier-specific (primary) data: ${se.supplierSpecificData.entries} entries, ${kg(se.supplierSpecificData.emissionsKgCo2e)} (${se.supplierSpecificData.emissionsShare}% of emissions)`);
+  }
+  lines.push('');
+  lines.push('## 8. Emission factor register');
   lines.push(`| Factor | Source | Year | Uses |`);
   lines.push(`|---|---|---|---|`);
   r.factorRegister.forEach((f: any) => lines.push(`| ${f.name} | ${f.source || '—'} | ${f.year || '—'} | ${f.uses} |`));
   lines.push('');
-  lines.push('## 8. Exclusions register');
+  lines.push('## 9. Exclusions register');
   if (r.exclusions.length === 0) lines.push('No documented exclusions.');
   r.exclusions.forEach((e: any) =>
     lines.push(`- **${e.source}**${e.scope ? ` (Scope ${e.scope})` : ''}: ${e.justification}${e.estimatedEmissions ? ` — est. ${e.estimatedEmissions} kg CO2e/yr` : ''}`)
   );
   lines.push('');
-  lines.push('## 9. Base year & targets');
+  lines.push('## 10. Base year & targets');
   if (r.targets.length === 0) lines.push('No targets configured.');
   r.targets.forEach((t: any) =>
     lines.push(`- ${t.name}: ${t.targetReduction}% below ${t.baselineYear} baseline (${t.baselineEmissions.toLocaleString()} kg CO2e) by ${t.targetYear}`)
   );
   lines.push('');
-  lines.push('## 10. Inventory controls');
+  lines.push('## 11. Inventory controls');
   lines.push(`- Calculations in period: ${r.inventoryControls.calculationsInPeriod} (${r.inventoryControls.lockedCalculations} locked/published)`);
   lines.push(`- Audit-trail entries in period: ${r.inventoryControls.auditTrailEntriesInPeriod}`);
   lines.push('');
-  lines.push('## 11. Uncertainty statement');
+  lines.push('## 12. Uncertainty statement');
   lines.push(r.uncertaintyStatement);
   lines.push('');
   return lines.join('\n');
