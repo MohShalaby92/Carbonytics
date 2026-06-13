@@ -23,6 +23,7 @@ export interface User {
 	};
 	exclusions?: OrgExclusion[];
 	denominators?: Denominator[];
+	relevantCategories?: string[];
 	createdAt: string;
   }
 
@@ -39,6 +40,7 @@ export interface User {
   export interface OrgExclusion {
 	source: string;
 	scope?: 1 | 2 | 3;
+	categoryId?: string;
 	justification: string;
 	estimatedEmissions?: number;
 	createdAt?: string;
@@ -189,6 +191,19 @@ export interface User {
 	awaitingResponse: number;
 	dataReceived: number;
 	dataIntegrated: number;
+  }
+
+  /** Completeness assessment (relevant vs covered/excluded/gaps). */
+  export interface CompletenessResult {
+	screened: boolean;
+	relevantCount: number;
+	coveredCount: number;
+	excludedCount: number;
+	gapCount: number;
+	completenessPercent: number;
+	byScope: Array<{ scope: number; relevant: number; covered: number; excluded: number; gaps: number }>;
+	gaps: Array<{ categoryId: string; category: string; scope: number }>;
+	note?: string;
   }
   
   export interface Calculation {

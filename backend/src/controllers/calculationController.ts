@@ -9,6 +9,7 @@ import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
 import { suggestEstimate } from '../services/estimationService';
+import { computeCompleteness } from '../services/completenessService';
 import { recordAudit } from '../utils/audit';
 import { body, validationResult } from 'express-validator';
 
@@ -364,7 +365,31 @@ export const lockCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     comment: req.body?.comment,
   });
 
-  ApiResponseUtil.success(res, updated, `Calculation locked — snapshot v${version} recorded`);
+  // Soft completeness gate (GHG Protocol completeness): publishing with
+  // undocumented gaps is allowed but flagged. A hard gate awaits the
+  // reporting-year/inventory object (see gap analysis) — locking a single
+  // calculation is not yet the same as publishing the full-year inventory.
+  let completenessWarning: string | undefined;
+  try {
+    const completeness = await computeCompleteness({
+      organizationId: req.user.organizationId,
+      start: existing.period.start,
+      end: existing.period.end,
+    });
+    if (completeness.screened && completeness.gapCount > 0) {
+      completenessWarning = `Published with ${completeness.gapCount} undocumented completeness gap(s) for this period (${completeness.completenessPercent}% complete). Add data or document an exclusion for: ${completeness.gaps
+        .map((g) => g.category)
+        .join(', ')}.`;
+    }
+  } catch {
+    // Completeness is advisory — never block a lock on its computation.
+  }
+
+  ApiResponseUtil.success(
+    res,
+    { ...updated!.toJSON(), completenessWarning },
+    `Calculation locked — snapshot v${version} recorded${completenessWarning ? ' (with completeness warning)' : ''}`
+  );
 });
 
 /** List snapshot versions for a calculation (metadata only). */

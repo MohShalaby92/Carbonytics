@@ -9,11 +9,12 @@ import { QuickCalculator } from '../../pages/dashboard/QuickCalculator';
 import { TargetsProgress } from '../../pages/dashboard/TargetsProgress';
 import { TargetsModal } from '../../pages/dashboard/TargetsModal';
 import { QualityIndicators } from '../../pages/dashboard/QualityIndicators';
+import { CompletenessCard } from '../../pages/dashboard/CompletenessCard';
 import { useCalculations } from '../../hooks/useCalculations';
 import { calculationService } from '../../services/calculationService';
 import { complianceService } from '../../services/complianceService';
 import { apiService } from '../../services/api';
-import { Facility } from '../../types';
+import { Facility, CompletenessResult } from '../../types';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -37,6 +38,8 @@ export const DashboardPage: React.FC = () => {
   // has no facilities defined.
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [facilityId, setFacilityId] = useState<string>('');
+  // Completeness over the selected timeframe (relevance screening coverage).
+  const [completeness, setCompleteness] = useState<CompletenessResult | null>(null);
 
   const {
     calculations: sessionCalculations,
@@ -96,6 +99,16 @@ export const DashboardPage: React.FC = () => {
 
       const currentCalcs = Array.isArray(current) ? current : [];
       const previousCalcs = Array.isArray(previous) ? previous : [];
+
+      // Completeness is an annual inventory concept — always measured over the
+      // trailing 12 months, independent of the emissions timeframe toggle and
+      // the facility filter, so the card doesn't flip with month/quarter views.
+      const completenessStart = new Date(endDate);
+      completenessStart.setFullYear(endDate.getFullYear() - 1);
+      complianceService
+        .getCompleteness(completenessStart.toISOString(), endDate.toISOString())
+        .then(setCompleteness)
+        .catch(() => setCompleteness(null));
 
       // Map category id -> name for the category breakdown.
       const catMap: Record<string, string> = {};
@@ -323,6 +336,7 @@ export const DashboardPage: React.FC = () => {
         {/* Right Column - Tools and Details */}
         <div className="space-y-6">
           <QuickCalculator />
+          <CompletenessCard completeness={completeness} />
           <QualityIndicators calculations={dashboardData?.calculations} />
           <RecentCalculations
             calculations={dashboardData?.calculations?.slice(0, 5)}

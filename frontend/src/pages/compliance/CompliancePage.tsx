@@ -8,6 +8,7 @@ import { DenominatorsTab } from './DenominatorsTab';
 import { AuditLogTab } from './AuditLogTab';
 import { SnapshotsTab } from './SnapshotsTab';
 import { SuppliersTab } from './SuppliersTab';
+import { CompletenessTab } from './CompletenessTab';
 import {
   FileText,
   ListX,
@@ -16,6 +17,7 @@ import {
   ScrollText,
   History,
   Handshake,
+  ClipboardCheck,
 } from 'lucide-react';
 
 /**
@@ -29,6 +31,7 @@ export const CompliancePage: React.FC = () => {
 
   const tabs = [
     { id: 'reports', name: 'Reports & Exports', icon: FileText, component: ReportsTab },
+    { id: 'completeness', name: 'Completeness', icon: ClipboardCheck, component: CompletenessTab },
     { id: 'exclusions', name: 'Exclusions Register', icon: ListX, component: ExclusionsTab },
     { id: 'facilities', name: 'Facilities', icon: Building2, component: FacilitiesTab },
     { id: 'suppliers', name: 'Suppliers', icon: Handshake, component: SuppliersTab },

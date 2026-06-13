@@ -6,6 +6,7 @@ import {
   updateOrganizationTargets,
   updateOrganizationExclusions,
   updateOrganizationDenominators,
+  updateRelevantCategories,
   getAuditLog,
   getFacilities,
   createFacility,
@@ -64,7 +65,13 @@ const validateExclusions = [
   body('exclusions.*.source').trim().notEmpty().withMessage('Excluded source is required'),
   body('exclusions.*.justification').trim().notEmpty().withMessage('Justification is required for every exclusion'),
   body('exclusions.*.scope').optional().isIn([1, 2, 3]).withMessage('Scope must be 1, 2 or 3'),
+  body('exclusions.*.categoryId').optional({ values: 'falsy' }).isMongoId().withMessage('categoryId must be a valid id'),
   body('exclusions.*.estimatedEmissions').optional().isFloat({ min: 0 }).withMessage('Materiality estimate must be >= 0'),
+];
+
+const validateRelevantCategories = [
+  body('relevantCategories').isArray().withMessage('relevantCategories must be an array'),
+  body('relevantCategories.*').isMongoId().withMessage('Each relevant category must be a valid id'),
 ];
 
 const validateDenominators = [
@@ -93,6 +100,7 @@ router.put('/', validate(validateOrganizationUpdate), authorize('admin', 'manage
 router.put('/targets', validate(validateTargets), authorize('admin', 'manager'), updateOrganizationTargets);
 router.put('/exclusions', validate(validateExclusions), authorize('admin', 'manager'), updateOrganizationExclusions);
 router.put('/denominators', validate(validateDenominators), authorize('admin', 'manager'), updateOrganizationDenominators);
+router.put('/relevant-categories', validate(validateRelevantCategories), authorize('admin', 'manager'), updateRelevantCategories);
 
 // Append-only audit trail (admin read access)
 router.get('/audit-log', authorize('admin'), getAuditLog);

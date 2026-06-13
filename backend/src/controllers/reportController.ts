@@ -4,6 +4,7 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { Organization } from '../models/Organization';
 import { Facility } from '../models/Facility';
 import { Supplier, deriveEngagementStatus } from '../models/Supplier';
+import { computeCompleteness } from '../services/completenessService';
 import { User } from '../models/User';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { AuditLog } from '../models/AuditLog';
@@ -47,6 +48,12 @@ async function buildGHGInventoryReport(
   if (!organization) {
     throw new Error('Organization not found');
   }
+
+  const completeness = await computeCompleteness({
+    organizationId: user.organizationId,
+    start,
+    end,
+  });
 
   const gwpSet = isGwpSetName(organization.settings?.gwpSet)
     ? organization.settings!.gwpSet!
@@ -248,6 +255,7 @@ async function buildGHGInventoryReport(
           : 0,
     },
     supplierEngagement,
+    completeness,
     factorRegister: Array.from(factorRegister.values()).sort((a, b) => b.uses - a.uses),
     exclusions: organization.exclusions || [],
     targets: organization.targets || [],
@@ -289,6 +297,23 @@ export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedReque
   }
 
   ApiResponseUtil.success(res, report);
+});
+
+/**
+ * Completeness assessment (GHG Protocol completeness principle): relevant
+ * categories vs covered/excluded/gap, per scope, for the reporting period.
+ */
+export const getCompletenessReport = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+  const completeness = await computeCompleteness({
+    organizationId: req.user.organizationId,
+    start,
+    end,
+  });
+  ApiResponseUtil.success(res, completeness);
 });
 
 /**
@@ -660,7 +685,18 @@ function renderInventoryMarkdown(r: any): string {
   }
   lines.push(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions — estimates carry +10% conservativeness and DQ 5.`);
   lines.push('');
-  lines.push('## 7. Supplier engagement');
+  lines.push('## 7. Completeness');
+  const cm = r.completeness;
+  lines.push(`Relevant categories: ${cm.relevantCount} · covered: ${cm.coveredCount} · documented exclusions: ${cm.excludedCount} · undocumented gaps: ${cm.gapCount} → **${cm.completenessPercent}% complete**`);
+  if (!cm.screened) lines.push(`> ${cm.note}`);
+  if (cm.gaps.length > 0) {
+    lines.push('Undocumented gaps (relevant, no data, no exclusion) — resolve before assurance:');
+    cm.gaps.forEach((g: any) => lines.push(`- Scope ${g.scope}: ${g.category}`));
+  } else if (cm.screened) {
+    lines.push('No undocumented gaps: every relevant category has data or a documented exclusion.');
+  }
+  lines.push('');
+  lines.push('## 8. Supplier engagement');
   if (r.supplierEngagement.suppliers === 0) {
     lines.push('No suppliers registered. Supplier-specific (primary) data raises the Scope 3 method hierarchy and DQ — register suppliers under Compliance → Suppliers.');
   } else {
@@ -670,28 +706,28 @@ function renderInventoryMarkdown(r: any): string {
     lines.push(`- Supplier-specific (primary) data: ${se.supplierSpecificData.entries} entries, ${kg(se.supplierSpecificData.emissionsKgCo2e)} (${se.supplierSpecificData.emissionsShare}% of emissions)`);
   }
   lines.push('');
-  lines.push('## 8. Emission factor register');
+  lines.push('## 9. Emission factor register');
   lines.push(`| Factor | Source | Year | Uses |`);
   lines.push(`|---|---|---|---|`);
   r.factorRegister.forEach((f: any) => lines.push(`| ${f.name} | ${f.source || '—'} | ${f.year || '—'} | ${f.uses} |`));
   lines.push('');
-  lines.push('## 9. Exclusions register');
+  lines.push('## 10. Exclusions register');
   if (r.exclusions.length === 0) lines.push('No documented exclusions.');
   r.exclusions.forEach((e: any) =>
     lines.push(`- **${e.source}**${e.scope ? ` (Scope ${e.scope})` : ''}: ${e.justification}${e.estimatedEmissions ? ` — est. ${e.estimatedEmissions} kg CO2e/yr` : ''}`)
   );
   lines.push('');
-  lines.push('## 10. Base year & targets');
+  lines.push('## 11. Base year & targets');
   if (r.targets.length === 0) lines.push('No targets configured.');
   r.targets.forEach((t: any) =>
     lines.push(`- ${t.name}: ${t.targetReduction}% below ${t.baselineYear} baseline (${t.baselineEmissions.toLocaleString()} kg CO2e) by ${t.targetYear}`)
   );
   lines.push('');
-  lines.push('## 11. Inventory controls');
+  lines.push('## 12. Inventory controls');
   lines.push(`- Calculations in period: ${r.inventoryControls.calculationsInPeriod} (${r.inventoryControls.lockedCalculations} locked/published)`);
   lines.push(`- Audit-trail entries in period: ${r.inventoryControls.auditTrailEntriesInPeriod}`);
   lines.push('');
-  lines.push('## 12. Uncertainty statement');
+  lines.push('## 13. Uncertainty statement');
   lines.push(r.uncertaintyStatement);
   lines.push('');
   return lines.join('\n');
@@ -817,11 +853,18 @@ export const getDashboardData = asyncHandler(async (req: AuthenticatedRequest, r
       .lean(),
   ]);
 
-  const avgMonthlyEmissions = trendData.length > 0 
-    ? trendData.reduce((sum, item) => sum + item.total, 0) / trendData.length 
+  const avgMonthlyEmissions = trendData.length > 0
+    ? trendData.reduce((sum, item) => sum + item.total, 0) / trendData.length
     : 0;
 
-  const dashboardData: DashboardData = {
+  // Completeness over the trailing 12 months (by activity period).
+  const completeness = await computeCompleteness({
+    organizationId,
+    start: twelveMonthsAgo,
+    end: new Date(),
+  });
+
+  const dashboardData: DashboardData & { completeness: typeof completeness } = {
     totalEmissions,
     recentCalculations: recentCalculations.slice(0, 5), // Limit to 5 for dashboard
     emissionsTrend: trendData,
@@ -831,6 +874,7 @@ export const getDashboardData = asyncHandler(async (req: AuthenticatedRequest, r
       lastCalculationDate: lastCalculation?.createdAt || null,
       avgMonthlyEmissions,
     },
+    completeness,
   };
 
   ApiResponseUtil.success(res, dashboardData);

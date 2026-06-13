@@ -73,6 +73,9 @@ const organizationSchema = new Schema<IOrganization>({
       {
         source: { type: String, required: true, trim: true },
         scope: { type: Number, enum: [1, 2, 3], required: false },
+        // Optional explicit link to a category — when set, the completeness
+        // screen treats that category as a documented omission (not a gap).
+        categoryId: { type: Schema.Types.ObjectId, ref: 'EmissionCategory' },
         justification: { type: String, required: true, trim: true },
         // Rough annual materiality estimate in kg CO2e (optional but encouraged).
         estimatedEmissions: { type: Number, min: 0 },
@@ -81,6 +84,11 @@ const organizationSchema = new Schema<IOrganization>({
       { _id: false }
     ),
   ],
+  // Relevance screening (GHG Protocol completeness): the categories the
+  // organization has judged relevant to its inventory. Completeness is measured
+  // against this set — a relevant category with neither data nor a documented
+  // exclusion is an undocumented gap. Empty = not yet screened.
+  relevantCategories: [{ type: Schema.Types.ObjectId, ref: 'EmissionCategory' }],
   // Denominator series for intensity metrics (tCO2e per unit of activity):
   // one value per (year, metric). Physical production denominators are
   // preferred for intensity tracking; revenue/FTE/floor-area are common

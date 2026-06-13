@@ -8,6 +8,7 @@ import {
   exportReport,
   getIndustryBenchmarks,
   getGHGInventoryReport,
+  getCompletenessReport,
   getAssurancePackage,
   getInventoryManagementPlan,
 } from '../controllers/reportController';
@@ -65,6 +66,9 @@ router.get('/benchmarks',
 // GHG inventory report (GHGP/ISO 14064-1 content; ?format=markdown downloads).
 // Uncached: this is an explicit export action and must reflect current data.
 router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport);
+
+// Completeness assessment (relevant vs covered/excluded/gaps). Uncached.
+router.get('/completeness', validate(validateDateRange), getCompletenessReport);
 
 // Assurance package (verifier bundle). Uncached export action.
 router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);

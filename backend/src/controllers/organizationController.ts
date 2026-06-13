@@ -8,6 +8,7 @@ import { generateTemporaryPassword, escapeRegex } from '../utils/security';
 import { recordAudit } from '../utils/audit';
 import { AuditLog } from '../models/AuditLog';
 import { Facility } from '../models/Facility';
+import { EmissionCategory } from '../models/EmissionCategory';
 import { invalidateGwpSetCache } from '../services/calculationEngine';
 import { config } from '../config/config';
 
@@ -33,6 +34,7 @@ export const getOrganization = asyncHandler(async (req: AuthenticatedRequest, re
     targets: organization.targets || [],
     exclusions: organization.exclusions || [],
     denominators: organization.denominators || [],
+    relevantCategories: (organization.relevantCategories || []).map((c: any) => c.toString()),
     isActive: organization.isActive,
     createdAt: organization.createdAt,
     updatedAt: organization.updatedAt,
@@ -175,6 +177,57 @@ export const updateOrganizationExclusions = asyncHandler(async (req: Authenticat
     res,
     { exclusions: organization.exclusions || [] },
     'Exclusions register updated'
+  );
+});
+
+/**
+ * Replace the relevance-screening set (admin/manager): the categories the
+ * organization judges relevant to its inventory. Completeness is measured
+ * against this set. Category ids are validated to exist.
+ */
+export const updateRelevantCategories = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { relevantCategories } = req.body;
+  if (!Array.isArray(relevantCategories)) {
+    return ApiResponseUtil.error(res, 'relevantCategories must be an array of category ids', 400);
+  }
+
+  const ids = [...new Set(relevantCategories.map((c: any) => String(c)))];
+  if (ids.length > 0) {
+    const found = await EmissionCategory.countDocuments({ _id: { $in: ids } });
+    if (found !== ids.length) {
+      return ApiResponseUtil.error(res, 'One or more category ids do not exist', 400);
+    }
+  }
+
+  const prior = await Organization.findById(req.user.organizationId).select('relevantCategories').lean();
+
+  const organization = await Organization.findByIdAndUpdate(
+    req.user.organizationId,
+    { relevantCategories: ids },
+    { new: true, runValidators: true }
+  );
+  if (!organization) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'organization-relevant-categories',
+    resourceId: req.user.organizationId,
+    before: { count: ((prior as any)?.relevantCategories || []).length },
+    after: { count: ids.length },
+  });
+
+  ApiResponseUtil.success(
+    res,
+    { relevantCategories: (organization.relevantCategories || []).map((c: any) => c.toString()) },
+    'Relevance screening updated'
   );
 });
 

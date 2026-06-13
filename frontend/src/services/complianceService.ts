@@ -9,6 +9,7 @@ import {
   SnapshotMeta,
   Supplier,
   SupplierEngagementSummary,
+  CompletenessResult,
 } from '../types';
 
 /**
@@ -223,6 +224,24 @@ export const complianceService = {
     );
     if (!response.success || !response.data) throw new Error(response.message || 'Fulfill failed');
     return response.data;
+  },
+
+  // ---- Completeness & relevance screening ----
+  getCompleteness: async (startDate: string, endDate: string): Promise<CompletenessResult> => {
+    const response = await apiService.get<CompletenessResult>(
+      `/reports/completeness?${dateRangeQuery(startDate, endDate)}`
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Completeness failed');
+    return response.data;
+  },
+
+  updateRelevantCategories: async (relevantCategories: string[]): Promise<string[]> => {
+    const response = await apiService.put<{ relevantCategories: string[] }>(
+      '/organizations/relevant-categories',
+      { relevantCategories }
+    );
+    if (!response.success) throw new Error(response.message || 'Update failed');
+    return response.data?.relevantCategories || [];
   },
 
   // ---- Audit trail (admin read) ----

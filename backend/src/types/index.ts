@@ -41,10 +41,14 @@ export interface IOrganization extends Document {
   exclusions?: Array<{
     source: string;
     scope?: 1 | 2 | 3;
+    categoryId?: Types.ObjectId; // optional explicit link to a category
     justification: string;
     estimatedEmissions?: number; // kg CO2e per year
     createdAt?: Date;
   }>;
+  // Relevance screening: categories judged relevant to the inventory.
+  // Completeness is measured against this set. Empty = not yet screened.
+  relevantCategories?: Types.ObjectId[];
   denominators?: Array<{
     year: number;
     metric: 'production' | 'revenue' | 'employees' | 'floor_area' | 'custom';
