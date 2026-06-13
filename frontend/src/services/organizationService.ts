@@ -33,11 +33,18 @@ export const organizationService = {
     if (params?.role) queryParams.append('role', params.role);
     if (params?.search) queryParams.append('search', params.search);
 
-    const response = await apiService.get<{
-      users: OrganizationUser[];
-      pagination: { page: number; pages: number; total: number };
-    }>(`${API_ENDPOINTS.ORGANIZATIONS.USERS}?${queryParams.toString()}`);
-    return response.data!;
+    // The paginated endpoint returns the users array in `data` and paging in
+    // `pagination` (ApiResponseUtil.paginated). Reshape to the { users,
+    // pagination } contract the UserManagement page consumes — reading
+    // `data.users` off the bare array left `users` undefined and crashed the
+    // component on `.map`.
+    const response = await apiService.get<OrganizationUser[]>(
+      `${API_ENDPOINTS.ORGANIZATIONS.USERS}?${queryParams.toString()}`
+    );
+    return {
+      users: response.data || [],
+      pagination: response.pagination || { page: 1, pages: 1, total: (response.data || []).length },
+    };
   },
 
   inviteUser: async (data: { email: string; name: string; role: string }) => {
