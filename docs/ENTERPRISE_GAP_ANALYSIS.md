@@ -102,7 +102,7 @@
 | Req | Status | Notes |
 |---|---|---|
 | Multi-entity + RBAC [P0] | 🟡 | Multi-tenant by `organizationId` with roles admin/manager/user enforced via `authorize()` ✅; no per-site contributor, no viewer/verifier roles, no consultant workspace switching. |
-| SSO/SCIM, verifier role [P1] | ❌ | JWT + refresh-cookie auth only. |
+| SSO/SCIM, verifier role [P1] | 🟡 → 🔧 | **Verifier + viewer roles implemented (P1-4, §24):** viewer read-only; verifier read-only + independent sign-off of locked inventories (audited, cleared on unlock). SSO/SCIM still deferred (needs an external IdP). |
 | **Immutable audit trail** [P0] | ❌ → 🔧 | **Implemented this session:** append-only `AuditLog` (who/when/action/resource/before→after), wired to calculation create/lock/unlock, factor create, targets/settings/exclusions changes, CSV/XLSX imports; admin read endpoint. Not yet on: auth events, user management. |
 | Calculation lineage drill-down [P0] | 🟡 → 🔧 | Entry-level provenance now stored (factor id/source/year, gwpSet, method); no UI drill-down view yet. |
 | Snapshots + restatement diffs [P0] | ❌ | Locking 🔧 prevents mutation but there's no snapshot/diff mechanism. |
@@ -127,7 +127,7 @@
 | Assurance package export [P0] | ❌ | Components now partially exist (audit log 🔧, exclusions 🔧, provenance 🔧) but no bundled export. |
 | Sampling + evidence chain, flag/resolve [P1] | ❌ | — |
 | Materiality view [P1] | 🟡 | Category Pareto-ish "top contributors" exists on dashboard. |
-| Verification status fields [P2] | 🟡 | `status: verified` enum value exists, unused by any workflow. |
+| Verification status fields [P2] | ✅ → 🔧 | **Implemented (P1-4, §24):** Calculation.verification {verified/by/at/comment}, verifier sign-off endpoint, verified count in the report. Kept separate from `status` so it never weakens the lock. |
 
 ## 10. UX & Guidance
 
@@ -252,3 +252,15 @@ Third P1 increment per report order: the completeness dashboard/gates (section 5
 - **Demo data note:** demo org now has 4 screened relevant categories (Electricity, Purchased Goods, Mobile, Fugitive) and one exclusion pinned to Fugitive Emissions, giving a clean 100% 2026 completeness. One extra QA calculation ("QA completeness gate 2027", electricity, isolated to 2027) remained because there is no DELETE /calculations/:id endpoint - harmless, isolated from 2026 reporting. Consistent with existing QA debris (HANDOFF section 6).
 - **Still open:** hard publish gate (needs the reporting-year/inventory object); completeness currently treats all active categories as the relevance baseline (no industry-default relevance suggestions yet).
 - **Next per report order (P1):** SSO/verifier roles -> CDP/SBTi mapping exports.
+
+## 24. Increment 12 addendum (2026-06-13, P1-4) - verifier + viewer roles + independent verification
+
+Fourth P1 increment per report order: the verifier role from "SSO/SCIM, verifier role" (§7) plus a read-only viewer role, and the verification status fields (§9.4) that existed only as an unused enum value. SSO/SCIM stays deferred (needs an external IdP - out of scope without one). Verified end-to-end (API with two real role accounts, then in-browser as the verifier), images rebuilt.
+
+- **Roles (done):** User.role enum gains **viewer** (read-only) and **verifier** (read-only + sign-off). The calculation write/compute endpoints (calculate, calculate-batch, business-travel, estimate, save) now require a contributor role (admin/manager/user) via authorize(); viewer and verifier get 403 on those. Read endpoints (reports, calculations, compliance) remain open to all authenticated roles. Role management (invite + role update) validation widened to all five roles; the frontend User Management role menu now lists every role from USER_ROLES (no longer hard-coded admin/manager/user).
+- **Independent verification (done):** Calculation.verification {verified, verifiedBy, verifiedAt, comment} is a separate sub-document, deliberately NOT overloading `status` (status stays 'locked' so the immutability guard is never weakened). PATCH /api/calculations/:id/verify (verifier or admin) requires the calc to be locked first (a verifier signs off immutable figures), stamps the verifier identity, and is audited (resourceType calculation-verification). The model immutability guard was widened to allow verification-only updates on a locked doc (alongside the existing status-only lock/unlock transitions). Unlocking clears prior verification - a restatement invalidates the sign-off - and says so in the response. The GHG report inventoryControls now reports verifiedCalculations.
+- **UI (done):** dashboard Recent Calculations shows a verify button (verifier/admin only) on locked calcs and a green "Independently verified by <email>" badge once signed off; verifier/viewer never see lock/unlock (not their permission). complianceService.verifyCalculation + Calculation.verification types added.
+- **Verified end-to-end:** viewer account - reads the GHG report (total 9,127.22) but POST /calculate and POST /calculations both 403; verifier account - compute still 403 (read-only) yet verifies a LOCKED calc (verification.verified=true, verifiedBy=qa.viewer@..., status stays 'locked'); verifying a non-locked calc -> 400 "Only a locked (published) calculation can be verified"; report inventoryControls locked=3 verified=1; unlock -> verification cleared, message "unlocked - prior verification cleared". In-browser as the verifier: verify (BadgeCheck) buttons render only on Locked rows, no lock/unlock buttons present, clicking verify produced the "Independently verified by qa.viewer@carbonytics.com" badge.
+- **Differences vs plan:** (1) verification is a separate sub-document, not the pre-existing `status: 'verified'` enum value - overloading status would have dropped the calc out of 'locked' and disabled the immutability guard, so the enum value stays unused by design. (2) SSO/SCIM is explicitly deferred (no IdP to integrate against); the role model is the half of "SSO/verifier role" that can be built standalone. (3) verifier sign-off requires a prior lock (you verify immutable figures, not a draft), which is stricter than the report implies but is the assurance-correct sequence.
+- **Demo data note:** the QA Viewer account (qa.viewer@carbonytics.com) is now role **verifier** and signed off "QA Supplier electricity" (verified badge visible). Its password was set directly via the User model for testing (HANDOFF notes prod-mode invites don't return the temp password). Consistent with existing QA debris (HANDOFF section 6).
+- **Next per report order (P1):** CDP/SBTi mapping exports -> remaining factor tables / instrument registry / PDF rendering / evidence attachments; then the reporting-year object for base-year + recalculation.
