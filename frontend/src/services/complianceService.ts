@@ -312,4 +312,12 @@ export const complianceService = {
     )) as unknown as Blob;
     downloadBlob(blob, `sbti-summary_${startDate}_${endDate}.md`);
   },
+
+  downloadEsrsMapping: async (startDate: string, endDate: string) => {
+    const blob = (await apiService.get<any>(
+      `/reports/esrs?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `esrs-e1_${startDate}_${endDate}.md`);
+  },
 };

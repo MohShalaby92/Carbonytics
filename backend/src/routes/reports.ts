@@ -13,6 +13,7 @@ import {
   getInventoryManagementPlan,
   getCdpMapping,
   getSbtiSummary,
+  getEsrsE1Mapping,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -82,5 +83,6 @@ router.get('/imp', validate(validateDateRange), getInventoryManagementPlan);
 // Disclosure-framework mappings (preparation aids; ?format=markdown downloads).
 router.get('/cdp', validate(validateDateRange), getCdpMapping);
 router.get('/sbti', validate(validateDateRange), getSbtiSummary);
+router.get('/esrs', validate(validateDateRange), getEsrsE1Mapping);
 
 export default router;

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { complianceService } from '../../services/complianceService';
 import { formatEmissions } from '../../utils/calculations';
-import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList, Globe, Target } from 'lucide-react';
+import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList, Globe, Target, Landmark } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
@@ -17,7 +17,7 @@ export const ReportsTab: React.FC = () => {
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | null>(null);
+  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPreview = async () => {
@@ -34,7 +34,7 @@ export const ReportsTab: React.FC = () => {
     }
   };
 
-  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti') => {
+  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs') => {
     try {
       setDownloading(kind);
       setError(null);
@@ -46,6 +46,8 @@ export const ReportsTab: React.FC = () => {
         await complianceService.downloadCdpMapping(startDate, endDate);
       } else if (kind === 'sbti') {
         await complianceService.downloadSbtiSummary(startDate, endDate);
+      } else if (kind === 'esrs') {
+        await complianceService.downloadEsrsMapping(startDate, endDate);
       } else {
         await complianceService.downloadAssurancePackage(startDate, endDate);
       }
@@ -153,7 +155,7 @@ export const ReportsTab: React.FC = () => {
           Preparation aids that reshape your inventory onto external frameworks — not official
           submissions. File through each framework's own portal after review.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-2">
               <Globe className="w-5 h-5 text-primary-600" />
@@ -181,6 +183,22 @@ export const ReportsTab: React.FC = () => {
               ~4.2%/yr 1.5°C minimum, and readiness next steps.
             </p>
             <Button onClick={() => handleDownload('sbti')} loading={downloading === 'sbti'}>
+              <Download className="w-4 h-4 mr-2" />
+              Download (Markdown)
+            </Button>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Landmark className="w-5 h-5 text-primary-600" />
+              <h3 className="text-lg font-semibold text-fg">ESRS E1 (CSRD)</h3>
+            </div>
+            <p className="text-sm text-muted mb-4">
+              Maps emissions onto ESRS E1 datapoints in metric tonnes CO₂e: E1-6 gross Scope 1,
+              dual Scope 2 (location + market), Scope 3 by category and total GHG, plus GHG
+              intensity per net revenue and pointers for the E1-1/E1-4 narrative datapoints.
+            </p>
+            <Button onClick={() => handleDownload('esrs')} loading={downloading === 'esrs'}>
               <Download className="w-4 h-4 mr-2" />
               Download (Markdown)
             </Button>

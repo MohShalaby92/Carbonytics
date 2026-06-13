@@ -701,6 +701,121 @@ async function buildSbtiSummary(user: { organizationId: string; email: string },
   };
 }
 
+/**
+ * ESRS E1 (Climate Change) mapping for CSRD reporting. Reshapes the GHG
+ * inventory onto the quantitative E1 datapoints — E1-6 gross Scope 1 / Scope 2
+ * (location + market) / Scope 3 by category / total GHG (location + market) in
+ * metric tonnes CO2e, plus the E1-6 GHG intensity per net revenue — and adds
+ * qualitative pointers for the narrative datapoints (E1-1 transition plan, E1-4
+ * targets) it can seed from configured targets. NOT an official ESRS submission:
+ * ESRS disclosures sit in the management report under the CSRD and require a
+ * materiality assessment, narrative datapoints and external assurance produced
+ * outside this tool.
+ */
+async function buildEsrsE1Mapping(user: { organizationId: string; email: string }, start: Date, end: Date) {
+  const r = await buildGHGInventoryReport(user, start, end);
+
+  const scope1 = r.emissions.byScope.scope1;
+  const scope3 = r.emissions.byScope.scope3;
+  // The stored headline Scope 2 is the MARKET-based figure: computeScope2Dual sets
+  // marketBased = the entry's emissions, and the Egyptian grid-average fallback makes
+  // location == market. Swapping the electricity market figure for its location figure
+  // yields the location-based total while preserving any non-electricity Scope 2
+  // (steam/heat/cooling, identical under both methods).
+  const elecLocation = r.emissions.scope2Dual.locationBased;
+  const elecMarket = r.emissions.scope2Dual.marketBased;
+  const scope2Market = r.emissions.byScope.scope2;
+  const scope2Location = Math.round((scope2Market - elecMarket + elecLocation) * 100) / 100;
+  const totalMarketBased = Math.round((scope1 + scope2Market + scope3) * 100) / 100;
+  const totalLocationBased = Math.round((scope1 + scope2Location + scope3) * 100) / 100;
+
+  // Scope 3 by GHGP category (ESRS E1-6 requires the significant categories).
+  const scope3ByCategory = r.emissions.byCategory
+    .filter((c: any) => c.scope === 3)
+    .map((c: any) => ({
+      category: c.category,
+      tCO2e: toTonnes(c.emissions),
+      methodsUsed: Object.keys(c.methods),
+    }));
+
+  // E1-6 GHG intensity is specifically per NET REVENUE (t CO2e / monetary unit).
+  const revenueDenom = (r.intensity.metrics || []).find((m: any) => m.metric === 'revenue');
+  const ghgIntensityPerNetRevenue = revenueDenom
+    ? {
+        netRevenue: revenueDenom.denominatorValue,
+        netRevenueUnit: revenueDenom.denominatorUnit,
+        // 6 significant digits (per-currency intensities are tiny); tonnes per revenue unit.
+        intensityLocationBased_tCO2ePerUnit: Number(
+          (toTonnes(totalLocationBased) / revenueDenom.denominatorValue).toPrecision(6)
+        ),
+        intensityMarketBased_tCO2ePerUnit: Number(
+          (toTonnes(totalMarketBased) / revenueDenom.denominatorValue).toPrecision(6)
+        ),
+      }
+    : {
+        note: `No net-revenue denominator recorded for ${r.intensity.year}. Add a "revenue" denominator under Compliance → Intensity & Denominators to disclose the ESRS E1-6 GHG intensity per net revenue.`,
+      };
+
+  const targets = (r.targets || []).map((t: any) => ({
+    name: t.name,
+    baselineYear: t.baselineYear,
+    targetYear: t.targetYear,
+    reductionPercent: t.targetReduction,
+    baselineEmissions_tCO2e: toTonnes(t.baselineEmissions),
+  }));
+
+  return {
+    title: `ESRS E1 Climate Change mapping — ${r.organization.name}`,
+    generatedAt: new Date().toISOString(),
+    generatedBy: user.email,
+    standard: 'ESRS E1 Climate Change (EU CSRD / EFRAG ESRS Set 1)',
+    disclaimer:
+      'Preparation aid only — not an official ESRS/CSRD submission. Figures are mapped from the Carbonytics inventory onto ESRS E1 Climate Change datapoints (metric tonnes CO2e). ESRS disclosures form part of the management report under the CSRD and require a double-materiality assessment, narrative datapoints and external assurance produced outside this tool. Review with your sustainability and finance teams before filing.',
+    unit: 'metric tonnes CO2e (t CO2e)',
+    reportingPeriod: { start: r.reportingPeriod.start, end: r.reportingPeriod.end },
+    organization: {
+      name: r.organization.name,
+      country: r.organization.country,
+      consolidationApproach: r.organization.consolidationApproach,
+    },
+    'E1-1 transition plan for climate change mitigation':
+      targets.length > 0
+        ? 'Reduction targets are configured (see E1-4). A narrative transition plan — decarbonisation levers, locked-in emissions, CapEx alignment and Paris-compatibility — is a qualitative datapoint and must be authored separately.'
+        : 'No reduction targets configured and no transition-plan narrative is stored. A transition plan is a qualitative E1-1 datapoint authored outside this tool.',
+    'E1-4 targets related to climate change mitigation and adaptation':
+      targets.length > 0
+        ? targets
+        : ['No targets configured — set a base year and reduction target under Targets to seed ESRS E1-4.'],
+    'E1-5 energy consumption and mix':
+      'Not auto-mapped — energy consumption and the renewable/non-renewable mix are not tracked as discrete ESRS E1-5 datapoints (the inventory holds activity data per category, not a consolidated energy register).',
+    'E1-6 gross GHG emissions': {
+      'Scope 1 (t CO2e)': toTonnes(scope1),
+      'Scope 2 location-based (t CO2e)': toTonnes(scope2Location),
+      'Scope 2 market-based (t CO2e)': toTonnes(scope2Market),
+      'Scope 3 (t CO2e)': toTonnes(scope3),
+      'Scope 3 by category (t CO2e)': scope3ByCategory,
+      'Total GHG emissions, location-based (t CO2e)': toTonnes(totalLocationBased),
+      'Total GHG emissions, market-based (t CO2e)': toTonnes(totalMarketBased),
+      'GHG intensity per net revenue (E1-6)': ghgIntensityPerNetRevenue,
+      note: 'The percentage of Scope 1 emissions from regulated emission-trading schemes and biogenic CO2 (reported separately under ESRS) are not yet tracked.',
+    },
+    'E1-7 GHG removals and carbon credits':
+      'Not tracked — GHG removals and the cancellation of carbon credits are not recorded in the inventory yet.',
+    'E1-8 internal carbon pricing':
+      'Not tracked — no internal carbon-pricing scheme is configured.',
+    'E1-9 anticipated financial effects':
+      'Narrative/financial datapoint — anticipated financial effects from physical and transition risks are not derivable from the emissions inventory and must be authored with finance.',
+    dataQualityAndAssurance: {
+      completenessPercent: r.completeness.completenessPercent,
+      relevantCategoriesScreened: r.completeness.screened,
+      weightedDataQualityScore: r.dataQuality.weightedDqScore,
+      independentlyVerifiedCalculations: r.inventoryControls.verifiedCalculations,
+      lockedCalculations: r.inventoryControls.lockedCalculations,
+      note: 'The CSRD requires limited assurance (phasing toward reasonable assurance). In-platform controls supporting assurance: an append-only audit trail, lock/snapshot immutability, PCAF-style data-quality scoring and independent verifier sign-off.',
+    },
+  };
+}
+
 export const getCdpMapping = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     return ApiResponseUtil.error(res, 'Authentication required', 401);
@@ -737,6 +852,25 @@ export const getSbtiSummary = asyncHandler(async (req: AuthenticatedRequest, res
     return res.send(md);
   }
   ApiResponseUtil.success(res, summary);
+});
+
+export const getEsrsE1Mapping = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+  const mapping = await buildEsrsE1Mapping(req.user, start, end);
+
+  if ((req.query.format as string) === 'markdown') {
+    const md = renderEsrsMarkdown(mapping);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="esrs_e1_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
+    );
+    return res.send(md);
+  }
+  ApiResponseUtil.success(res, mapping);
 });
 
 function renderCdpMarkdown(m: any): string {
@@ -807,6 +941,86 @@ function renderSbtiMarkdown(s: any): string {
   lines.push('');
   lines.push('## Next steps');
   s.nextSteps.forEach((n: string) => lines.push(`- ${n}`));
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderEsrsMarkdown(m: any): string {
+  const lines: string[] = [];
+  lines.push(`# ${m.title}`);
+  lines.push(`Generated ${m.generatedAt} by ${m.generatedBy}`);
+  lines.push('');
+  lines.push(`> ${m.disclaimer}`);
+  lines.push('');
+  lines.push(`Standard: **${m.standard}** · all figures in **${m.unit}**.`);
+  lines.push(`Reporting period: ${m.reportingPeriod.start.split('T')[0]} → ${m.reportingPeriod.end.split('T')[0]}`);
+  lines.push(`Organization: ${m.organization.name} (${m.organization.country}) · consolidation: ${m.organization.consolidationApproach}`);
+  lines.push('');
+
+  lines.push('## E1-1 Transition plan for climate change mitigation');
+  lines.push(m['E1-1 transition plan for climate change mitigation']);
+  lines.push('');
+
+  lines.push('## E1-4 Targets related to climate change mitigation and adaptation');
+  const targets = m['E1-4 targets related to climate change mitigation and adaptation'];
+  if (Array.isArray(targets) && typeof targets[0] === 'string') {
+    lines.push(targets[0]);
+  } else {
+    lines.push('| Target | Base year | Target year | Reduction | Base-year emissions (t CO2e) |');
+    lines.push('|---|---|---|---|---|');
+    targets.forEach((t: any) =>
+      lines.push(`| ${t.name} | ${t.baselineYear} | ${t.targetYear} | ${t.reductionPercent}% | ${t.baselineEmissions_tCO2e} |`)
+    );
+  }
+  lines.push('');
+
+  lines.push('## E1-5 Energy consumption and mix');
+  lines.push(m['E1-5 energy consumption and mix']);
+  lines.push('');
+
+  const e6 = m['E1-6 gross GHG emissions'];
+  lines.push('## E1-6 Gross Scopes 1, 2, 3 and total GHG emissions');
+  lines.push('| Datapoint | t CO2e |');
+  lines.push('|---|---|');
+  lines.push(`| Gross Scope 1 | ${e6['Scope 1 (t CO2e)']} |`);
+  lines.push(`| Gross Scope 2, location-based | ${e6['Scope 2 location-based (t CO2e)']} |`);
+  lines.push(`| Gross Scope 2, market-based | ${e6['Scope 2 market-based (t CO2e)']} |`);
+  lines.push(`| Gross Scope 3 | ${e6['Scope 3 (t CO2e)']} |`);
+  lines.push(`| **Total GHG, location-based** | **${e6['Total GHG emissions, location-based (t CO2e)']}** |`);
+  lines.push(`| **Total GHG, market-based** | **${e6['Total GHG emissions, market-based (t CO2e)']}** |`);
+  lines.push('');
+  const s3 = e6['Scope 3 by category (t CO2e)'];
+  if (s3.length > 0) {
+    lines.push('### Scope 3 by category');
+    lines.push('| Category | t CO2e | Methods |');
+    lines.push('|---|---|---|');
+    s3.forEach((c: any) => lines.push(`| ${c.category} | ${c.tCO2e} | ${c.methodsUsed.join(', ')} |`));
+    lines.push('');
+  }
+  lines.push('### GHG intensity per net revenue');
+  const gi = e6['GHG intensity per net revenue (E1-6)'];
+  if (gi.note) {
+    lines.push(gi.note);
+  } else {
+    lines.push(`- Net revenue: ${gi.netRevenue.toLocaleString()} ${gi.netRevenueUnit}`);
+    lines.push(`- Intensity (location-based): **${gi.intensityLocationBased_tCO2ePerUnit}** t CO2e / ${gi.netRevenueUnit}`);
+    lines.push(`- Intensity (market-based): **${gi.intensityMarketBased_tCO2ePerUnit}** t CO2e / ${gi.netRevenueUnit}`);
+  }
+  lines.push(`> ${e6.note}`);
+  lines.push('');
+
+  lines.push('## E1-7 / E1-8 / E1-9');
+  lines.push(`- E1-7 GHG removals and carbon credits: ${m['E1-7 GHG removals and carbon credits']}`);
+  lines.push(`- E1-8 Internal carbon pricing: ${m['E1-8 internal carbon pricing']}`);
+  lines.push(`- E1-9 Anticipated financial effects: ${m['E1-9 anticipated financial effects']}`);
+  lines.push('');
+
+  lines.push('## Data quality & assurance');
+  const dq = m.dataQualityAndAssurance;
+  lines.push(`- Completeness: ${dq.completenessPercent}% · relevance screened: ${dq.relevantCategoriesScreened ? 'yes' : 'no'}`);
+  lines.push(`- Weighted data-quality score: ${dq.weightedDataQualityScore ?? '—'} / 5 (1 best)`);
+  lines.push(`- Independently verified calculations: ${dq.independentlyVerifiedCalculations} · locked/published: ${dq.lockedCalculations}`);
+  lines.push(`- ${dq.note}`);
   lines.push('');
   return lines.join('\n');
 }
