@@ -14,6 +14,7 @@ import { notFound } from './middleware/notFound';
 import authRoutes from './routes/auth';
 import organizationRoutes from './routes/organizations';
 import calculationRoutes from './routes/calculations';
+import inventoryRoutes from './routes/inventories';
 import reportRoutes from './routes/reports';
 import emissionCategoryRoutes from './routes/emissionCategories';
 import emissionFactorRoutes from './routes/emissionFactors';
@@ -115,6 +116,7 @@ class Server {
     this.app.use('/api/auth', authLimiter, authRoutes);
     this.app.use('/api/organizations', organizationRoutes);
     this.app.use('/api/calculations', calculationRoutes);
+    this.app.use('/api/inventories', inventoryRoutes);
     this.app.use('/api/reports', reportRoutes);
     this.app.use('/api/emission-categories', emissionCategoryRoutes);
     this.app.use('/api/emission-factors', emissionFactorRoutes);
