@@ -280,6 +280,20 @@ export const complianceService = {
     downloadBlob(blob, `ghg-inventory_${startDate}_${endDate}.md`);
   },
 
+  /** GHG inventory report in a document format (markdown/pdf/docx/xlsx). */
+  downloadGhgInventory: async (
+    startDate: string,
+    endDate: string,
+    format: 'markdown' | 'pdf' | 'docx' | 'xlsx'
+  ) => {
+    const ext = format === 'markdown' ? 'md' : format;
+    const blob = (await apiService.get<any>(
+      `/reports/ghg-inventory?${dateRangeQuery(startDate, endDate)}&format=${format}`,
+      { responseType: 'blob' }
+    )) as unknown as Blob;
+    downloadBlob(blob, `ghg-inventory_${startDate}_${endDate}.${ext}`);
+  },
+
   downloadAssurancePackage: async (startDate: string, endDate: string) => {
     const response = await apiService.get<any>(
       `/reports/assurance-package?${dateRangeQuery(startDate, endDate)}`

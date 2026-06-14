@@ -15,6 +15,7 @@ import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
+import { renderInventoryPdf, renderInventoryDocx, renderInventoryXlsx } from '../services/reportRenderers';
 
 /**
  * GHG inventory report (GHG Protocol / ISO 14064-1 required content):
@@ -289,14 +290,22 @@ export const getGHGInventoryReport = asyncHandler(async (req: AuthenticatedReque
   const { start, end } = parsePeriod(req);
   const report = await buildGHGInventoryReport(req.user, start, end);
 
-  if ((req.query.format as string) === 'markdown') {
-    const md = renderInventoryMarkdown(report);
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="ghg_inventory_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
-    );
-    return res.send(md);
+  const format = (req.query.format as string) || 'json';
+  const stem = `ghg_inventory_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  // Binary/document exports of the same report object (markdown spine).
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    markdown: { type: 'text/markdown; charset=utf-8', ext: 'md', build: () => Buffer.from(renderInventoryMarkdown(report)) },
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderInventoryPdf(report) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderInventoryDocx(report) },
+    xlsx: { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx', build: () => renderInventoryXlsx(report) },
+  };
+
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
   }
 
   ApiResponseUtil.success(res, report);

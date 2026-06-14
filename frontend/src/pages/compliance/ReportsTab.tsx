@@ -17,8 +17,21 @@ export const ReportsTab: React.FC = () => {
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [downloading, setDownloading] = useState<'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs' | null>(null);
+  const [downloading, setDownloading] = useState<'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs' | null>(null);
+  const [ghgFormat, setGhgFormat] = useState<'markdown' | 'pdf' | 'docx' | 'xlsx' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGhgDownload = async (format: 'markdown' | 'pdf' | 'docx' | 'xlsx') => {
+    try {
+      setGhgFormat(format);
+      setError(null);
+      await complianceService.downloadGhgInventory(startDate, endDate, format);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Download failed');
+    } finally {
+      setGhgFormat(null);
+    }
+  };
 
   const loadPreview = async () => {
     try {
@@ -34,13 +47,11 @@ export const ReportsTab: React.FC = () => {
     }
   };
 
-  const handleDownload = async (kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs') => {
+  const handleDownload = async (kind: 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs') => {
     try {
       setDownloading(kind);
       setError(null);
-      if (kind === 'ghg') {
-        await complianceService.downloadGhgInventoryMarkdown(startDate, endDate);
-      } else if (kind === 'imp') {
+      if (kind === 'imp') {
         await complianceService.downloadImpMarkdown(startDate, endDate);
       } else if (kind === 'cdp') {
         await complianceService.downloadCdpMapping(startDate, endDate);
@@ -100,13 +111,26 @@ export const ReportsTab: React.FC = () => {
             Scope 2 figures, category breakdown with method mix, data-quality summary,
             factor register, exclusions, targets and inventory controls.
           </p>
-          <Button
-            onClick={() => handleDownload('ghg')}
-            loading={downloading === 'ghg'}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download (Markdown)
-          </Button>
+          <p className="text-xs text-muted mb-2">Download as:</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['pdf', 'PDF'],
+              ['docx', 'Word'],
+              ['xlsx', 'Excel'],
+              ['markdown', 'Markdown'],
+            ] as const).map(([fmt, label]) => (
+              <Button
+                key={fmt}
+                variant={fmt === 'pdf' ? 'primary' : 'outline'}
+                onClick={() => handleGhgDownload(fmt)}
+                loading={ghgFormat === fmt}
+                disabled={ghgFormat !== null}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {label}
+              </Button>
+            ))}
+          </div>
         </Card>
 
         <Card className="p-6">
