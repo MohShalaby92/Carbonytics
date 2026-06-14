@@ -368,6 +368,152 @@ export const reopenInventory = asyncHandler(async (req: AuthenticatedRequest, re
   );
 });
 
+/**
+ * Designate (or clear) the base year. At most one inventory per organization is
+ * the base year — designating a new one clears the previous. Optionally sets the
+ * GHG Protocol recalculation significance threshold (percent).
+ */
+export const setBaseYear = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return ApiResponseUtil.error(res, 'Authentication required', 401);
+
+  const { isBaseYear, recalcThresholdPercent } = req.body;
+  if (typeof isBaseYear !== 'boolean') {
+    return ApiResponseUtil.error(res, 'isBaseYear (boolean) is required', 400);
+  }
+
+  const inventory = await Inventory.findOne({
+    _id: req.params.id,
+    organizationId: req.user.organizationId,
+  });
+  if (!inventory) return ApiResponseUtil.error(res, 'Inventory not found', 404);
+
+  if (recalcThresholdPercent !== undefined) {
+    const t = Number(recalcThresholdPercent);
+    if (!isFinite(t) || t < 0 || t > 100) {
+      return ApiResponseUtil.error(res, 'recalcThresholdPercent must be between 0 and 100', 400);
+    }
+    inventory.recalcThresholdPercent = t;
+  }
+
+  const before = { isBaseYear: inventory.isBaseYear, recalcThresholdPercent: inventory.recalcThresholdPercent };
+
+  if (isBaseYear) {
+    // Only one base year per organization.
+    await Inventory.updateMany(
+      { organizationId: req.user.organizationId, _id: { $ne: inventory._id }, isBaseYear: true },
+      { $set: { isBaseYear: false } }
+    );
+    inventory.isBaseYear = true;
+  } else {
+    inventory.isBaseYear = false;
+  }
+  await inventory.save();
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'inventory-base-year',
+    resourceId: inventory._id.toString(),
+    before,
+    after: { isBaseYear: inventory.isBaseYear, recalcThresholdPercent: inventory.recalcThresholdPercent },
+  });
+
+  ApiResponseUtil.success(
+    res,
+    inventory,
+    isBaseYear
+      ? `Reporting year ${inventory.reportingYear} set as the base year (recalculation threshold ${inventory.recalcThresholdPercent}%)`
+      : `Reporting year ${inventory.reportingYear} is no longer the base year`
+  );
+});
+
+/**
+ * Recalculation check (GHG Protocol base-year recalculation policy): compares an
+ * inventory's CURRENT recomputed total against its FROZEN original (the first
+ * publication snapshot, v1) and flags when the drift meets/exceeds the
+ * significance threshold — the trigger for a base-year restatement. The
+ * threshold is the organization's policy, taken from the base-year inventory
+ * (falling back to this inventory's own threshold, default 5%).
+ */
+export const getRecalculationCheck = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return ApiResponseUtil.error(res, 'Authentication required', 401);
+
+  const inventory = await Inventory.findOne({
+    _id: req.params.id,
+    organizationId: req.user.organizationId,
+  });
+  if (!inventory) return ApiResponseUtil.error(res, 'Inventory not found', 404);
+
+  // The frozen reference is the FIRST publication (v1) — "as originally reported".
+  const firstSnapshot = await InventorySnapshot.findOne({
+    inventoryId: inventory._id,
+    organizationId: req.user.organizationId,
+  })
+    .sort({ version: 1 })
+    .lean();
+
+  if (!firstSnapshot) {
+    return ApiResponseUtil.success(res, {
+      reportingYear: inventory.reportingYear,
+      isBaseYear: inventory.isBaseYear,
+      applicable: false,
+      note: 'No frozen reference yet — publish this reporting year to establish the original figures before checking for recalculation drift.',
+    });
+  }
+
+  const latestSnapshot = await InventorySnapshot.findOne({
+    inventoryId: inventory._id,
+    organizationId: req.user.organizationId,
+  })
+    .sort({ version: -1 })
+    .select('version')
+    .lean();
+
+  const current = await computeInventoryFigures(req.user.organizationId, inventory._id.toString());
+  const original = (firstSnapshot as any).snapshot?.frozenTotals || {};
+  const originalTotal = original.total || 0;
+
+  // Threshold = org policy (base-year inventory), falling back to this inventory.
+  const baseYear = await Inventory.findOne({
+    organizationId: req.user.organizationId,
+    isBaseYear: true,
+  })
+    .select('recalcThresholdPercent reportingYear')
+    .lean();
+  const thresholdPercent =
+    (baseYear as any)?.recalcThresholdPercent ?? inventory.recalcThresholdPercent ?? 5;
+
+  const deltaKg = Math.round((current.total - originalTotal) * 100) / 100;
+  const deltaPercent =
+    originalTotal > 0 ? Math.round((deltaKg / originalTotal) * 10000) / 100 : null;
+  const exceedsThreshold = deltaPercent !== null && Math.abs(deltaPercent) >= thresholdPercent;
+
+  ApiResponseUtil.success(res, {
+    reportingYear: inventory.reportingYear,
+    isBaseYear: inventory.isBaseYear,
+    applicable: true,
+    frozen: {
+      version: (firstSnapshot as any).version,
+      total: originalTotal,
+      publishedAt: (firstSnapshot as any).snapshot?.publishedAt,
+    },
+    latestPublishedVersion: (latestSnapshot as any)?.version,
+    current: { total: current.total },
+    deltaKg,
+    deltaPercent,
+    thresholdPercent,
+    thresholdSource: baseYear ? `base year ${(baseYear as any).reportingYear}` : 'this inventory',
+    exceedsThreshold,
+    recommendation: exceedsThreshold
+      ? `Change of ${deltaPercent}% meets/exceeds the ${thresholdPercent}% significance threshold — a base-year recalculation/restatement is warranted (GHG Protocol Corporate Standard, base-year recalculation policy).`
+      : deltaPercent === null
+      ? 'Original total was zero — drift percentage is not defined.'
+      : `Change of ${deltaPercent}% is within the ${thresholdPercent}% significance threshold — no recalculation required.`,
+  });
+});
+
 /** List the immutable publication snapshots for an inventory (metadata). */
 export const getInventorySnapshots = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) return ApiResponseUtil.error(res, 'Authentication required', 401);
