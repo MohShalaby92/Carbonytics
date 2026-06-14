@@ -102,6 +102,51 @@ export interface User {
 	basedOnCalculations: Array<{ id: string; title: string; periodStart: string; value: number }>;
 	notes: string[];
   }
+
+  /** Live whole-year figures for a reporting-year inventory. */
+  export interface InventoryFigures {
+	scope1: number;
+	scope2: number;
+	scope3: number;
+	total: number;
+	calculationCount: number;
+	lockedCount: number;
+  }
+
+  /** Reporting-year inventory (Draft → Review → Published lifecycle). */
+  export interface Inventory {
+	id: string;
+	reportingYear: number;
+	period: { start: string; end: string };
+	status: 'draft' | 'review' | 'published';
+	gwpSet?: 'AR4' | 'AR5' | 'AR6';
+	isBaseYear: boolean;
+	recalcThresholdPercent: number;
+	frozenTotals?: { scope1: number; scope2: number; scope3: number; total: number };
+	frozenCompletenessPercent?: number;
+	publishedAt?: string;
+	publishedBy?: string;
+	current?: InventoryFigures;
+	completeness?: CompletenessResult;
+	snapshotVersions?: number;
+  }
+
+  /** Base-year recalculation drift check (GET /inventories/:id/recalculation-check). */
+  export interface RecalculationCheck {
+	reportingYear: number;
+	isBaseYear: boolean;
+	applicable: boolean;
+	note?: string;
+	frozen?: { version: number; total: number; publishedAt?: string };
+	latestPublishedVersion?: number;
+	current?: { total: number };
+	deltaKg?: number;
+	deltaPercent?: number | null;
+	thresholdPercent?: number;
+	thresholdSource?: string;
+	exceedsThreshold?: boolean;
+	recommendation?: string;
+  }
   
   export interface EmissionCategory {
 	id: string;

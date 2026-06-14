@@ -10,6 +10,8 @@ import {
   Supplier,
   SupplierEngagementSummary,
   CompletenessResult,
+  Inventory,
+  RecalculationCheck,
 } from '../types';
 
 /**
@@ -249,6 +251,73 @@ export const complianceService = {
     );
     if (!response.success) throw new Error(response.message || 'Update failed');
     return response.data?.relevantCategories || [];
+  },
+
+  // ---- Reporting-year inventories (lifecycle, base year, recalculation) ----
+  getInventories: async (): Promise<Inventory[]> => {
+    const response = await apiService.get<{ inventories: Inventory[]; count: number }>('/inventories');
+    return response.data?.inventories || [];
+  },
+
+  getInventory: async (id: string): Promise<Inventory> => {
+    const response = await apiService.get<Inventory>(`/inventories/${id}`);
+    if (!response.success || !response.data) throw new Error(response.message || 'Load failed');
+    return response.data;
+  },
+
+  createInventory: async (
+    reportingYear: number,
+    period?: { start: string; end: string }
+  ): Promise<Inventory> => {
+    const response = await apiService.post<Inventory>('/inventories', { reportingYear, period });
+    if (!response.success || !response.data) throw new Error(response.message || 'Create failed');
+    return response.data;
+  },
+
+  transitionInventory: async (id: string, status: 'draft' | 'review'): Promise<Inventory> => {
+    const response = await apiService.patch<Inventory>(`/inventories/${id}/status`, { status });
+    if (!response.success || !response.data) throw new Error(response.message || 'Transition failed');
+    return response.data;
+  },
+
+  /** Publish (lock) a reporting year. Rejects (HTTP 422) on undocumented gaps —
+   * the caller surfaces err.response.data.message (the hard completeness gate). */
+  publishInventory: async (id: string, comment?: string): Promise<Inventory> => {
+    const response = await apiService.patch<Inventory>(`/inventories/${id}/publish`, { comment });
+    if (!response.success || !response.data) throw new Error(response.message || 'Publish failed');
+    return response.data;
+  },
+
+  reopenInventory: async (id: string, comment?: string): Promise<Inventory> => {
+    const response = await apiService.patch<Inventory>(`/inventories/${id}/reopen`, { comment });
+    if (!response.success || !response.data) throw new Error(response.message || 'Reopen failed');
+    return response.data;
+  },
+
+  setBaseYear: async (
+    id: string,
+    isBaseYear: boolean,
+    recalcThresholdPercent?: number
+  ): Promise<Inventory> => {
+    const response = await apiService.patch<Inventory>(`/inventories/${id}/base-year`, {
+      isBaseYear,
+      ...(recalcThresholdPercent !== undefined ? { recalcThresholdPercent } : {}),
+    });
+    if (!response.success || !response.data) throw new Error(response.message || 'Update failed');
+    return response.data;
+  },
+
+  getRecalculationCheck: async (id: string): Promise<RecalculationCheck> => {
+    const response = await apiService.get<RecalculationCheck>(`/inventories/${id}/recalculation-check`);
+    if (!response.success || !response.data) throw new Error(response.message || 'Check failed');
+    return response.data;
+  },
+
+  getInventorySnapshots: async (id: string): Promise<SnapshotMeta[]> => {
+    const response = await apiService.get<{ snapshots: SnapshotMeta[]; count: number }>(
+      `/inventories/${id}/snapshots`
+    );
+    return response.data?.snapshots || [];
   },
 
   // ---- Audit trail (admin read) ----

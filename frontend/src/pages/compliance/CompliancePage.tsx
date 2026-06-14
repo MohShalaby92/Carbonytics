@@ -9,6 +9,7 @@ import { AuditLogTab } from './AuditLogTab';
 import { SnapshotsTab } from './SnapshotsTab';
 import { SuppliersTab } from './SuppliersTab';
 import { CompletenessTab } from './CompletenessTab';
+import { InventoriesTab } from './InventoriesTab';
 import {
   FileText,
   ListX,
@@ -18,6 +19,7 @@ import {
   History,
   Handshake,
   ClipboardCheck,
+  CalendarRange,
 } from 'lucide-react';
 
 /**
@@ -31,6 +33,7 @@ export const CompliancePage: React.FC = () => {
 
   const tabs = [
     { id: 'reports', name: 'Reports & Exports', icon: FileText, component: ReportsTab },
+    { id: 'inventories', name: 'Reporting Years', icon: CalendarRange, component: InventoriesTab },
     { id: 'completeness', name: 'Completeness', icon: ClipboardCheck, component: CompletenessTab },
     { id: 'exclusions', name: 'Exclusions Register', icon: ListX, component: ExclusionsTab },
     { id: 'facilities', name: 'Facilities', icon: Building2, component: FacilitiesTab },
