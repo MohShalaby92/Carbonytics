@@ -1,10 +1,10 @@
 # Carbonytics — Session Handoff Document
 
-**Date:** 2026-06-14 · **Branch:** `remediation` @ `2adcd50` (P1-6 ESRS E1; ~31 commits ahead of `master`; master untouched) · **Author of prior work:** Claude Code sessions with MohShalaby92
+**Date:** 2026-06-14 · **Branch:** `remediation` @ `5f22a5b` (P1-6 ESRS E1 + CDP Scope 2 fix; ~33 commits ahead of `master`; master untouched) · **Author of prior work:** Claude Code sessions with MohShalaby92
 
 **Purpose:** complete continuation context for a new session. Read this top-to-bottom before changing anything. Companion artifacts: `docs/ENTERPRISE_GAP_ANALYSIS.md` (requirement-by-requirement status + per-increment addenda §14–§25), the git log (detailed commit messages with verification evidence), and `ENTERPRISE_REQUIREMENTS_REPORT.md` on the user's Desktop (the master spec; implementation follows its priority order P0 → P1 → P2).
 
-**Status in one line:** Phase 0 (P0) complete; **P1-1 → P1-6 complete and verified** (P1-1…P1-5 deeply verified per §3a; **P1-6 ESRS E1 mapping added and verified this session**, §26 in the gap analysis). The §8 "CDP/SBTi/ESRS mapping exports" trio is now fully ✅. The stack is healthy and running on `:8080`. **Immediate next step: the structural reporting-year/inventory object** (§5c), or the quick adjacent cleanup flagged in §5a (CDP Scope 2 non-electricity under-count).
+**Status in one line:** Phase 0 (P0) complete; **P1-1 → P1-6 complete and verified** (P1-1…P1-5 deeply verified per §3a; **P1-6 ESRS E1 mapping added and verified this session**, §26 in the gap analysis). The §8 "CDP/SBTi/ESRS mapping exports" trio is now fully ✅, and the CDP Scope 2 non-electricity under-count found during ESRS verification is fixed (`5f22a5b`, §5a/§27). The stack is healthy and running on `:8080`. **Immediate next step: the structural reporting-year/inventory object** (§5c).
 
 ---
 
@@ -115,7 +115,7 @@ The whole P1-2…P1-5 surface was independently re-verified this session: **155 
 
 The "CDP/SBTi/**ESRS** mapping exports" trio is now complete (§8 row flipped to ✅). `GET /api/reports/esrs` (JSON + `?format=markdown`) reshapes `buildGHGInventoryReport` onto ESRS E1 datapoints in tonnes CO₂e: E1-6 gross Scope 1 / dual Scope 2 (location + market) / Scope 3 by category / total GHG (location + market), GHG intensity per net revenue, and E1-1/E1-4 narrative pointers from configured targets; E1-5/E1-7/E1-8/E1-9 honestly flagged not-auto-mappable. Frontend: `complianceService.downloadEsrsMapping` + the third Compliance Reports disclosure card. Implementation/verification detail and exact hand-checked values are in gap-analysis §26.
 
-**Quick adjacent cleanup flagged (≤1 increment):** ESRS-E1 verification surfaced a **latent under-count in the shipped CDP mapping** — `getCdpMapping`'s C6.3/C7.1 Scope 2 use the dual *electricity* figures only (`scope2Dual.locationBased/marketBased`), so they omit any **non-electricity Scope 2** (steam/heat/cooling; the demo org carries 2,790 kg of it). ESRS E1 avoids this by deriving Scope 2 location/market from the headline `byScope.scope2` (the market-based total) minus the electricity market delta plus the electricity location figure. Apply the same correction to `buildCdpMapping` (and re-check SBTi, which uses scope totals so is unaffected).
+**Adjacent cleanup — DONE (`5f22a5b`):** ESRS-E1 verification surfaced a latent under-count in the shipped CDP mapping — `buildCdpMapping`'s C6.3/C7.1 Scope 2 used the dual *electricity* figures only (`scope2Dual.locationBased/marketBased`), omitting **non-electricity Scope 2** (steam/heat/cooling; the demo org carries 2,790 kg of it, so CDP reported 0.966/1.050 t instead of 3.756/3.840 t). Fixed by extracting a shared **`scope2Totals(r)`** helper (derives full location/market from the headline `byScope.scope2` market total + the electricity dual delta) now used by **both** `buildCdpMapping` and `buildEsrsE1Mapping`, so they cannot diverge. SBTi uses `byScope` totals and was unaffected. Verified CDP == ESRS (3.756/3.840 t), SBTi unchanged.
 
 ### 5b. Then, in report order (P1 → P2)
 
