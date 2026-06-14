@@ -634,32 +634,33 @@ export class CalculationEngine {
       return null;
     }
 
-    // Location-based figure always uses the shared grid-average factor —
-    // Egyptian grid factor first (market mandate), global as fallback.
-    const sharedScope = [{ organizationId: { $exists: false } }, { organizationId: null }];
-    let gridFactor = await EmissionFactor.findOne({
-      categoryId: category._id,
-      region: 'egypt',
-      isActive: true,
-      $or: sharedScope,
-    }).sort({ year: -1, isDefault: -1 });
-    if (!gridFactor) {
-      gridFactor = await EmissionFactor.findOne({
-        categoryId: category._id,
-        region: 'global',
-        isActive: true,
-        $or: sharedScope,
-      }).sort({ year: -1, isDefault: -1 });
-    }
-    if (!gridFactor) return null;
-
-    const locationBased = Math.round(normalizedValue * gridFactor.factor * 100) / 100;
-
     const usedSupplierSpecific =
       usedFactor.organizationId &&
       usedFactor.organizationId.toString() === (input.organizationId || '');
 
     if (usedSupplierSpecific) {
+      // A supplier-specific (market-instrument) factor was used → it is the
+      // MARKET-based figure. The location-based figure falls back to the shared
+      // grid-average for the location: Egyptian grid first (market mandate),
+      // global as fallback, else the computed value if no grid factor exists.
+      const sharedScope = [{ organizationId: { $exists: false } }, { organizationId: null }];
+      let gridFactor = await EmissionFactor.findOne({
+        categoryId: category._id,
+        region: 'egypt',
+        isActive: true,
+        $or: sharedScope,
+      }).sort({ year: -1, isDefault: -1 });
+      if (!gridFactor) {
+        gridFactor = await EmissionFactor.findOne({
+          categoryId: category._id,
+          region: 'global',
+          isActive: true,
+          $or: sharedScope,
+        }).sort({ year: -1, isDefault: -1 });
+      }
+      const locationBased = gridFactor
+        ? Math.round(normalizedValue * gridFactor.factor * 100) / 100
+        : finalEmissions;
       return {
         locationBased,
         marketBased: finalEmissions,
@@ -669,11 +670,17 @@ export class CalculationEngine {
       };
     }
 
+    // A grid-average factor was selected (the Egyptian grid default, an eGRID US
+    // subregion, or another regional grid). That factor IS the location-based
+    // factor, so the location-based figure equals the headline result — never a
+    // different grid. With no contractual instruments, market-based equals it.
     return {
-      locationBased,
-      marketBased: locationBased,
+      locationBased: finalEmissions,
+      marketBased: finalEmissions,
       marketMethod:
-        'grid average — no contractual-instrument market in Egypt (Scope 2 Guidance fallback)',
+        usedFactor.region === 'egypt'
+          ? 'grid average — no contractual-instrument market in Egypt (Scope 2 Guidance fallback)'
+          : 'grid-average factor (location-based) — no contractual instruments applied',
     };
   }
 
