@@ -9,6 +9,8 @@ import { User } from '../models/User';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { AuditLog } from '../models/AuditLog';
 import { CalculationSnapshot } from '../models/CalculationSnapshot';
+import { Inventory } from '../models/Inventory';
+import { midpointYear } from '../services/inventoryService';
 import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
 import { CONSERVATIVENESS_UPLIFT } from '../services/estimationService';
 import { ApiResponseUtil } from '../utils/apiResponse';
@@ -56,9 +58,21 @@ async function buildGHGInventoryReport(
     end,
   });
 
-  const gwpSet = isGwpSetName(organization.settings?.gwpSet)
+  // GWP-set resolution with per-inventory-year locking: a PUBLISHED reporting
+  // year reports the GWP set frozen at publish, so historical inventories don't
+  // shift when the org later switches AR4/AR5/AR6. An open (draft/review) year,
+  // or a period with no inventory, uses the org's current set.
+  const liveGwpSet = isGwpSetName(organization.settings?.gwpSet)
     ? organization.settings!.gwpSet!
     : DEFAULT_GWP_SET;
+  const reportingYear = midpointYear(start, end);
+  const inventoryDoc = await Inventory.findOne({
+    organizationId: user.organizationId,
+    reportingYear,
+  }).lean();
+  const gwpSetPinned =
+    (inventoryDoc as any)?.status === 'published' && isGwpSetName((inventoryDoc as any)?.gwpSet);
+  const gwpSet = gwpSetPinned ? ((inventoryDoc as any).gwpSet as typeof liveGwpSet) : liveGwpSet;
 
   // Totals by scope + per-category breakdown with method mix.
   const byScope = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
@@ -213,10 +227,31 @@ async function buildGHGInventoryReport(
       })),
     },
     reportingPeriod: { start: start.toISOString(), end: end.toISOString() },
+    // Reporting-year inventory wrapper (lifecycle status + frozen figures).
+    inventory: inventoryDoc
+      ? {
+          reportingYear: (inventoryDoc as any).reportingYear,
+          status: (inventoryDoc as any).status,
+          isBaseYear: !!(inventoryDoc as any).isBaseYear,
+          gwpSet: (inventoryDoc as any).gwpSet,
+          gwpSetPinned,
+          publishedAt: (inventoryDoc as any).publishedAt,
+          publishedBy: (inventoryDoc as any).publishedBy,
+          frozenTotals: (inventoryDoc as any).frozenTotals,
+          frozenCompletenessPercent: (inventoryDoc as any).frozenCompletenessPercent,
+          recalcThresholdPercent: (inventoryDoc as any).recalcThresholdPercent,
+        }
+      : { reportingYear, status: 'none', note: `No reporting-year inventory exists for ${reportingYear}.` },
     methodology: {
       standard: 'GHG Protocol Corporate Standard (operational alignment); ISO 14064-1 informed',
       gwpSet,
       gwpSource: GWP_SETS[gwpSet].label,
+      // True when the reporting year is published and the GWP set is frozen to
+      // the inventory (so it no longer follows the org's live setting).
+      gwpSetPinned,
+      gwpSetNote: gwpSetPinned
+        ? `GWP set pinned to the published ${reportingYear} inventory; the organization's current set is ${liveGwpSet}.`
+        : `GWP set follows the organization's current selection (${liveGwpSet}); it will be frozen when the ${reportingYear} reporting year is published.`,
       factorPolicy:
         'Egyptian emission factors are the primary default; supplier-specific (custom) or other regional factors are applied when explicitly selected by the user. Factor vintage is matched to the activity year.',
       scope2Note:
@@ -1142,10 +1177,23 @@ function renderInventoryMarkdown(r: any): string {
   lines.push('');
   lines.push('## 2. Reporting period');
   lines.push(`${r.reportingPeriod.start.split('T')[0]} → ${r.reportingPeriod.end.split('T')[0]}`);
+  if (r.inventory) {
+    const inv = r.inventory;
+    if (inv.status === 'none') {
+      lines.push(`- Reporting-year inventory: none for ${inv.reportingYear} (figures are live/unpublished).`);
+    } else {
+      lines.push(
+        `- Reporting-year inventory: **${inv.reportingYear} — ${inv.status}**${inv.isBaseYear ? ' (base year)' : ''}${
+          inv.status === 'published' && inv.publishedAt ? `, published ${String(inv.publishedAt).split('T')[0]} by ${inv.publishedBy}` : ''
+        }`
+      );
+    }
+  }
   lines.push('');
   lines.push('## 3. Methodology');
   lines.push(`- Standard: ${r.methodology.standard}`);
-  lines.push(`- GWP set: **${r.methodology.gwpSet}** (${r.methodology.gwpSource})`);
+  lines.push(`- GWP set: **${r.methodology.gwpSet}** (${r.methodology.gwpSource})${r.methodology.gwpSetPinned ? ' — *pinned (published year)*' : ''}`);
+  if (r.methodology.gwpSetNote) lines.push(`  - ${r.methodology.gwpSetNote}`);
   lines.push(`- Factor policy: ${r.methodology.factorPolicy}`);
   lines.push(`- Scope 2: ${r.methodology.scope2Note}`);
   lines.push('');
