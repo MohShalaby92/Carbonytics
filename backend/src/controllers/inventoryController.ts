@@ -232,17 +232,24 @@ export const publishInventory = asyncHandler(async (req: AuthenticatedRequest, r
     return ApiResponseUtil.success(res, inventory, 'Inventory is already published');
   }
 
-  // Completeness (advisory in SI-2 — a hard gate replaces this in SI-5).
+  // HARD completeness gate (SI-5): a reporting year with undocumented gaps
+  // (relevant categories that have neither data nor a documented exclusion)
+  // cannot be published. This is the year-level enforcement of the GHG Protocol
+  // completeness principle — stricter than the per-calculation lock's soft
+  // warning. Fill the data or document an exclusion first.
   const completeness = await computeCompleteness({
     organizationId: req.user.organizationId,
     start: inventory.period.start,
     end: inventory.period.end,
   });
-  let completenessWarning: string | undefined;
-  if (completeness.screened && completeness.gapCount > 0) {
-    completenessWarning = `Published reporting year ${inventory.reportingYear} with ${completeness.gapCount} undocumented completeness gap(s) (${completeness.completenessPercent}% complete): ${completeness.gaps
-      .map((g) => g.category)
-      .join(', ')}.`;
+  if (completeness.gapCount > 0) {
+    return ApiResponseUtil.error(
+      res,
+      `Cannot publish reporting year ${inventory.reportingYear}: ${completeness.gapCount} undocumented completeness gap(s) (${completeness.completenessPercent}% complete). Add data or document an exclusion for: ${completeness.gaps
+        .map((g) => g.category)
+        .join(', ')}.`,
+      422
+    );
   }
 
   // Freeze the GWP set from the org's current methodology.
@@ -318,10 +325,8 @@ export const publishInventory = asyncHandler(async (req: AuthenticatedRequest, r
 
   ApiResponseUtil.success(
     res,
-    { ...inventory.toJSON(), calculationsLocked: lockedNow, snapshotVersion: version, completenessWarning },
-    `Reporting year ${inventory.reportingYear} published — ${lockedNow} calculation(s) locked, snapshot v${version}${
-      completenessWarning ? ' (with completeness warning)' : ''
-    }`
+    { ...inventory.toJSON(), calculationsLocked: lockedNow, snapshotVersion: version, completenessPercent: completeness.completenessPercent },
+    `Reporting year ${inventory.reportingYear} published — ${lockedNow} calculation(s) locked, snapshot v${version} (${completeness.completenessPercent}% complete)`
   );
 });
 
