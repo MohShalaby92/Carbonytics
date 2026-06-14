@@ -81,6 +81,14 @@ const calculationSchema = new Schema<ICalculation>({
     ref: 'Facility',
     index: true,
   },
+  // Reporting-year inventory this calculation belongs to (one per org+year).
+  // Set on save and back-filled by the inventory migration; publishing the
+  // inventory locks every member calculation.
+  inventoryId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Inventory',
+    index: true,
+  },
   title: {
     type: String,
     required: [true, 'Title is required'],

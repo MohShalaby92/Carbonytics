@@ -10,6 +10,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
 import { suggestEstimate } from '../services/estimationService';
 import { computeCompleteness } from '../services/completenessService';
+import { ensureInventory, midpointYear } from '../services/inventoryService';
 import { recordAudit } from '../utils/audit';
 import { body, validationResult } from 'express-validator';
 
@@ -163,6 +164,19 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     return ApiResponseUtil.error(res, 'End date must be after start date', 400);
   }
 
+  // Link this calculation to its reporting-year inventory (created Draft on
+  // first use). A published reporting year is closed and immutable — new data
+  // must wait for an audited reopen, mirroring the per-calculation lock.
+  const reportingYear = midpointYear(startDate, endDate);
+  const inventory = await ensureInventory(req.user.organizationId, reportingYear);
+  if (inventory.status === 'published') {
+    return ApiResponseUtil.error(
+      res,
+      `Reporting year ${reportingYear} is published and locked. Reopen it (Compliance → Reporting Years) before adding or changing data.`,
+      409
+    );
+  }
+
   // Calculate totals by scope
   const emissions = {
     scope1: 0,
@@ -258,6 +272,7 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     organizationId: req.user.organizationId,
     userId: req.user.id,
     ...(facilityId ? { facilityId } : {}),
+    inventoryId: inventory._id,
     title,
     description,
     period: {

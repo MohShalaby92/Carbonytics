@@ -212,11 +212,42 @@ interface BenchmarkStats {
   average: number;
 }
 
+/**
+ * Reporting-year inventory: groups an organization's calculations for one
+ * reporting year under a lifecycle (Draft → Review → Published/Locked). One
+ * inventory per (organization, reporting year). Publishing freezes the
+ * whole-year figures and the GWP set, locks the member calculations, and
+ * (optionally) designates the base year for recalculation tracking.
+ */
+export interface IInventory extends Document {
+  _id: Types.ObjectId;
+  organizationId: Types.ObjectId;
+  reportingYear: number;
+  period: { start: Date; end: Date };
+  status: 'draft' | 'review' | 'published';
+  // Frozen at publish: the GWP-100 set the published figures were computed
+  // under, so historical years don't shift when the org later switches sets.
+  gwpSet?: 'AR4' | 'AR5' | 'AR6';
+  // Exactly one inventory per org may be the base year (controller-enforced).
+  isBaseYear: boolean;
+  // GHG Protocol base-year recalculation significance threshold (percent).
+  recalcThresholdPercent: number;
+  // Frozen whole-year figures captured at publish (the "frozen results").
+  frozenTotals?: { scope1: number; scope2: number; scope3: number; total: number };
+  frozenCompletenessPercent?: number;
+  publishedAt?: Date;
+  publishedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ICalculation extends Document {
   _id: Types.ObjectId;
   organizationId: Types.ObjectId;
   userId: Types.ObjectId;
   facilityId?: Types.ObjectId;
+  // Reporting-year inventory this calculation belongs to (one per org+year).
+  inventoryId?: Types.ObjectId;
   title: string;
   description?: string;
   period: {
