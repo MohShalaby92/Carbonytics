@@ -46,6 +46,14 @@ async function seedScope1Categories(): Promise<void> {
         { unit: 'kWh', description: 'Kilowatt hours', conversionToBase: 1 },
         { unit: 'm³', description: 'Cubic meters', conversionToBase: 1000 },
         { unit: 'kg', description: 'Kilograms', conversionToBase: 1 },
+        // Imperial/energy entry units for EPA fuel factors (engine converts to
+        // the selected factor's own denominator — mmBtu / short ton / scf / gallon).
+        { unit: 'mmBtu', description: 'Million BTU (energy, HHV)', conversionToBase: 1 },
+        { unit: 'GJ', description: 'Gigajoules (energy)', conversionToBase: 1 },
+        { unit: 'therm', description: 'Therms (energy)', conversionToBase: 1 },
+        { unit: 'short ton', description: 'US short ton (2000 lb)', conversionToBase: 1 },
+        { unit: 'gallon', description: 'US gallon', conversionToBase: 1 },
+        { unit: 'scf', description: 'Standard cubic feet', conversionToBase: 1 },
       ],
       priority: 'high',
       industries: ['Manufacturing', 'Energy/Utilities', 'Chemical & Petrochemical'],
@@ -70,6 +78,9 @@ async function seedScope1Categories(): Promise<void> {
         { unit: 'L', description: 'Liters', conversionToBase: 1 },
         { unit: 'km', description: 'Kilometers traveled', conversionToBase: 1 },
         { unit: 'miles', description: 'Miles traveled', conversionToBase: 1.60934 },
+        // Imperial entry units for EPA mobile CO2 factors (per gallon / scf).
+        { unit: 'gallon', description: 'US gallon', conversionToBase: 1 },
+        { unit: 'scf', description: 'Standard cubic feet', conversionToBase: 1 },
       ],
       priority: 'high',
       industries: ['Transportation', 'Construction', 'Logistics'],
@@ -175,6 +186,8 @@ async function seedScope2Categories(): Promise<void> {
       allowedUnits: [
         { unit: 'kg', description: 'Kilograms', conversionToBase: 1 },
         { unit: 't', description: 'Tonnes', conversionToBase: 1000 },
+        // Energy entry unit for the EPA Steam/Heat factor (per mmBtu).
+        { unit: 'mmBtu', description: 'Million BTU (energy, HHV)', conversionToBase: 1 },
       ],
       priority: 'low',
       industries: ['Manufacturing', 'Chemical & Petrochemical'],
@@ -199,6 +212,9 @@ async function seedScope2Categories(): Promise<void> {
       allowedUnits: [
         { unit: 'kWh', description: 'Kilowatt hours thermal', conversionToBase: 1 },
         { unit: 'MWh', description: 'Megawatt hours thermal', conversionToBase: 1000 },
+        // Energy entry units for the EPA Steam/Heat factor (per mmBtu).
+        { unit: 'mmBtu', description: 'Million BTU (energy, HHV)', conversionToBase: 1 },
+        { unit: 'GJ', description: 'Gigajoules (energy)', conversionToBase: 1 },
       ],
       priority: 'low',
       industries: ['Commercial Buildings'],

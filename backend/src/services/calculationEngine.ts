@@ -336,6 +336,23 @@ export class CalculationEngine {
       return value;
     }
 
+    const conversions = this.getUnitConversions();
+
+    // Prefer the factor's OWN denominator unit — the unit its per-unit value is
+    // expressed in (e.g. 'kg CO2e/mmBtu' → 'mmBtu'). A single category can then
+    // hold factors on different physical bases: EPA stationary fuels are per
+    // mmBtu (energy, HHV) or per short ton / scf / gallon, none of which is the
+    // category's base unit. This converts the input INTO the factor's denominator,
+    // which is always dimensionally correct. Guarded — only used when the input
+    // equals, or has a KNOWN conversion to, that denominator; otherwise we fall
+    // through to the legacy base-unit handling so existing factors are unaffected.
+    const denom = this.factorDenominator(factor.unit);
+    if (denom) {
+      if (fromUnit === denom) return value;
+      const denomKey = `${fromUnit}_to_${denom}`;
+      if (conversions[denomKey] !== undefined) return value * conversions[denomKey];
+    }
+
     // Check if units match
     if (fromUnit === factor.unit || fromUnit === category.baseUnit) {
       return value;
@@ -343,15 +360,14 @@ export class CalculationEngine {
 
     // Find conversion factor in category's allowed units
     const allowedUnit = category.allowedUnits?.find((u: any) => u.unit === fromUnit);
-    
+
     if (allowedUnit && allowedUnit.conversionToBase) {
       return value * allowedUnit.conversionToBase;
     }
 
     // Common unit conversions
-    const conversions = this.getUnitConversions();
     const conversionKey = `${fromUnit}_to_${factor.unit}`;
-    
+
     if (conversions[conversionKey]) {
       return value * conversions[conversionKey];
     }
@@ -363,6 +379,18 @@ export class CalculationEngine {
         `for category "${category.category}". Provide the value in "${factor.unit}" ` +
         `(or "${category.baseUnit}"), or add a conversion for this unit.`
     );
+  }
+
+  /**
+   * The denominator unit of a factor's unit string ('kg CO2e/mmBtu' → 'mmBtu').
+   * Returns null for a bare unit with no '/', which the legacy match path handles.
+   */
+  private factorDenominator(unit?: string): string | null {
+    if (!unit || typeof unit !== 'string') return null;
+    const slash = unit.indexOf('/');
+    if (slash < 0) return null;
+    const denom = unit.slice(slash + 1).trim();
+    return denom || null;
   }
 
   private getUnitConversions(): Record<string, number> {
@@ -390,7 +418,44 @@ export class CalculationEngine {
       'kWh_to_MJ': 3.6,
       'Btu_to_kWh': 0.000293,
       'kWh_to_Btu': 3412.14,
-      
+
+      // Imperial energy basis (mmBtu) — EPA factors are denominated per mmBtu
+      // (HHV). 1 mmBtu = 293.07107 kWh = 1.05505585 GJ = 10 therms = 1e6 Btu.
+      'mmBtu_to_kWh': 293.07107,
+      'kWh_to_mmBtu': 0.00341214163,
+      'mmBtu_to_GJ': 1.05505585,
+      'GJ_to_mmBtu': 0.947817120,
+      'mmBtu_to_MJ': 1055.05585,
+      'MJ_to_mmBtu': 0.000947817120,
+      'mmBtu_to_therm': 10,
+      'therm_to_mmBtu': 0.1,
+      'mmBtu_to_Btu': 1000000,
+      'Btu_to_mmBtu': 0.000001,
+      'MWh_to_mmBtu': 3.41214163,
+      'mmBtu_to_MWh': 0.29307107,
+      'TJ_to_mmBtu': 947.817120,
+
+      // US short ton (= 907.18474 kg) — EPA solid-fuel physical basis.
+      'short ton_to_kg': 907.18474,
+      'kg_to_short ton': 0.00110231131,
+      'short ton_to_t': 0.90718474,
+      't_to_short ton': 1.10231131,
+      'short ton_to_lb': 2000,
+      'lb_to_short ton': 0.0005,
+
+      // US gallon (= 3.785411784 L) — EPA liquid-fuel physical basis.
+      'gallon_to_L': 3.78541178,
+      'L_to_gallon': 0.264172052,
+      'gallon_to_m³': 0.00378541178,
+      'm³_to_gallon': 264.172052,
+
+      // Standard cubic foot (scf) — EPA gaseous-fuel physical basis. The existing
+      // m³↔scf pair (below) already converts m³ input to the scf denominator; these
+      // add the imperial cubic-foot aliases.
+      'ft³_to_scf': 1,
+      'scf_to_ft³': 1,
+      'Nm³_to_scf': 35.3146667,
+
       // Mass conversions
       't_to_kg': 1000,
       'kg_to_t': 0.001,
