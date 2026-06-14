@@ -553,6 +553,25 @@ export const getInventoryManagementPlan = asyncHandler(async (req: Authenticated
 const toTonnes = (kg: number) => Math.round((kg / 1000) * 1000) / 1000;
 
 /**
+ * Full Scope 2 location-based and market-based totals (kg CO2e) from a GHG
+ * inventory report. The stored headline `byScope.scope2` is the MARKET-based
+ * figure: computeScope2Dual sets marketBased = the entry's emissions, and the
+ * Egyptian grid-average fallback makes location == market. Swapping the
+ * electricity market figure for its location figure yields the location-based
+ * total while preserving any NON-electricity Scope 2 (purchased steam/heat/
+ * cooling, identical under both methods) — which the per-electricity dual
+ * figures (scope2Dual) omit. Shared by the CDP and ESRS mappings so they cannot
+ * diverge.
+ */
+function scope2Totals(r: any): { location: number; market: number } {
+  const market = r.emissions.byScope.scope2;
+  const location = Math.round(
+    (market - r.emissions.scope2Dual.marketBased + r.emissions.scope2Dual.locationBased) * 100
+  ) / 100;
+  return { location, market };
+}
+
+/**
  * CDP Climate Change questionnaire mapping. Reshapes the GHG inventory onto the
  * emissions-relevant CDP modules (C0/C5/C6/C7/C10) in metric tonnes CO2e. This
  * is a PREPARATION AID, not a submission — CDP is disclosed through CDP's own
@@ -561,6 +580,9 @@ const toTonnes = (kg: number) => Math.round((kg / 1000) * 1000) / 1000;
 async function buildCdpMapping(user: { organizationId: string; email: string }, start: Date, end: Date) {
   const r = await buildGHGInventoryReport(user, start, end);
   const baseTarget = (r.targets || [])[0] as any;
+  // Full Scope 2 totals (incl. non-electricity steam/heat/cooling), not the
+  // electricity-only dual figures, so non-electricity Scope 2 is not dropped.
+  const scope2 = scope2Totals(r);
 
   // Scope 3 categories present, mapped to CDP C6.5 relevance rows.
   const scope3Categories = r.emissions.byCategory
@@ -596,8 +618,8 @@ async function buildCdpMapping(user: { organizationId: string; email: string }, 
     C6_emissions_data: {
       'C6.1 Scope 1 (t CO2e)': toTonnes(r.emissions.byScope.scope1),
       'C6.3 Scope 2 (t CO2e)': {
-        locationBased: toTonnes(r.emissions.scope2Dual.locationBased),
-        marketBased: toTonnes(r.emissions.scope2Dual.marketBased),
+        locationBased: toTonnes(scope2.location),
+        marketBased: toTonnes(scope2.market),
         methodsUsed: r.emissions.scope2Dual.methodsUsed,
       },
       'C6.5 Scope 3 by category (t CO2e)': scope3Categories,
@@ -612,8 +634,8 @@ async function buildCdpMapping(user: { organizationId: string; email: string }, 
     C7_emissions_breakdowns: {
       'C7.1 by scope': {
         scope1_tCO2e: toTonnes(r.emissions.byScope.scope1),
-        scope2_location_tCO2e: toTonnes(r.emissions.scope2Dual.locationBased),
-        scope2_market_tCO2e: toTonnes(r.emissions.scope2Dual.marketBased),
+        scope2_location_tCO2e: toTonnes(scope2.location),
+        scope2_market_tCO2e: toTonnes(scope2.market),
         scope3_tCO2e: toTonnes(r.emissions.byScope.scope3),
       },
       'C7.x by category (t CO2e)': r.emissions.byCategory.map((c: any) => ({
@@ -717,15 +739,10 @@ async function buildEsrsE1Mapping(user: { organizationId: string; email: string 
 
   const scope1 = r.emissions.byScope.scope1;
   const scope3 = r.emissions.byScope.scope3;
-  // The stored headline Scope 2 is the MARKET-based figure: computeScope2Dual sets
-  // marketBased = the entry's emissions, and the Egyptian grid-average fallback makes
-  // location == market. Swapping the electricity market figure for its location figure
-  // yields the location-based total while preserving any non-electricity Scope 2
-  // (steam/heat/cooling, identical under both methods).
-  const elecLocation = r.emissions.scope2Dual.locationBased;
-  const elecMarket = r.emissions.scope2Dual.marketBased;
-  const scope2Market = r.emissions.byScope.scope2;
-  const scope2Location = Math.round((scope2Market - elecMarket + elecLocation) * 100) / 100;
+  // Full Scope 2 location/market totals (see scope2Totals): preserves any
+  // non-electricity Scope 2 (steam/heat/cooling) that the per-electricity dual
+  // figures omit. Shared with the CDP mapping so the two cannot diverge.
+  const { location: scope2Location, market: scope2Market } = scope2Totals(r);
   const totalMarketBased = Math.round((scope1 + scope2Market + scope3) * 100) / 100;
   const totalLocationBased = Math.round((scope1 + scope2Location + scope3) * 100) / 100;
 
