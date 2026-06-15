@@ -9,6 +9,7 @@ import {
   getIndustryBenchmarks,
   getGHGInventoryReport,
   getCompletenessReport,
+  getConsolidationReport,
   getAssurancePackage,
   getInventoryManagementPlan,
   getCdpMapping,
@@ -72,6 +73,9 @@ router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport)
 
 // Completeness assessment (relevant vs covered/excluded/gaps). Uncached.
 router.get('/completeness', validate(validateDateRange), getCompletenessReport);
+
+// Consolidation roll-up (gross vs reported share per approach; §1.2). Uncached.
+router.get('/consolidation', validate(validateDateRange), getConsolidationReport);
 
 // Assurance package (verifier bundle). Uncached export action.
 router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);

@@ -11,6 +11,7 @@ import { AuditLog } from '../models/AuditLog';
 import { CalculationSnapshot } from '../models/CalculationSnapshot';
 import { Inventory } from '../models/Inventory';
 import { midpointYear } from '../services/inventoryService';
+import { computeConsolidation, ConsolidationApproach } from '../services/consolidationService';
 import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
 import { CONSERVATIVENESS_UPLIFT } from '../services/estimationService';
 import { ApiResponseUtil } from '../utils/apiResponse';
@@ -210,6 +211,16 @@ async function buildGHGInventoryReport(
     },
   };
 
+  // Consolidation roll-up (§1.2): gross (100%) vs the org's reported share under
+  // its consolidation approach, with equity / control / M&A pro-rating per entity.
+  const consolidationApproach = (organization.consolidationApproach || 'operational_control') as ConsolidationApproach;
+  const consolidation = await computeConsolidation({
+    organizationId: user.organizationId,
+    start,
+    end,
+    approach: consolidationApproach,
+  });
+
   const report = {
     title: `GHG Inventory Report — ${organization.name}`,
     generatedAt: new Date().toISOString(),
@@ -222,8 +233,11 @@ async function buildGHGInventoryReport(
       facilities: facilities.map((f: any) => ({
         name: f.name,
         country: f.country,
+        entityType: f.entityType || 'site',
+        parentFacilityId: f.parentFacilityId ? String(f.parentFacilityId) : null,
         ownershipPercent: f.ownershipPercent,
         operationalControl: f.operationalControl,
+        financialControl: f.financialControl,
       })),
     },
     reportingPeriod: { start: start.toISOString(), end: end.toISOString() },
@@ -271,6 +285,8 @@ async function buildGHGInventoryReport(
         .map(([category, v]) => ({ category, ...v, emissions: Math.round(v.emissions * 100) / 100 }))
         .sort((a, b) => b.emissions - a.emissions),
     },
+    // Consolidation roll-up: gross vs the org's reported share (§1.2).
+    consolidation,
     intensity,
     dataQuality: {
       ...quality,
@@ -361,6 +377,37 @@ export const getCompletenessReport = asyncHandler(async (req: AuthenticatedReque
     end,
   });
   ApiResponseUtil.success(res, completeness);
+});
+
+/**
+ * Consolidation roll-up (§1.2): gross vs the org's reported share for the
+ * period. Defaults to the org's configured consolidation approach; `?approach=`
+ * (equity_share | operational_control | financial_control) overrides it so the
+ * approaches can be compared side by side.
+ */
+export const getConsolidationReport = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+
+  const valid: ConsolidationApproach[] = ['equity_share', 'operational_control', 'financial_control'];
+  let approach = req.query.approach as ConsolidationApproach | undefined;
+  if (approach && !valid.includes(approach)) {
+    return ApiResponseUtil.error(res, `approach must be one of: ${valid.join(', ')}`, 400);
+  }
+  if (!approach) {
+    const org = await Organization.findById(req.user.organizationId).select('consolidationApproach').lean();
+    approach = ((org as any)?.consolidationApproach || 'operational_control') as ConsolidationApproach;
+  }
+
+  const result = await computeConsolidation({
+    organizationId: req.user.organizationId,
+    start,
+    end,
+    approach,
+  });
+  ApiResponseUtil.success(res, result);
 });
 
 /**
@@ -1221,6 +1268,22 @@ function renderInventoryMarkdown(r: any): string {
     );
   }
   lines.push('');
+  if (r.consolidation) {
+    const c = r.consolidation;
+    lines.push('### Consolidation (organizational boundary)');
+    lines.push(
+      `Approach: **${c.approach}** · Gross: ${kg(c.grossTotal)} · Consolidated (reported share): **${kg(c.consolidatedTotal)}** (${c.overallSharePercent}% of gross)`
+    );
+    if (Array.isArray(c.byEntity) && c.byEntity.some((e: any) => e.sharePercent < 100)) {
+      lines.push('');
+      lines.push(`| Entity | Share | Gross | Consolidated |`);
+      lines.push(`|---|---|---|---|`);
+      c.byEntity.forEach((e: any) =>
+        lines.push(`| ${e.name} | ${e.sharePercent}% | ${e.gross.toLocaleString()} | ${e.consolidated.toLocaleString()} |`)
+      );
+    }
+    lines.push('');
+  }
   lines.push('## 5. Emissions by category (with method mix)');
   lines.push(`| Category | Scope | kg CO2e | Methods |`);
   lines.push(`|---|---|---|---|`);
