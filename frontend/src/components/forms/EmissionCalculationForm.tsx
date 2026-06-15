@@ -828,6 +828,20 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   </span>
                 </div>
               )}
+              {calculationResult.provenance?.gwpApplied === 'per-gas' &&
+                calculationResult.provenance.gasBreakdown && (
+                  <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
+                    <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                      Per-gas breakdown (kg)
+                    </p>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted">CO₂ · CH₄ · N₂O:</span>
+                      <span className="text-green-700 dark:text-green-300">
+                        {calculationResult.provenance.gasBreakdown.co2} · {calculationResult.provenance.gasBreakdown.ch4} · {calculationResult.provenance.gasBreakdown.n2o}
+                      </span>
+                    </div>
+                  </div>
+                )}
               {calculationResult.scope2Dual && (
                 <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
                   <p className="text-xs font-medium text-green-700 dark:text-green-300">

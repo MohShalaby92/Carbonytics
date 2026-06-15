@@ -273,6 +273,51 @@ export const ReportsTab: React.FC = () => {
             </div>
           )}
 
+          {report.emissions?.perGas?.available && (
+            <div className="mb-6 p-3 bg-fg/[0.04] rounded-lg text-sm">
+              <p className="font-medium text-fg mb-2">
+                Per-gas breakdown (Kyoto gases) · CO₂e under {report.emissions.perGas.gwpSet}
+              </p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted text-left">
+                    <th className="font-medium py-1">Gas</th>
+                    <th className="font-medium py-1 text-right">Mass (kg)</th>
+                    <th className="font-medium py-1 text-right">CO₂e (kg)</th>
+                  </tr>
+                </thead>
+                <tbody className="text-fg/80">
+                  <tr>
+                    <td className="py-0.5">CO₂ (fossil, in-scope)</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.co2.toLocaleString()}</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.co2.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5">CH₄</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.ch4.toLocaleString()}</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.ch4.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5">N₂O</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.n2o.toLocaleString()}</td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.n2o.toLocaleString()}</td>
+                  </tr>
+                  <tr className="font-medium text-fg border-t border-line">
+                    <td className="py-0.5">Per-gas subtotal</td>
+                    <td className="py-0.5"></td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.perGasSubtotalCo2e.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5">CO₂e factors (gases not separated)</td>
+                    <td className="py-0.5"></td>
+                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eNotSeparated.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-xs text-muted mt-2">{report.emissions.perGas.note}</p>
+            </div>
+          )}
+
           {report.intensity && (
             <div className="mb-6 p-3 bg-fg/[0.04] rounded-lg text-sm">
               <p className="font-medium text-fg mb-1">

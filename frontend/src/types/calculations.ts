@@ -59,6 +59,8 @@ export interface CalculationEntry {
     provenance?: {
       gwpSet?: string;
       gwpApplied?: 'per-gas' | 'embedded';
+      // Per-gas masses (kg) + CO2e when computed via the per-gas path.
+      gasBreakdown?: { co2: number; ch4: number; n2o: number; co2e: number; biogenicCO2?: number };
     };
     // Scope 2 dual reporting (purchased electricity): both figures per the
     // GHG Protocol Scope 2 Guidance.
