@@ -6,6 +6,7 @@ import { AuthProvider } from './hooks/useAuth';
 import { Navbar } from './components/layout/Navbar';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { OnboardingGate } from './components/onboarding/OnboardingGate';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Code-split the heavy authenticated pages (dashboard pulls in recharts).
@@ -45,6 +46,7 @@ function App() {
           <Router>
             <div className="min-h-screen bg-bg text-fg">
               <Navbar />
+              <OnboardingGate />
               <main>
                 <Suspense fallback={<PageFallback />}>
                   <Routes>

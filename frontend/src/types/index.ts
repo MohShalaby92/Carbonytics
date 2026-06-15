@@ -131,6 +131,24 @@ export interface User {
 	snapshotVersions?: number;
   }
 
+  /** Guided onboarding state (GET /organizations/onboarding). */
+  export interface OnboardingState {
+	completed: boolean;
+	completedAt?: string;
+	skipped: boolean;
+	currentStep: number;
+	shouldShowWizard: boolean;
+	checklist: {
+		consolidationApproach: string;
+		gwpSet: string;
+		relevanceScreened: boolean;
+		facilities: number;
+		denominators: number;
+		reportingYears: number;
+		calculations: number;
+	};
+  }
+
   /** Base-year recalculation drift check (GET /inventories/:id/recalculation-check). */
   export interface RecalculationCheck {
 	reportingYear: number;

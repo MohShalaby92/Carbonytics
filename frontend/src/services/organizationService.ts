@@ -1,6 +1,6 @@
 import { apiService } from './api';
 import { API_ENDPOINTS } from '../constants';
-import { User, Organization } from '../types';
+import { User, Organization, OnboardingState } from '../types';
 
 
 export interface OrganizationSettings {
@@ -70,5 +70,19 @@ export const organizationService = {
   updateSettings: async (settings: Partial<OrganizationSettings>): Promise<OrganizationSettings> => {
     const response = await apiService.put<OrganizationSettings>(API_ENDPOINTS.ORGANIZATIONS.SETTINGS, settings);
     return response.data!;
+  },
+
+  // ---- Guided onboarding (§10) ----
+  getOnboarding: async (): Promise<OnboardingState> => {
+    const response = await apiService.get<OnboardingState>('/organizations/onboarding');
+    return response.data!;
+  },
+
+  updateOnboarding: async (patch: {
+    currentStep?: number;
+    completed?: boolean;
+    skipped?: boolean;
+  }): Promise<void> => {
+    await apiService.patch('/organizations/onboarding', patch);
   },
 };
