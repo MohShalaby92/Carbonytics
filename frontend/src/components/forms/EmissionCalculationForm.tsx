@@ -850,6 +850,19 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                   </p>
                 </div>
               )}
+              {!!calculationResult.biogenicCO2 && calculationResult.biogenicCO2 > 0 && (
+                <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted">Biogenic CO₂ (memo, excl. from scope):</span>
+                    <span className="font-medium text-green-700 dark:text-green-300">
+                      {formatEmissions(calculationResult.biogenicCO2)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    Biomass-combustion CO₂ is reported separately per the GHG Protocol; CH₄/N₂O stay in Scope 1.
+                  </p>
+                </div>
+              )}
               {calculationResult.factor.region === 'egypt' && (
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                   🇪🇬 Using Egyptian-specific emission factor

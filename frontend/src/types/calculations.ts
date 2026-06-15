@@ -67,5 +67,8 @@ export interface CalculationEntry {
       marketBased: number;
       marketMethod: string;
     };
+    // Biogenic CO2 (kg) from biomass combustion — memo item, EXCLUDED from
+    // calculation.emissions (the scope total) per the GHG Protocol.
+    biogenicCO2?: number;
   }
   

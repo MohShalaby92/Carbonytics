@@ -263,6 +263,16 @@ export const ReportsTab: React.FC = () => {
             </div>
           )}
 
+          {(report.emissions?.biogenicCO2 ?? 0) > 0 && (
+            <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+              <p className="font-medium mb-1">Biogenic CO₂ (memo — excluded from the scope totals)</p>
+              <p>
+                {formatEmissions(report.emissions.biogenicCO2)} of biomass-combustion CO₂, reported
+                separately per the GHG Protocol. Biomass CH₄/N₂O remain counted in Scope 1.
+              </p>
+            </div>
+          )}
+
           {report.intensity && (
             <div className="mb-6 p-3 bg-fg/[0.04] rounded-lg text-sm">
               <p className="font-medium text-fg mb-1">
