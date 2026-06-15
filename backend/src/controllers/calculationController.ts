@@ -243,6 +243,17 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       scope2MarketMethod: computed.scope2Dual?.marketMethod,
       // Biogenic CO2 (biomass) — stored separately; never added to the scope total.
       ...(computed.biogenicCO2 ? { biogenicCO2: computed.biogenicCO2 } : {}),
+      // Per-gas masses (kg) when the per-gas path ran — snapshot for the report
+      // per-gas breakdown (§1.4). CO2e-denominated factors carry none.
+      ...(computed.provenance?.gasBreakdown
+        ? {
+            gasBreakdown: {
+              co2: computed.provenance.gasBreakdown.co2,
+              ch4: computed.provenance.gasBreakdown.ch4,
+              n2o: computed.provenance.gasBreakdown.n2o,
+            },
+          }
+        : {}),
       notes: calc.notes,
     };
 

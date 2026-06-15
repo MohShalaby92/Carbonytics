@@ -56,6 +56,15 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   // item, EXCLUDED from `emissions` (the scope total) per the GHG Protocol.
   // Biomass CH4/N2O remain counted in the scope.
   biogenicCO2: { type: Number },
+  // Per-gas masses (kg) for entries computed via the per-gas path (factor
+  // carries co2/ch4/n2o). Snapshot at save time so the report can break the
+  // inventory down by gas. co2 here is the IN-SCOPE CO2 (0 for biogenic, whose
+  // CO2 lives in biogenicCO2). CO2e-denominated (embedded) factors have none.
+  gasBreakdown: {
+    co2: { type: Number },
+    ch4: { type: Number },
+    n2o: { type: Number },
+  },
   // Estimation flags: gap-filled values are never silently mixed with
   // measured data (estimates carry the method and force low quality / DQ 5).
   isEstimate: { type: Boolean, default: false },

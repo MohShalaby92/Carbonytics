@@ -90,6 +90,11 @@ async function buildGHGInventoryReport(
   // Biogenic CO2 (biomass combustion) — accumulated as a MEMO item, reported
   // OUTSIDE the Scope 1/2/3 totals per the GHG Protocol.
   let biogenicCO2 = 0;
+  // Per-gas breakdown (§1.4): in-scope gas masses summed over entries computed
+  // via the per-gas path. CO2e-denominated (embedded) entries have no split.
+  const perGasMass = { co2: 0, ch4: 0, n2o: 0 };
+  let perGasEntries = 0;
+  let perGasEntryCo2e = 0;
 
   for (const calc of calculations) {
     byScope.scope1 += calc.emissions?.scope1 || 0;
@@ -139,6 +144,14 @@ async function buildGHGInventoryReport(
       if ((entry as any).biogenicCO2) {
         biogenicCO2 += (entry as any).biogenicCO2;
       }
+      const gb = (entry as any).gasBreakdown;
+      if (gb && ((gb.co2 || 0) || (gb.ch4 || 0) || (gb.n2o || 0))) {
+        perGasMass.co2 += gb.co2 || 0;
+        perGasMass.ch4 += gb.ch4 || 0;
+        perGasMass.n2o += gb.n2o || 0;
+        perGasEntries += 1;
+        perGasEntryCo2e += em;
+      }
 
       const fKey = `${(entry as any).factorName || 'unknown'}|${(entry as any).factorYear || ''}`;
       const existing = factorRegister.get(fKey);
@@ -159,6 +172,36 @@ async function buildGHGInventoryReport(
   dual.locationBased = Math.round(dual.locationBased * 100) / 100;
   dual.marketBased = Math.round(dual.marketBased * 100) / 100;
   biogenicCO2 = Math.round(biogenicCO2 * 100) / 100;
+
+  // Per-gas breakdown (§1.4): the engine separates CO2/CH4/N2O only for factors
+  // that carry per-gas values; CO2e-denominated (embedded) factors report a
+  // single CO2e number that cannot be split. Masses below are exact (GWP-
+  // independent); their CO2e is shown under the report's GWP set. The remainder
+  // (co2eNotSeparated) is the CO2e from embedded factors. Biogenic CO2 is a
+  // separate memo (above) and is excluded here.
+  const r4 = (v: number) => Math.round(v * 10000) / 10000;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const gwpV = GWP_SETS[gwpSet].values;
+  const totalEntries = quality.high + quality.medium + quality.low + quality.unrated;
+  const perGasCo2e = {
+    co2: r2(perGasMass.co2 * gwpV.co2),
+    ch4: r2(perGasMass.ch4 * gwpV.ch4),
+    n2o: r2(perGasMass.n2o * gwpV.n2o),
+  };
+  const perGas = {
+    available: perGasEntries > 0,
+    entriesWithPerGas: perGasEntries,
+    entriesTotal: totalEntries,
+    gwpSet,
+    massKg: { co2: r4(perGasMass.co2), ch4: r4(perGasMass.ch4), n2o: r4(perGasMass.n2o) },
+    co2eByGas: perGasCo2e,
+    perGasSubtotalCo2e: r2(perGasCo2e.co2 + perGasCo2e.ch4 + perGasCo2e.n2o),
+    co2eNotSeparated: r2(byScope.total - perGasEntryCo2e),
+    note:
+      perGasEntries > 0
+        ? `Per-gas masses cover ${perGasEntries} of ${totalEntries} entries (those computed with per-gas factors). CO2e is shown under ${gwpSet}. The remaining ${r2(byScope.total - perGasEntryCo2e).toLocaleString()} kg CO2e comes from CO2e-denominated factors whose gases are not separated. Biogenic CO2 is a separate memo.`
+        : 'No per-gas factors were used in this period: all entries used CO2e-denominated factors (no gas split available). Biogenic CO2, if any, is a separate memo.',
+  };
 
   // Intensity metrics: total emissions over each denominator recorded for the
   // reporting year (year of the period midpoint, so fiscal years resolve to
@@ -285,6 +328,8 @@ async function buildGHGInventoryReport(
       // Biogenic CO2 (biomass combustion) reported SEPARATELY as a memo item,
       // EXCLUDED from byScope per the GHG Protocol. Biomass CH4/N2O stay in Scope 1.
       biogenicCO2,
+      // Per-gas breakdown (CO2/CH4/N2O masses + CO2e) for per-gas factors (§1.4).
+      perGas,
       scope2Dual: {
         locationBased: dual.locationBased,
         marketBased: dual.marketBased,
@@ -1273,6 +1318,21 @@ function renderInventoryMarkdown(r: any): string {
   lines.push(`- Market-based: ${kg(r.emissions.scope2Dual.marketBased)}`);
   r.emissions.scope2Dual.methodsUsed.forEach((m: string) => lines.push(`  - Method: ${m}`));
   lines.push('');
+  const pg = r.emissions.perGas;
+  if (pg) {
+    lines.push('### Per-gas breakdown (Kyoto gases)');
+    lines.push(`| Gas | Mass (kg) | CO2e (kg, ${pg.gwpSet}) |`);
+    lines.push(`|---|---|---|`);
+    lines.push(`| CO2 (fossil, in-scope) | ${pg.massKg.co2.toLocaleString()} | ${pg.co2eByGas.co2.toLocaleString()} |`);
+    lines.push(`| CH4 | ${pg.massKg.ch4.toLocaleString()} | ${pg.co2eByGas.ch4.toLocaleString()} |`);
+    lines.push(`| N2O | ${pg.massKg.n2o.toLocaleString()} | ${pg.co2eByGas.n2o.toLocaleString()} |`);
+    lines.push(`| **Per-gas subtotal** | | **${pg.perGasSubtotalCo2e.toLocaleString()}** |`);
+    lines.push(`| CO2e factors (gases not separated) | | ${pg.co2eNotSeparated.toLocaleString()} |`);
+    lines.push(`| Biogenic CO2 (memo, excl. from scopes) | ${(r.emissions.biogenicCO2 || 0).toLocaleString()} | — |`);
+    lines.push('');
+    lines.push(`> ${pg.note}`);
+    lines.push('');
+  }
   lines.push(`### Intensity metrics (${r.intensity.year})`);
   if (r.intensity.metrics.length === 0) {
     lines.push(r.intensity.note || 'No denominators recorded for the reporting year.');

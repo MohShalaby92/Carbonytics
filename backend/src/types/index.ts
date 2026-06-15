@@ -307,6 +307,9 @@ export interface ICalculationEntry {
   // Biogenic CO2 (kg) from biomass combustion — memo item, EXCLUDED from
   // `emissions` (the scope total) per the GHG Protocol; biomass CH4/N2O stay in scope
   biogenicCO2?: number;
+  // Per-gas masses (kg) when computed via the per-gas path (co2 is the in-scope
+  // CO2; biogenic CO2 lives in biogenicCO2). Absent for CO2e-denominated factors.
+  gasBreakdown?: { co2: number; ch4: number; n2o: number };
   // Gap-filling / estimation flags (estimates must be distinguishable)
   isEstimate?: boolean;
   estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'

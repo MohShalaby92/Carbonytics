@@ -165,6 +165,18 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
   draw(`Biogenic CO2 (memo — excluded from the scope totals above): ${num(r.emissions.biogenicCO2 || 0)} kg CO2. Biomass CH4/N2O remain in Scope 1.`, { indent: 10, size: 9, color: rgb(0.4, 0.4, 0.4) });
   draw(`Scope 2 dual reporting — location-based: ${num(r.emissions.scope2Dual.locationBased)} · market-based: ${num(r.emissions.scope2Dual.marketBased)} kg CO2e`, { indent: 10, size: 9 });
   (r.emissions.scope2Dual.methodsUsed || []).forEach((m: string) => draw(`• Method: ${m}`, { indent: 18, size: 8, color: rgb(0.4, 0.4, 0.4) }));
+  if (r.emissions.perGas) {
+    const pg = r.emissions.perGas;
+    draw(`Per-gas breakdown (Kyoto gases) — CO2e under ${pg.gwpSet}`, { indent: 10, f: bold, size: 10 });
+    table(['Gas', 'Mass (kg)', 'CO2e (kg)'], [maxW - 220, 110, 110], [
+      ['CO2 (fossil, in-scope)', num(pg.massKg.co2), num(pg.co2eByGas.co2)],
+      ['CH4', num(pg.massKg.ch4), num(pg.co2eByGas.ch4)],
+      ['N2O', num(pg.massKg.n2o), num(pg.co2eByGas.n2o)],
+      ['Per-gas subtotal', '', num(pg.perGasSubtotalCo2e)],
+      ['CO2e factors (gases not separated)', '', num(pg.co2eNotSeparated)],
+    ]);
+    draw(pg.note, { indent: 10, size: 8, color: rgb(0.4, 0.4, 0.4) });
+  }
   draw(`Intensity metrics (${r.intensity.year})`, { indent: 10, f: bold, size: 10 });
   if ((r.intensity.metrics || []).length) {
     r.intensity.metrics.forEach((m: any) => draw(`• ${m.label}: ${m.intensityKgCo2ePerUnit} kg CO2e per ${m.denominatorUnit} (denominator ${num(m.denominatorValue)} ${m.denominatorUnit})`, { indent: 18, size: 9 }));
@@ -285,6 +297,21 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
   }));
   p(`Biogenic CO2 (memo — excluded from the scope totals above): ${num(r.emissions.biogenicCO2 || 0)} kg CO2. Biomass-combustion CO2 is reported separately per the GHG Protocol; biomass CH4/N2O remain in Scope 1.`);
   p(`Scope 2 dual reporting — location-based: ${num(r.emissions.scope2Dual.locationBased)} · market-based: ${num(r.emissions.scope2Dual.marketBased)} kg CO2e`);
+  if (r.emissions.perGas) {
+    const pg = r.emissions.perGas;
+    p(`Per-gas breakdown (Kyoto gases) — CO2e under ${pg.gwpSet}:`);
+    children.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        dRow(['Gas', 'Mass (kg)', 'CO2e (kg)'], true),
+        dRow(['CO2 (fossil, in-scope)', num(pg.massKg.co2), num(pg.co2eByGas.co2)]),
+        dRow(['CH4', num(pg.massKg.ch4), num(pg.co2eByGas.ch4)]),
+        dRow(['N2O', num(pg.massKg.n2o), num(pg.co2eByGas.n2o)]),
+        dRow(['Per-gas subtotal', '', num(pg.perGasSubtotalCo2e)]),
+        dRow(['CO2e factors (gases not separated)', '', num(pg.co2eNotSeparated)]),
+      ],
+    }));
+  }
   p(`Intensity metrics (${r.intensity.year}):`);
   if ((r.intensity.metrics || []).length) r.intensity.metrics.forEach((m: any) => bullet(`${m.label}: ${m.intensityKgCo2ePerUnit} kg CO2e per ${m.denominatorUnit} (denominator ${num(m.denominatorValue)} ${m.denominatorUnit})`));
   else p(r.intensity.note || 'No denominators recorded for the reporting year.');
@@ -408,6 +435,23 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
   scope.addRow({ s: 'Scope 2 market-based', e: r.emissions.scope2Dual.marketBased });
   scope.addRow({ s: 'Biogenic CO2 (memo, excl. from scope totals)', e: r.emissions.biogenicCO2 || 0 });
   headerStyle(scope);
+
+  if (r.emissions.perGas) {
+    const pg = r.emissions.perGas;
+    const pgs = wb.addWorksheet('Per-Gas Breakdown');
+    pgs.columns = [
+      { header: 'Gas', key: 'g', width: 36 },
+      { header: 'Mass (kg)', key: 'm', width: 18 },
+      { header: `CO2e (kg, ${pg.gwpSet})`, key: 'e', width: 22 },
+    ];
+    pgs.addRow({ g: 'CO2 (fossil, in-scope)', m: pg.massKg.co2, e: pg.co2eByGas.co2 });
+    pgs.addRow({ g: 'CH4', m: pg.massKg.ch4, e: pg.co2eByGas.ch4 });
+    pgs.addRow({ g: 'N2O', m: pg.massKg.n2o, e: pg.co2eByGas.n2o });
+    pgs.addRow({ g: 'Per-gas subtotal', m: '', e: pg.perGasSubtotalCo2e });
+    pgs.addRow({ g: 'CO2e factors (gases not separated)', m: '', e: pg.co2eNotSeparated });
+    pgs.addRow({ g: 'Biogenic CO2 (memo, excl. from scopes)', m: r.emissions.biogenicCO2 || 0, e: '' });
+    headerStyle(pgs);
+  }
 
   const cat = wb.addWorksheet('By Category');
   cat.columns = [
