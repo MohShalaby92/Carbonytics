@@ -1,6 +1,6 @@
 # Carbonytics — Session Handoff Document
 
-**Date:** 2026-06-15 · **Branch:** `remediation` — tip `091d901` (gap-analysis §34, the full-session verification pass), **56 commits ahead of `master`; master untouched** · **Author of prior work:** Claude Code sessions with MohShalaby92
+**Date:** 2026-06-15 · **Branch:** `remediation` — tip is this HANDOFF rewrite, on top of `091d901` (gap-analysis §34, the full-session verification pass); **~60 commits ahead of `master`; master untouched** · **Author of prior work:** Claude Code sessions with MohShalaby92
 
 **Purpose:** complete continuation context for a new session. Read top-to-bottom before changing anything. Companion artifacts: `docs/ENTERPRISE_GAP_ANALYSIS.md` (requirement-by-requirement status + per-increment addenda §14–§34), the git log (detailed commit messages with verification evidence), and `ENTERPRISE_REQUIREMENTS_REPORT.md` on the user's Desktop (the master spec; implementation follows its priority order P0 → P1 → P2).
 
