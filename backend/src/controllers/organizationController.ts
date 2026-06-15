@@ -393,7 +393,33 @@ export const updateOnboarding = asyncHandler(async (req: AuthenticatedRequest, r
   ApiResponseUtil.success(res, organization.onboarding, 'Onboarding state updated');
 });
 
-// ---- Facilities (organizational boundary: organization → sites) ----
+// ---- Facilities / entity hierarchy (organizational boundary §1.2) ----
+
+/**
+ * Would setting `facilityId`'s parent to `newParentId` create a cycle? True if
+ * the new parent is the node itself or one of its descendants (walking up from
+ * the proposed parent reaches the node).
+ */
+async function createsCycle(
+  orgId: string,
+  facilityId: string,
+  newParentId: string
+): Promise<boolean> {
+  if (String(newParentId) === String(facilityId)) return true;
+  let current: any = newParentId;
+  const seen = new Set<string>();
+  while (current) {
+    const cur = String(current);
+    if (cur === String(facilityId)) return true;
+    if (seen.has(cur)) break; // defensive: pre-existing cycle
+    seen.add(cur);
+    const node: any = await Facility.findOne({ _id: current, organizationId: orgId })
+      .select('parentFacilityId')
+      .lean();
+    current = node?.parentFacilityId;
+  }
+  return false;
+}
 
 export const getFacilities = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
@@ -410,15 +436,31 @@ export const createFacility = asyncHandler(async (req: AuthenticatedRequest, res
   if (!req.user) {
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
-  const { name, country, city, ownershipPercent, operationalControl, notes } = req.body;
+  const { name, country, city, parentFacilityId, entityType, ownershipPercent, operationalControl, financialControl, acquiredDate, disposedDate, notes } = req.body;
+
+  // A parent (if given) must be an existing node in the same organization.
+  if (parentFacilityId) {
+    const parent = await Facility.findOne({ _id: parentFacilityId, organizationId: req.user.organizationId });
+    if (!parent) {
+      return ApiResponseUtil.error(res, 'Parent entity not found in your organization', 400);
+    }
+  }
+  if (acquiredDate && disposedDate && new Date(acquiredDate) > new Date(disposedDate)) {
+    return ApiResponseUtil.error(res, 'disposedDate must be on or after acquiredDate', 400);
+  }
 
   const facility = await Facility.create({
     organizationId: req.user.organizationId,
     name: String(name).trim(),
     country: country ? String(country).trim() : 'Egypt',
     city: city ? String(city).trim() : undefined,
+    ...(parentFacilityId ? { parentFacilityId } : {}),
+    ...(entityType ? { entityType } : {}),
     ownershipPercent: ownershipPercent !== undefined ? parseFloat(ownershipPercent) : 100,
     operationalControl: operationalControl !== undefined ? Boolean(operationalControl) : true,
+    financialControl: financialControl !== undefined ? Boolean(financialControl) : true,
+    ...(acquiredDate ? { acquiredDate: new Date(acquiredDate) } : {}),
+    ...(disposedDate ? { disposedDate: new Date(disposedDate) } : {}),
     notes,
   });
 
@@ -429,7 +471,7 @@ export const createFacility = asyncHandler(async (req: AuthenticatedRequest, res
     action: 'create',
     resourceType: 'facility',
     resourceId: facility._id.toString(),
-    after: { name: facility.name, country: facility.country, ownershipPercent: facility.ownershipPercent, operationalControl: facility.operationalControl },
+    after: { name: facility.name, entityType: facility.entityType, parentFacilityId, ownershipPercent: facility.ownershipPercent, operationalControl: facility.operationalControl, financialControl: facility.financialControl },
   });
 
   ApiResponseUtil.success(res, facility.toJSON(), 'Facility created', 201);
@@ -440,7 +482,7 @@ export const updateFacility = asyncHandler(async (req: AuthenticatedRequest, res
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
   const { facilityId } = req.params;
-  const { name, country, city, ownershipPercent, operationalControl, notes, isActive } = req.body;
+  const { name, country, city, parentFacilityId, entityType, ownershipPercent, operationalControl, financialControl, acquiredDate, disposedDate, notes, isActive } = req.body;
 
   const prior = await Facility.findOne({ _id: facilityId, organizationId: req.user.organizationId }).lean();
   if (!prior) {
@@ -451,10 +493,36 @@ export const updateFacility = asyncHandler(async (req: AuthenticatedRequest, res
   if (name !== undefined) updates.name = String(name).trim();
   if (country !== undefined) updates.country = String(country).trim();
   if (city !== undefined) updates.city = String(city).trim();
+  if (entityType !== undefined) updates.entityType = entityType;
   if (ownershipPercent !== undefined) updates.ownershipPercent = parseFloat(ownershipPercent);
   if (operationalControl !== undefined) updates.operationalControl = Boolean(operationalControl);
+  if (financialControl !== undefined) updates.financialControl = Boolean(financialControl);
+  if (acquiredDate !== undefined) updates.acquiredDate = acquiredDate ? new Date(acquiredDate) : null;
+  if (disposedDate !== undefined) updates.disposedDate = disposedDate ? new Date(disposedDate) : null;
   if (notes !== undefined) updates.notes = notes;
   if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+  // Re-parenting: validate the parent exists in the org and won't form a cycle.
+  if (parentFacilityId !== undefined) {
+    if (!parentFacilityId) {
+      updates.parentFacilityId = null; // detach to top level
+    } else {
+      const parent = await Facility.findOne({ _id: parentFacilityId, organizationId: req.user.organizationId });
+      if (!parent) {
+        return ApiResponseUtil.error(res, 'Parent entity not found in your organization', 400);
+      }
+      if (await createsCycle(req.user.organizationId, facilityId, parentFacilityId)) {
+        return ApiResponseUtil.error(res, 'That parent would create a cycle in the entity hierarchy', 400);
+      }
+      updates.parentFacilityId = parentFacilityId;
+    }
+  }
+
+  const effAcq = updates.acquiredDate !== undefined ? updates.acquiredDate : (prior as any).acquiredDate;
+  const effDis = updates.disposedDate !== undefined ? updates.disposedDate : (prior as any).disposedDate;
+  if (effAcq && effDis && new Date(effAcq) > new Date(effDis)) {
+    return ApiResponseUtil.error(res, 'disposedDate must be on or after acquiredDate', 400);
+  }
 
   const facility = await Facility.findOneAndUpdate(
     { _id: facilityId, organizationId: req.user.organizationId },

@@ -41,8 +41,13 @@ const validateOrganizationUpdate = [
 
 const validateFacility = [
   body('name').optional({ values: 'undefined' }).trim().notEmpty().withMessage('Facility name cannot be empty'),
+  body('parentFacilityId').optional({ values: 'falsy' }).isMongoId().withMessage('parentFacilityId must be a valid id'),
+  body('entityType').optional().isIn(['subsidiary', 'division', 'site', 'asset']).withMessage('entityType must be subsidiary, division, site or asset'),
   body('ownershipPercent').optional().isFloat({ min: 0, max: 100 }).withMessage('Ownership must be 0-100%'),
   body('operationalControl').optional().isBoolean().withMessage('operationalControl must be boolean'),
+  body('financialControl').optional().isBoolean().withMessage('financialControl must be boolean'),
+  body('acquiredDate').optional({ values: 'falsy' }).isISO8601().withMessage('acquiredDate must be a valid date'),
+  body('disposedDate').optional({ values: 'falsy' }).isISO8601().withMessage('disposedDate must be a valid date'),
 ];
 
 const ALL_ROLES = ['admin', 'manager', 'user', 'viewer', 'verifier'];
