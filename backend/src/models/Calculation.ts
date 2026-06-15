@@ -52,6 +52,10 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   scope2Location: { type: Number },
   scope2Market: { type: Number },
   scope2MarketMethod: { type: String, trim: true },
+  // Biogenic CO2 (kg) from biomass combustion — reported separately as a memo
+  // item, EXCLUDED from `emissions` (the scope total) per the GHG Protocol.
+  // Biomass CH4/N2O remain counted in the scope.
+  biogenicCO2: { type: Number },
   // Estimation flags: gap-filled values are never silently mixed with
   // measured data (estimates carry the method and force low quality / DQ 5).
   isEstimate: { type: Boolean, default: false },

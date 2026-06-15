@@ -23,6 +23,12 @@ export interface GasBreakdown {
   ch4: number;
   n2o: number;
   co2e: number;
+  /**
+   * Biogenic CO2 (kg) from biomass combustion, when the factor is flagged
+   * biogenic. Reported SEPARATELY as a memo item, EXCLUDED from `co2e` (the
+   * scope total) per the GHG Protocol. Biomass CH4/N2O stay in `co2e`.
+   */
+  biogenicCO2?: number;
 }
 
 export interface CalculationProvenance {
@@ -73,6 +79,12 @@ export interface CalculationResult {
     dqScore?: number;
   };
   provenance: CalculationProvenance;
+  /**
+   * Biogenic CO2 (kg) reported separately as a memo item — biomass combustion
+   * CO2, EXCLUDED from `calculation.emissions` (the scope total). Set only when
+   * the factor is flagged biogenic and per-gas computation was used.
+   */
+  biogenicCO2?: number;
   /** Scope 2 dual reporting (purchased electricity only). */
   scope2Dual?: {
     locationBased: number; // kg CO2e via grid-average factor
@@ -133,6 +145,11 @@ export class CalculationEngine {
         ...(usedPerGas && gasBreakdown ? { gasBreakdown } : {}),
       };
 
+      // Biogenic CO2 (biomass) — separated from the scope total when the per-gas
+      // path ran (a special-calculation override would have discarded the split).
+      const biogenicCO2 =
+        usedPerGas && gasBreakdown?.biogenicCO2 ? gasBreakdown.biogenicCO2 : undefined;
+
       // Scope 2 dual reporting for purchased electricity.
       const scope2Dual = await this.computeScope2Dual(
         category,
@@ -179,6 +196,7 @@ export class CalculationEngine {
         },
         quality,
         provenance,
+        ...(biogenicCO2 ? { biogenicCO2 } : {}),
         ...(scope2Dual ? { scope2Dual } : {}),
       };
 
@@ -717,20 +735,29 @@ export class CalculationEngine {
     if (category.calculationMethod !== 'activity_based') return null;
 
     const gwp = GWP_SETS[gwpSet].values;
-    const co2 = value * (factor.co2 || 0); // kg CO2 (GWP 1)
+    const totalCo2 = value * (factor.co2 || 0); // kg CO2 (GWP 1)
     const ch4 = value * (factor.ch4 || 0); // kg CH4
     const n2o = value * (factor.n2o || 0); // kg N2O
     // otherGhg, when present, is already CO2e-denominated by convention.
     const otherCo2e = value * (factor.otherGhg || 0);
 
+    // Biogenic CO2 (biomass combustion) is reported SEPARATELY as a memo item,
+    // NOT in the Scope 1/2/3 totals (GHG Protocol). Only the CO2 is biogenic —
+    // biomass CH4/N2O still count in the scope. The split changes WHERE the CO2
+    // is reported, not its value (biogenic CO2 is GWP 1; no double-application).
+    const isBiogenic = factor.metadata?.biogenic === true;
+    const biogenicCO2 = isBiogenic ? totalCo2 : 0;
+    const scopeCo2 = isBiogenic ? 0 : totalCo2;
+
     const co2e =
-      Math.round((co2 * gwp.co2 + ch4 * gwp.ch4 + n2o * gwp.n2o + otherCo2e) * 100) / 100;
+      Math.round((scopeCo2 * gwp.co2 + ch4 * gwp.ch4 + n2o * gwp.n2o + otherCo2e) * 100) / 100;
 
     return {
-      co2: Math.round(co2 * 10000) / 10000,
+      co2: Math.round(scopeCo2 * 10000) / 10000,
       ch4: Math.round(ch4 * 10000) / 10000,
       n2o: Math.round(n2o * 10000) / 10000,
       co2e,
+      ...(biogenicCO2 > 0 ? { biogenicCO2: Math.round(biogenicCO2 * 10000) / 10000 } : {}),
     };
   }
 

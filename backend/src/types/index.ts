@@ -304,6 +304,9 @@ export interface ICalculationEntry {
   scope2Location?: number; // location-based figure (grid average), kg CO2e
   scope2Market?: number; // market-based figure, kg CO2e
   scope2MarketMethod?: string; // which rung of the market-based hierarchy was used
+  // Biogenic CO2 (kg) from biomass combustion — memo item, EXCLUDED from
+  // `emissions` (the scope total) per the GHG Protocol; biomass CH4/N2O stay in scope
+  biogenicCO2?: number;
   // Gap-filling / estimation flags (estimates must be distinguishable)
   isEstimate?: boolean;
   estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'

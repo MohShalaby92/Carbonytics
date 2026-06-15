@@ -241,6 +241,8 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       scope2Location: computed.scope2Dual?.locationBased,
       scope2Market: computed.scope2Dual?.marketBased,
       scope2MarketMethod: computed.scope2Dual?.marketMethod,
+      // Biogenic CO2 (biomass) — stored separately; never added to the scope total.
+      ...(computed.biogenicCO2 ? { biogenicCO2: computed.biogenicCO2 } : {}),
       notes: calc.notes,
     };
 
