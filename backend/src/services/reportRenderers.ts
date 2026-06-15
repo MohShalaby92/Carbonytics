@@ -145,10 +145,13 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
 
   heading('2. Reporting period');
   draw(`${day(r.reportingPeriod.start)} → ${day(r.reportingPeriod.end)}`, { indent: 10 });
+  if (r.inventory && r.inventory.status && r.inventory.status !== 'none') {
+    draw(`Reporting-year inventory: ${r.inventory.reportingYear} — ${r.inventory.status}${r.inventory.isBaseYear ? ' (base year)' : ''}`, { indent: 10, size: 9, color: rgb(0.4, 0.4, 0.4) });
+  }
 
   heading('3. Methodology');
   kv('Standard', r.methodology.standard);
-  kv('GWP set', `${r.methodology.gwpSet} (${r.methodology.gwpSource})`);
+  kv('GWP set', `${r.methodology.gwpSet} (${r.methodology.gwpSource})${r.methodology.gwpSetPinned ? ' — pinned (published year)' : ''}`);
   kv('Factor policy', r.methodology.factorPolicy);
   kv('Scope 2', r.methodology.scope2Note);
 
@@ -166,6 +169,15 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
     r.intensity.metrics.forEach((m: any) => draw(`• ${m.label}: ${m.intensityKgCo2ePerUnit} kg CO2e per ${m.denominatorUnit} (denominator ${num(m.denominatorValue)} ${m.denominatorUnit})`, { indent: 18, size: 9 }));
   } else {
     draw(r.intensity.note || 'No denominators recorded for the reporting year.', { indent: 18, size: 9, color: rgb(0.4, 0.4, 0.4) });
+  }
+  if (r.consolidation) {
+    const c = r.consolidation;
+    draw('Consolidation (organizational boundary)', { indent: 10, f: bold, size: 10 });
+    draw(`Approach: ${c.approach} · Gross: ${num(c.grossTotal)} · Consolidated: ${num(c.consolidatedTotal)} kg CO2e (${c.overallSharePercent}% of gross)`, { indent: 18, size: 9 });
+    if ((c.byEntity || []).some((e: any) => e.sharePercent < 100)) {
+      table(['Entity', 'Share %', 'Gross', 'Consolidated'], [maxW * 0.4, 70, 90, maxW - maxW * 0.4 - 160],
+        c.byEntity.map((e: any) => [e.name, String(e.sharePercent), num(e.gross), num(e.consolidated)]));
+    }
   }
 
   heading('5. Emissions by category (with method mix)');
@@ -249,10 +261,13 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
 
   h('2. Reporting period');
   p(`${day(r.reportingPeriod.start)} → ${day(r.reportingPeriod.end)}`);
+  if (r.inventory && r.inventory.status && r.inventory.status !== 'none') {
+    p(`Reporting-year inventory: ${r.inventory.reportingYear} — ${r.inventory.status}${r.inventory.isBaseYear ? ' (base year)' : ''}`);
+  }
 
   h('3. Methodology');
   p(`Standard: ${r.methodology.standard}`);
-  p(`GWP set: ${r.methodology.gwpSet} (${r.methodology.gwpSource})`);
+  p(`GWP set: ${r.methodology.gwpSet} (${r.methodology.gwpSource})${r.methodology.gwpSetPinned ? ' — pinned (published year)' : ''}`);
   p(`Factor policy: ${r.methodology.factorPolicy}`);
   p(`Scope 2: ${r.methodology.scope2Note}`);
 
@@ -271,6 +286,20 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
   p(`Intensity metrics (${r.intensity.year}):`);
   if ((r.intensity.metrics || []).length) r.intensity.metrics.forEach((m: any) => bullet(`${m.label}: ${m.intensityKgCo2ePerUnit} kg CO2e per ${m.denominatorUnit} (denominator ${num(m.denominatorValue)} ${m.denominatorUnit})`));
   else p(r.intensity.note || 'No denominators recorded for the reporting year.');
+
+  if (r.consolidation) {
+    const c = r.consolidation;
+    p(`Consolidation (organizational boundary) — approach: ${c.approach}, gross ${num(c.grossTotal)}, consolidated ${num(c.consolidatedTotal)} kg CO2e (${c.overallSharePercent}% of gross).`);
+    if ((c.byEntity || []).some((e: any) => e.sharePercent < 100)) {
+      children.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          dRow(['Entity', 'Share %', 'Gross', 'Consolidated'], true),
+          ...c.byEntity.map((e: any) => dRow([e.name, String(e.sharePercent), num(e.gross), num(e.consolidated)])),
+        ],
+      }));
+    }
+  }
 
   h('5. Emissions by category (with method mix)');
   children.push(new Table({
@@ -399,6 +428,19 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
     ];
     r.intensity.metrics.forEach((m: any) => it.addRow({ m: m.label, d: m.denominatorValue, u: m.denominatorUnit, i: m.intensityKgCo2ePerUnit }));
     headerStyle(it);
+  }
+
+  if (r.consolidation) {
+    const co = wb.addWorksheet('Consolidation');
+    co.columns = [
+      { header: 'Entity', key: 'n', width: 34 },
+      { header: 'Share %', key: 's', width: 12 },
+      { header: 'Gross kg CO2e', key: 'g', width: 18 },
+      { header: 'Consolidated kg CO2e', key: 'c', width: 22 },
+    ];
+    r.consolidation.byEntity.forEach((e: any) => co.addRow({ n: e.name, s: e.sharePercent, g: e.gross, c: e.consolidated }));
+    co.addRow({ n: `TOTAL (${r.consolidation.approach})`, s: r.consolidation.overallSharePercent, g: r.consolidation.grossTotal, c: r.consolidation.consolidatedTotal });
+    headerStyle(co);
   }
 
   const reg = wb.addWorksheet('Factor Register');
