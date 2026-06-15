@@ -4,7 +4,7 @@
 
 **Purpose:** complete continuation context for a new session. Read top-to-bottom before changing anything. Companion artifacts: `docs/ENTERPRISE_GAP_ANALYSIS.md` (requirement-by-requirement status + per-increment addenda §14–§34), the git log (detailed commit messages with verification evidence), and `ENTERPRISE_REQUIREMENTS_REPORT.md` on the user's Desktop (the master spec; implementation follows its priority order P0 → P1 → P2).
 
-**Status in one line:** **All P0 complete** (working implementation or documented deferral for every item). **P1 done so far:** P1-1 → P1-8 (intensity+IMP, supplier module, completeness+relevance, verifier/viewer roles, CDP/SBTi/ESRS mappings, EPA fuel tables + unit engine, PDF/DOCX/XLSX rendering) **plus §1.2 multi-level entity hierarchy + consolidation roll-up**. The last full session shipped three features — the reporting-year/inventory object (§31), the onboarding wizard (§32) and the entity hierarchy (§33) — then ran a 10-suite verification pass (§34: ~132 API/format/regression assertions + a full in-browser pass, all green after one fix). Factor library ~1,192. Stack healthy on `:8080`. **Demo 2026 baseline = 9,193.02 kg CO₂e, untouched throughout. Immediate next step (report order, P1): §1.3 biogenic CO₂ tracked separately (§5a below).**
+**Status in one line:** **All P0 complete** (working implementation or documented deferral for every item). **P1 done so far:** P1-1 → P1-8 (intensity+IMP, supplier module, completeness+relevance, verifier/viewer roles, CDP/SBTi/ESRS mappings, EPA fuel tables + unit engine, PDF/DOCX/XLSX rendering) **plus §1.2 multi-level entity hierarchy + consolidation (§33), §1.3 biogenic CO₂ separation (§35) and §1.4 per-gas breakdown (§36)**. The prior full session shipped the reporting-year/inventory object (§31), the onboarding wizard (§32) and the entity hierarchy (§33) + a 10-suite verification pass (§34); **this session shipped §1.3 + §1.4** (biogenic CO₂ tracked separately as a memo, and the per-gas CO₂/CH₄/N₂O report table — engine/model/report/renderers/UI, each verified). Factor library ~1,192. Stack healthy on `:8080`. **Demo 2026 baseline = 9,193.02 kg CO₂e, untouched throughout. Immediate next step (report order, P1): §2.x calc-engine partials (mobile distance/fleet, fugitive material-balance, spend-based EEIO) → §3 factor version history → §4.3 evidence attachments → §10 persona modes (§5b below).**
 
 ---
 
@@ -60,6 +60,8 @@ Carbonytics is a multi-tenant carbon-accounting platform (GHG Protocol Scopes 1/
 | Onboarding (P0) | `6592ddc`,`71811bc` | **Guided onboarding wizard** (§32): `Organization.onboarding` + `GET/PATCH /api/organizations/onboarding` (derived checklist; `.lean()` fallback → pre-wizard orgs skip it, no migration); 6-step `OnboardingWizard` auto-shown to new admins via `OnboardingGate` |
 | Entity hierarchy (P1) | `b9b62b5`→`fe4718e` | **§1.2 multi-level entity hierarchy + consolidation** (§33): `Facility` → nested tree (parentFacilityId, entityType, financialControl, M&A dates; cycle-guarded); `consolidationService` (equity cumulative / control 100-0 / M&A pro-rating); `consolidation` block + `GET /api/reports/consolidation?approach=`; **Entities & Facilities** tab |
 | Verify fix | `421732a` | §34 verification found the binary report exports omitted the consolidation/inventory blocks → added them to PDF/DOCX/XLSX (Consolidation section/sheet + reporting-year + pinned-GWP lines) |
+| Biogenic CO₂ (P1) | `1e44df1`→`9d7cc07` | **§1.3 biogenic CO₂ tracked separately** (§35): `computePerGasEmissions` splits `factor.metadata.biogenic` CO₂ into `biogenicCO2` (kg), EXCLUDED from the scope total (biomass CH₄/N₂O stay in Scope 1); `ICalculationEntry.biogenicCO2` persisted; memo in report JSON/markdown/PDF/DOCX/XLSX + ESRS E1-6; calculator + Reports-preview memo. Closes failure-mode #7 |
+| Per-gas table (P1) | `c5e21af`,`69043c1` | **§1.4 per-gas breakdown** (§36): `ICalculationEntry.gasBreakdown {co2,ch4,n2o}` persisted; `report.emissions.perGas` (mass + CO₂e-by-gas under report GWP set + per-gas subtotal + `co2eNotSeparated` remainder for embedded factors); per-gas table in markdown/PDF/DOCX + XLSX **Per-Gas Breakdown** sheet; Reports-preview table + calculator per-gas line |
 
 **Factor library: ~1,192 factors visible to the demo org** (4 Egyptian + 19 baselines + 726 DEFRA + 24 EPA Table 10 + 161 EPA fuel/electricity + 216 EFDB + 33 GHGP + ~9 QA/supplier customs). Org-scoped (drifts with QA supplier factors). Import commands (idempotent, non-destructive; **flush Redis after**):
 ```
@@ -131,32 +133,22 @@ Source files: `C:\Users\Shalaby\Desktop\ALX\Carbonytics_ ALX_Graduation_Project\
 
 **Phase 1: P1-1 → P1-8 done + §1.2 entity hierarchy done.** See the §3 table, §3a and gap-analysis §14–§34.
 
-### 5a. IMMEDIATE NEXT STEP — §1.3 biogenic CO₂ tracked separately (P1)
+### 5a. DONE THIS SESSION — §1.3 biogenic CO₂ (§35) + §1.4 per-gas breakdown (§36)
 
-**Why it's next:** earliest open P1 by report section (§1.3). It closes **failure-mode #7** and completes the §1.3 "biogenic CO₂ tracked separately" row (currently ❌). Self-contained; the data is already half there (biomass factors are flagged).
+Both shipped and verified (see gap-analysis §35/§36 for full detail + hand-computed evidence). Summary:
+- **§1.3 biogenic CO₂ tracked separately (commits `1e44df1`, `46d3f43`, `ea516ee`, docs `9d7cc07`):** `computePerGasEmissions` splits the CO₂ of a `factor.metadata.biogenic` factor out of the scope CO₂e into `biogenicCO2` (biomass CH₄/N₂O stay in Scope 1, standard GWP). Persisted on `ICalculationEntry.biogenicCO2`; reported as a memo OUTSIDE the scope totals in JSON/markdown/PDF/DOCX/XLSX + ESRS E1-6; surfaced in the calculator result + Reports preview. Closes failure-mode #7. **Decision noted:** biomass CH₄ uses the standard fossil `gwp.ch4` (conservative), not the `ch4Biogenic` value — `ch4Biogenic` for biomass entries is a documented future refinement.
+- **§1.4 per-gas breakdown (commits `c5e21af`, `69043c1`):** per-gas masses snapshotted on `ICalculationEntry.gasBreakdown {co2,ch4,n2o}` at save; `report.emissions.perGas` gives mass + CO₂e-by-gas (under the report GWP set) + a per-gas subtotal + a `co2eNotSeparated` remainder for CO₂e-denominated factors (which can't be split). Per-gas table in markdown/PDF/DOCX + a new XLSX **Per-Gas Breakdown** sheet; report preview table + a calculator per-gas line. **Limitation:** entries saved before §1.4 have no `gasBreakdown`, so historical periods (incl. demo 2026) show `perGas.available=false` and report the whole total as `co2eNotSeparated` (honest; populates for new calcs).
 
-**GHG Protocol rule:** biogenic CO₂ from biomass combustion is reported **separately as a memo item, NOT in the Scope 1/2/3 totals**. Biomass **CH₄/N₂O DO count** in Scope 1 (only the CO₂ is biogenic).
-
-**Current state:** EPA biomass stationary factors (P1-7) carry **`metadata.biogenic === true`** + the name suffix "(biomass — biogenic CO2)" (`scripts/importEpaFuels.ts`). The engine ignores the flag — biogenic CO₂ currently flows into the scope total like any CO₂. The ESRS mapping note (`reportController.ts` ~L908) and gotcha 26 both say it is "not yet split."
-
-**Scope it into sub-increments (standard workflow each):**
-1. **Engine + model:** in `calculationEngine` (the per-gas path, `computePerGasEmissions`), when `factor.metadata?.biogenic` is true, split the CO₂ component out of the entry's scope CO₂e into a separate **`biogenicCO2`** value; keep biomass CH₄/N₂O in the scope total (apply org GWP as normal). Add `ICalculationEntry.biogenicCO2` (kg) + persist it on save (`calculationController.saveCalculation`). Decide treatment: **exclude biogenic CO₂ from the scope total** (GHG-correct memo) — safe because the demo has no biomass calcs, so 2026 stays 9,193.02 (verify). Watch policy #3 (no GWP double-application — biogenic CO₂ is GWP 1; the split is about *where* it's reported, not the value).
-2. **Report:** add a **biogenic CO₂ memo** to `buildGHGInventoryReport` (sum of `entry.biogenicCO2`), reported OUTSIDE the scope totals; surface in the markdown + PDF/DOCX/XLSX renderers (mirror the consolidation block pattern) and flip the ESRS E1-7 / failure-mode note. 
-3. **Frontend:** show the biogenic CO₂ memo in the calculator result panel + the Reports inventory preview.
-4. **Verify:** a biomass stationary calc (e.g. an EPA "Wood and Wood Residuals" biomass factor, 1 short ton or per mmBtu) records `biogenicCO2 > 0`, excluded from Scope 1 CO₂e, with CH₄/N₂O still counted; demo 2026 total **unchanged** (no biomass calcs); in-browser; commit; gap-analysis **§35** addendum; report. Then update gotcha 26 + the §1.3 row + failure-mode #7.
-
-### 5b. Then, in report order (P1 → P2) — remaining open items
-
-1. **§1.4 Per-gas breakdown as a report section** [P1] — the engine already computes `gasBreakdown` per entry; surface a per-gas table (CO₂/CH₄/N₂O masses + CO₂e) in the report + formats. **Low effort, high value.**
-2. **§2.x calc-engine partials** — mobile distance-based + fleet registry, fugitive material-balance + blend calculator, spend-based EEIO sector mapping (inflation/currency), Cat-3 T&D-loss-specific factor.
-3. **§3 factor version history** [P1] — an immutable factor-version table (edits overwrite today) → unblocks deterministic recompute of locked inventories (§2.1).
-4. **§4.3 evidence attachments per data line** [P1] — file storage keyed to `Calculation.data[i]` (the assurance package flags this open). Storage decision: Mongo GridFS vs object store vs filesystem volume. Plus outlier/duplicate detection on import + spend double-counting guard (failure-mode 10).
-5. **§5 DQ** — primary-vs-secondary share *per category* [P0-marked, minor]; YoY DQ improvement tracking; qualitative uncertainty (P2 Monte Carlo).
-6. **§7 platform** — calculation-lineage drill-down UI; SSO/SCIM (needs an IdP); encryption/backups (deploy).
-7. **§8 reporting** — dashboards with entity/site drill-down + Pareto.
-8. **§10 UX** — persona modes (enterprise/consultant/SME views) [P1]; inline §4.2-depth per-input sourcing help; glossary/method page (P2).
-9. **Factor-table tail** (P1-7 remainder, §28) — EPA Tables 3/4/5 mobile CH4/N2O (need vehicle-type + model-year input dimension); EFDB-USA curation (gotcha 5); eGRID non-baseload + grid-loss T&D.
-10. **Instrument registry (RECs/PPAs)** — only when expanding the Scope-2 market method **beyond Egypt** (Egypt has no contractual-instrument market; the dual method already falls back to grid-average). Conditional/deferred.
+### 5b. IMMEDIATE NEXT STEP — in report order (P1 → P2), remaining open items
+1. **§2.x calc-engine partials** [next] — mobile distance-based + fleet registry, fugitive material-balance + blend calculator, spend-based EEIO sector mapping (inflation/currency), Cat-3 T&D-loss-specific factor.
+2. **§3 factor version history** [P1] — an immutable factor-version table (edits overwrite today) → unblocks deterministic recompute of locked inventories (§2.1).
+3. **§4.3 evidence attachments per data line** [P1] — file storage keyed to `Calculation.data[i]` (the assurance package flags this open). Storage decision: Mongo GridFS vs object store vs filesystem volume. Plus outlier/duplicate detection on import + spend double-counting guard (failure-mode 10).
+4. **§5 DQ** — primary-vs-secondary share *per category* [P0-marked, minor]; YoY DQ improvement tracking; qualitative uncertainty (P2 Monte Carlo).
+5. **§7 platform** — calculation-lineage drill-down UI; SSO/SCIM (needs an IdP); encryption/backups (deploy).
+6. **§8 reporting** — dashboards with entity/site drill-down + Pareto.
+7. **§10 UX** — persona modes (enterprise/consultant/SME views) [P1]; inline §4.2-depth per-input sourcing help; glossary/method page (P2).
+8. **Factor-table tail** (P1-7 remainder, §28) — EPA Tables 3/4/5 mobile CH4/N2O (need vehicle-type + model-year input dimension); EFDB-USA curation (gotcha 5); eGRID non-baseload + grid-loss T&D.
+9. **Instrument registry (RECs/PPAs)** — only when expanding the Scope-2 market method **beyond Egypt** (Egypt has no contractual-instrument market; the dual method already falls back to grid-average). Conditional/deferred.
 
 ### 5c. Completed in the most recent full session (context only; all in gap-analysis §31–§34)
 
@@ -169,7 +161,7 @@ Source files: `C:\Users\Shalaby\Desktop\ALX\Carbonytics_ ALX_Graduation_Project\
 
 **Demo org (`demo@carbonytics.com`) 2026 baseline (known-good; re-confirm with §8):** total **9,193.02 kg CO₂e**, scopes **4,482.64 / 3,840.38 / 870**, Scope 2 dual **966.38 loc / 1,050.38 mkt**, weighted DQ **3.72**, **4 locked / 3 verified**, completeness **100%**, supplier-specific share **≈9.5%**, intensity revenue **1.8386e-4 kg/EGP**, consolidated == gross (wholly owned).
 
-- **Reporting-year inventories (demo, 8):** **2025 = Published + base year (frozen AR6, threshold 5%)**; **2026 = draft, the 9,193.02 baseline (untouched)**; 2018/2019/2022/2023/2024/2027 = draft throwaway years carrying verification calcs (lifecycle/gate/recalc/consolidation tests). 2019 has a v1 InventorySnapshot. The §8 baseline only depends on 2026.
+- **Reporting-year inventories (demo, 10):** **2025 = Published + base year (frozen AR6, threshold 5%)**; **2026 = draft, the 9,193.02 baseline (untouched)**; 2018/2019/2022/2023/2024/2027 = draft throwaway years carrying verification calcs (lifecycle/gate/recalc/consolidation tests); **2029 = draft, one biomass calc (§35 verify: Landfill Gas → scope 267.35 kg, biogenic 52,070 kg)**; **2030 = draft, one per-gas calc (§36 verify: anthracite + landfill + grid electricity, total 3,346.49 kg)**. 2019 has a v1 InventorySnapshot. The §8 baseline only depends on 2026.
 - **Entity hierarchy (demo, 3 nodes):** **Cairo HQ** (site, org, 100%); **QA Nile Subsidiary** (subsidiary, org, 60%); **QA Alexandria Plant** (site, child of Nile Subsidiary, 50% → equity 30%). One 2022 calc (458 kg) is tagged to Alexandria for the equity/M&A demo.
 - **Onboarding:** demo `onboarding.completed=true` (no wizard). Fresh tenant **`ob.wizard@carbonytics.com`** / `ObWizard!2026` ("OB Wizard Test Org") exists to test the wizard (its onboarding is intentionally incomplete).
 - **Config:** 4 relevant categories screened (Electricity, Purchased Goods, Mobile, Fugitive); 2 exclusions (one pinned to Fugitive via categoryId → 100% completeness); 1 target ("30% reduction by 2030" → SBTi demo); 4 denominators (revenue 40M/50M EGP + employees 100/120 FTE for 2025/2026).
