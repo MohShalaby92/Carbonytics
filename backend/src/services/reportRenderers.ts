@@ -162,6 +162,7 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
     ['Scope 3 (value chain)', num(r.emissions.byScope.scope3)],
     ['Total', num(r.emissions.byScope.total)],
   ]);
+  draw(`Biogenic CO2 (memo — excluded from the scope totals above): ${num(r.emissions.biogenicCO2 || 0)} kg CO2. Biomass CH4/N2O remain in Scope 1.`, { indent: 10, size: 9, color: rgb(0.4, 0.4, 0.4) });
   draw(`Scope 2 dual reporting — location-based: ${num(r.emissions.scope2Dual.locationBased)} · market-based: ${num(r.emissions.scope2Dual.marketBased)} kg CO2e`, { indent: 10, size: 9 });
   (r.emissions.scope2Dual.methodsUsed || []).forEach((m: string) => draw(`• Method: ${m}`, { indent: 18, size: 8, color: rgb(0.4, 0.4, 0.4) }));
   draw(`Intensity metrics (${r.intensity.year})`, { indent: 10, f: bold, size: 10 });
@@ -282,6 +283,7 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
       dRow(['Total', num(r.emissions.byScope.total)]),
     ],
   }));
+  p(`Biogenic CO2 (memo — excluded from the scope totals above): ${num(r.emissions.biogenicCO2 || 0)} kg CO2. Biomass-combustion CO2 is reported separately per the GHG Protocol; biomass CH4/N2O remain in Scope 1.`);
   p(`Scope 2 dual reporting — location-based: ${num(r.emissions.scope2Dual.locationBased)} · market-based: ${num(r.emissions.scope2Dual.marketBased)} kg CO2e`);
   p(`Intensity metrics (${r.intensity.year}):`);
   if ((r.intensity.metrics || []).length) r.intensity.metrics.forEach((m: any) => bullet(`${m.label}: ${m.intensityKgCo2ePerUnit} kg CO2e per ${m.denominatorUnit} (denominator ${num(m.denominatorValue)} ${m.denominatorUnit})`));
@@ -404,6 +406,7 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
   scope.addRow({ s: 'Total', e: r.emissions.byScope.total });
   scope.addRow({ s: 'Scope 2 location-based', e: r.emissions.scope2Dual.locationBased });
   scope.addRow({ s: 'Scope 2 market-based', e: r.emissions.scope2Dual.marketBased });
+  scope.addRow({ s: 'Biogenic CO2 (memo, excl. from scope totals)', e: r.emissions.biogenicCO2 || 0 });
   headerStyle(scope);
 
   const cat = wb.addWorksheet('By Category');

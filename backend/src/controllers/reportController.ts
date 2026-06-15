@@ -87,6 +87,9 @@ async function buildGHGInventoryReport(
   const factorRegister = new Map<string, { name: string; source?: string; year?: number; uses: number }>();
   let lockedCount = 0;
   let verifiedCount = 0;
+  // Biogenic CO2 (biomass combustion) — accumulated as a MEMO item, reported
+  // OUTSIDE the Scope 1/2/3 totals per the GHG Protocol.
+  let biogenicCO2 = 0;
 
   for (const calc of calculations) {
     byScope.scope1 += calc.emissions?.scope1 || 0;
@@ -133,6 +136,9 @@ async function buildGHGInventoryReport(
         supplierEntryCount++;
         supplierEntryEmissions += em;
       }
+      if ((entry as any).biogenicCO2) {
+        biogenicCO2 += (entry as any).biogenicCO2;
+      }
 
       const fKey = `${(entry as any).factorName || 'unknown'}|${(entry as any).factorYear || ''}`;
       const existing = factorRegister.get(fKey);
@@ -152,6 +158,7 @@ async function buildGHGInventoryReport(
   byScope.total = Math.round((byScope.scope1 + byScope.scope2 + byScope.scope3) * 100) / 100;
   dual.locationBased = Math.round(dual.locationBased * 100) / 100;
   dual.marketBased = Math.round(dual.marketBased * 100) / 100;
+  biogenicCO2 = Math.round(biogenicCO2 * 100) / 100;
 
   // Intensity metrics: total emissions over each denominator recorded for the
   // reporting year (year of the period midpoint, so fiscal years resolve to
@@ -275,6 +282,9 @@ async function buildGHGInventoryReport(
     emissions: {
       unit: 'kg CO2e',
       byScope,
+      // Biogenic CO2 (biomass combustion) reported SEPARATELY as a memo item,
+      // EXCLUDED from byScope per the GHG Protocol. Biomass CH4/N2O stay in Scope 1.
+      biogenicCO2,
       scope2Dual: {
         locationBased: dual.locationBased,
         marketBased: dual.marketBased,
@@ -904,8 +914,9 @@ async function buildEsrsE1Mapping(user: { organizationId: string; email: string 
       'Scope 3 by category (t CO2e)': scope3ByCategory,
       'Total GHG emissions, location-based (t CO2e)': toTonnes(totalLocationBased),
       'Total GHG emissions, market-based (t CO2e)': toTonnes(totalMarketBased),
+      'Biogenic CO2 emissions (t CO2, memo — outside the scope totals)': toTonnes(r.emissions.biogenicCO2 || 0),
       'GHG intensity per net revenue (E1-6)': ghgIntensityPerNetRevenue,
-      note: 'The percentage of Scope 1 emissions from regulated emission-trading schemes and biogenic CO2 (reported separately under ESRS) are not yet tracked.',
+      note: 'Biogenic CO2 from biomass combustion is disclosed separately as a memo item (above), outside the gross Scope 1/2/3 totals, per ESRS E1-6 and the GHG Protocol. The share of Scope 1 emissions covered by regulated emission-trading schemes is not yet tracked.',
     },
     'E1-7 GHG removals and carbon credits':
       'Not tracked — GHG removals and the cancellation of carbon credits are not recorded in the inventory yet.',
@@ -1096,6 +1107,7 @@ function renderEsrsMarkdown(m: any): string {
   lines.push(`| Gross Scope 3 | ${e6['Scope 3 (t CO2e)']} |`);
   lines.push(`| **Total GHG, location-based** | **${e6['Total GHG emissions, location-based (t CO2e)']}** |`);
   lines.push(`| **Total GHG, market-based** | **${e6['Total GHG emissions, market-based (t CO2e)']}** |`);
+  lines.push(`| Biogenic CO2 (memo, outside scopes) | ${e6['Biogenic CO2 emissions (t CO2, memo — outside the scope totals)']} |`);
   lines.push('');
   const s3 = e6['Scope 3 by category (t CO2e)'];
   if (s3.length > 0) {
@@ -1251,6 +1263,10 @@ function renderInventoryMarkdown(r: any): string {
   lines.push(`| Scope 2 (purchased energy) | ${r.emissions.byScope.scope2.toLocaleString()} |`);
   lines.push(`| Scope 3 (value chain) | ${r.emissions.byScope.scope3.toLocaleString()} |`);
   lines.push(`| **Total** | **${r.emissions.byScope.total.toLocaleString()}** |`);
+  lines.push('');
+  lines.push(
+    `*Biogenic CO2 (memo item — excluded from the scope totals above): ${(r.emissions.biogenicCO2 || 0).toLocaleString()} kg CO2.* Biomass-combustion CO2 is reported separately per the GHG Protocol; biomass CH4/N2O remain counted in Scope 1.`
+  );
   lines.push('');
   lines.push('### Scope 2 dual reporting');
   lines.push(`- Location-based: ${kg(r.emissions.scope2Dual.locationBased)}`);
