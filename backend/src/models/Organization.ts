@@ -126,6 +126,16 @@ const organizationSchema = new Schema<IOrganization>({
       { _id: false }
     ),
   ],
+  // Guided onboarding state (§10). New organizations default to not-completed
+  // so the wizard runs on first login; organizations created before the wizard
+  // existed have no subdoc and are treated as already onboarded (see
+  // getOnboarding, which reads .lean() and falls back to completed=true).
+  onboarding: {
+    completed: { type: Boolean, default: false },
+    completedAt: { type: Date },
+    skipped: { type: Boolean, default: false },
+    currentStep: { type: Number, default: 0 },
+  },
   isActive: {
     type: Boolean,
     default: true,

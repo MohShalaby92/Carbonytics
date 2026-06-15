@@ -18,6 +18,8 @@ import {
   removeUser,
   getOrganizationSettings,
   updateOrganizationSettings,
+  getOnboarding,
+  updateOnboarding,
 } from '../controllers/organizationController';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -122,5 +124,10 @@ router.delete('/users/:userId', authorize('admin'), removeUser);
 // Settings routes
 router.get('/settings', getOrganizationSettings);
 router.put('/settings', validate(validateSettings), authorize('admin'), updateOrganizationSettings);
+
+// Guided onboarding (§10): state read by any authenticated user; advancing the
+// wizard is an admin/manager action (it configures the org boundary/methodology).
+router.get('/onboarding', getOnboarding);
+router.patch('/onboarding', authorize('admin', 'manager'), updateOnboarding);
 
 export default router;

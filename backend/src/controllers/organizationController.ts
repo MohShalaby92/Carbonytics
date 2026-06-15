@@ -8,6 +8,8 @@ import { generateTemporaryPassword, escapeRegex } from '../utils/security';
 import { recordAudit } from '../utils/audit';
 import { AuditLog } from '../models/AuditLog';
 import { Facility } from '../models/Facility';
+import { Inventory } from '../models/Inventory';
+import { Calculation } from '../models/Calculation';
 import { EmissionCategory } from '../models/EmissionCategory';
 import { invalidateGwpSetCache } from '../services/calculationEngine';
 import { config } from '../config/config';
@@ -303,6 +305,92 @@ export const updateOrganization = asyncHandler(async (req: AuthenticatedRequest,
   });
 
   ApiResponseUtil.success(res, organization, 'Organization updated successfully');
+});
+
+// ---- Guided onboarding (§10) ----
+
+/**
+ * Onboarding state + a derived setup checklist. The wizard runs when
+ * `shouldShowWizard` (not completed and not skipped). Organizations created
+ * before the wizard existed have no `onboarding` subdoc — read with `.lean()`
+ * (no default materialization), they fall back to completed=true so the wizard
+ * never resurfaces for already-configured tenants (no migration needed).
+ */
+export const getOnboarding = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const org = await Organization.findById(req.user.organizationId).lean();
+  if (!org) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  const [facilityCount, inventoryCount, calcCount] = await Promise.all([
+    Facility.countDocuments({ organizationId: req.user.organizationId, isActive: true }),
+    Inventory.countDocuments({ organizationId: req.user.organizationId }),
+    Calculation.countDocuments({ organizationId: req.user.organizationId }),
+  ]);
+
+  // Absent subdoc ⇒ pre-wizard tenant ⇒ treat as already onboarded.
+  const onboarding = (org as any).onboarding || { completed: true, skipped: false, currentStep: 0 };
+
+  const checklist = {
+    consolidationApproach: (org as any).consolidationApproach || 'operational_control',
+    gwpSet: (org as any).settings?.gwpSet || 'AR6',
+    relevanceScreened: ((org as any).relevantCategories?.length || 0) > 0,
+    facilities: facilityCount,
+    denominators: (org as any).denominators?.length || 0,
+    reportingYears: inventoryCount,
+    calculations: calcCount,
+  };
+
+  ApiResponseUtil.success(res, {
+    completed: !!onboarding.completed,
+    completedAt: onboarding.completedAt,
+    skipped: !!onboarding.skipped,
+    currentStep: onboarding.currentStep || 0,
+    shouldShowWizard: !onboarding.completed && !onboarding.skipped,
+    checklist,
+  });
+});
+
+/** Advance / complete / skip the onboarding wizard (admin/manager, audited). */
+export const updateOnboarding = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { currentStep, completed, skipped } = req.body;
+  const updates: any = {};
+  if (typeof currentStep === 'number') updates['onboarding.currentStep'] = currentStep;
+  if (typeof skipped === 'boolean') updates['onboarding.skipped'] = skipped;
+  if (typeof completed === 'boolean') {
+    updates['onboarding.completed'] = completed;
+    updates['onboarding.completedAt'] = completed ? new Date() : undefined;
+  }
+  if (Object.keys(updates).length === 0) {
+    return ApiResponseUtil.error(res, 'Provide at least one of currentStep, completed, skipped', 400);
+  }
+
+  const organization = await Organization.findByIdAndUpdate(
+    req.user.organizationId,
+    { $set: updates },
+    { new: true }
+  );
+  if (!organization) {
+    return ApiResponseUtil.error(res, 'Organization not found', 404);
+  }
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'organization-onboarding',
+    resourceId: req.user.organizationId,
+    after: updates,
+  });
+
+  ApiResponseUtil.success(res, organization.onboarding, 'Onboarding state updated');
 });
 
 // ---- Facilities (organizational boundary: organization → sites) ----

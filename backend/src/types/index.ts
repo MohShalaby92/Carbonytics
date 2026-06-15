@@ -64,6 +64,15 @@ export interface IOrganization extends Document {
     targetYear: number;
     targetReduction: number; // percent vs baseline (100 = net zero)
   }>;
+  // Guided onboarding state (§10). Absent on organizations created before the
+  // wizard existed — treated as already onboarded. New orgs default to
+  // not-completed so the wizard runs on first login.
+  onboarding?: {
+    completed: boolean;
+    completedAt?: Date;
+    skipped: boolean;
+    currentStep: number;
+  };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
