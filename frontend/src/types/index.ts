@@ -53,11 +53,32 @@ export interface User {
 	name: string;
 	country?: string;
 	city?: string;
+	parentFacilityId?: string | null;
+	entityType?: 'subsidiary' | 'division' | 'site' | 'asset';
 	ownershipPercent?: number;
 	operationalControl?: boolean;
+	financialControl?: boolean;
+	acquiredDate?: string | null;
+	disposedDate?: string | null;
 	notes?: string;
 	isActive?: boolean;
 	createdAt?: string;
+  }
+
+  /** Consolidation roll-up (GET /reports/consolidation). */
+  export interface ConsolidationResult {
+	approach: 'equity_share' | 'operational_control' | 'financial_control';
+	grossTotal: number;
+	consolidatedTotal: number;
+	overallSharePercent: number;
+	byEntity: Array<{
+		entityId: string | null;
+		name: string;
+		entityType?: string;
+		sharePercent: number;
+		gross: number;
+		consolidated: number;
+	}>;
   }
 
   /** Append-only audit trail entry (who/when/action/resource). */

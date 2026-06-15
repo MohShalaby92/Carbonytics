@@ -10,6 +10,7 @@ import {
   Supplier,
   SupplierEngagementSummary,
   CompletenessResult,
+  ConsolidationResult,
   Inventory,
   RecalculationCheck,
 } from '../types';
@@ -241,6 +242,18 @@ export const complianceService = {
       `/reports/completeness?${dateRangeQuery(startDate, endDate)}`
     );
     if (!response.success || !response.data) throw new Error(response.message || 'Completeness failed');
+    return response.data;
+  },
+
+  // ---- Consolidation roll-up (entity hierarchy §1.2) ----
+  getConsolidation: async (
+    startDate: string,
+    endDate: string,
+    approach?: 'equity_share' | 'operational_control' | 'financial_control'
+  ): Promise<ConsolidationResult> => {
+    const q = `${dateRangeQuery(startDate, endDate)}${approach ? `&approach=${approach}` : ''}`;
+    const response = await apiService.get<ConsolidationResult>(`/reports/consolidation?${q}`);
+    if (!response.success || !response.data) throw new Error(response.message || 'Consolidation failed');
     return response.data;
   },
 
