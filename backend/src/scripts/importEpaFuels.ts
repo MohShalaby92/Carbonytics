@@ -22,8 +22,9 @@ import { EmissionFactor } from '../models/EmissionFactor';
  *
  * Per-gas masses go in co2/ch4/n2o (CH4/N2O grams → kg); the engine applies the
  * organization's GWP set at runtime. The `factor` field is an AR6 display CO2e.
- * Biomass fuels are flagged biogenic (metadata + name); the inventory does not
- * yet split biogenic CO2 (failure mode #7) so the flag keeps them distinguishable.
+ * Biomass fuels are flagged biogenic (metadata + name); the calculation engine
+ * reads the flag to split biogenic CO2 out of the scope total into a separate
+ * memo item (§35, failure mode #7 closed) — biomass CH4/N2O stay in Scope 1.
  *
  * Also (idempotently) widens the relevant categories' allowedUnits so the
  * calculator offers the imperial/energy entry units.
