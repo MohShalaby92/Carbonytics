@@ -10,7 +10,7 @@ import { Textarea } from '../ui/Textarea';
 import { Alert } from '../ui/Alert';
 import { apiService } from '../../services/api';
 import { complianceService } from '../../services/complianceService';
-import { EmissionCategory, EmissionFactor, CalculationResult, EstimateSuggestion } from '../../types';
+import { EmissionCategory, EmissionFactor, CalculationResult, EstimateSuggestion, Vehicle } from '../../types';
 import { formatEmissions } from '../../utils/calculations';
 import { Calculator, Zap, Truck, Factory, Lightbulb } from 'lucide-react';
 
@@ -114,6 +114,9 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const [mbMode, setMbMode] = useState(false);
   const [mb, setMb] = useState<Record<string, string>>({ ...EMPTY_MB });
 
+  // Fleet registry quick-select (Mobile Combustion distance-based).
+  const [fleet, setFleet] = useState<Vehicle[]>([]);
+
   // Dynamic form setup
   const emptySchema = z.object({
     categoryId: z.string(),
@@ -159,6 +162,32 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   // Fugitive material balance: released = purchases + (invStart - invEnd)
   //   - chargedIntoEquipment - recovered, clamped at >= 0 (GHG Protocol mass balance).
   const isFugitive = !!selectedCategory && /fugitive/i.test(selectedCategory.category || '');
+  const isMobile = !!selectedCategory && /mobile combustion/i.test(selectedCategory.category || '');
+
+  // Load the fleet when Mobile Combustion is selected (for the quick-select).
+  useEffect(() => {
+    if (!isMobile) {
+      setFleet([]);
+      return;
+    }
+    let cancelled = false;
+    complianceService
+      .getVehicles()
+      .then((v) => { if (!cancelled) setFleet(v); })
+      .catch(() => { if (!cancelled) setFleet([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
+
+  // Pick a registered vehicle → apply its distance factor + the km unit.
+  const applyFleetVehicle = (vehicleId: string) => {
+    const v = fleet.find((x) => x.id === vehicleId);
+    const fid = v && (typeof v.factorId === 'string' ? v.factorId : (v.factorId as any)?.id || (v.factorId as any)?._id);
+    if (fid) {
+      setSelectedFactorId(fid);
+      setValue('unit', 'km', { shouldValidate: true });
+    }
+  };
   const mbNum = (k: string) => {
     const n = parseFloat(mb[k]);
     return isFinite(n) && n >= 0 ? n : 0;
@@ -526,6 +555,25 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               </div>
             </div>
           </Alert>
+        )}
+
+        {/* Fleet quick-select (Mobile Combustion distance-based) */}
+        {isMobile && fleet.length > 0 && (
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-fg/80">Quick-select fleet vehicle</label>
+            <Select defaultValue="" onChange={(e) => applyFleetVehicle(e.target.value)}>
+              <option value="">— pick a registered vehicle (sets its km factor) —</option>
+              {fleet.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}{v.fuel ? ` · ${v.fuel}` : ''}{v.size ? ` · ${v.size}` : ''}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted">
+              Applies the vehicle's distance factor and the km unit — then enter distance travelled.
+              Manage vehicles under Compliance → Fleet.
+            </p>
+          </div>
         )}
 
         {/* Emission Factor selection */}

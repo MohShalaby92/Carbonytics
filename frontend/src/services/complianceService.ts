@@ -13,6 +13,7 @@ import {
   ConsolidationResult,
   Inventory,
   RecalculationCheck,
+  Vehicle,
 } from '../types';
 
 /**
@@ -415,5 +416,31 @@ export const complianceService = {
       { responseType: 'blob' }
     )) as unknown as Blob;
     downloadBlob(blob, `esrs-e1_${startDate}_${endDate}.md`);
+  },
+
+  // ---- Fleet registry (§2.2 mobile distance-based) ----
+  getVehicles: async (includeInactive = false): Promise<Vehicle[]> => {
+    const response = await apiService.get<{ vehicles: Vehicle[]; count: number }>(
+      `/vehicles${includeInactive ? '?includeInactive=true' : ''}`
+    );
+    return response.data?.vehicles || [];
+  },
+
+  createVehicle: async (data: Partial<Vehicle>): Promise<Vehicle> => {
+    const response = await apiService.post<Vehicle>('/vehicles', data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Create failed');
+    return response.data;
+  },
+
+  updateVehicle: async (id: string, data: Partial<Vehicle>): Promise<Vehicle> => {
+    const response = await apiService.put<Vehicle>(`/vehicles/${id}`, data);
+    if (!response.success || !response.data) throw new Error(response.message || 'Update failed');
+    return response.data;
+  },
+
+  deactivateVehicle: async (id: string) => {
+    const response = await apiService.delete<any>(`/vehicles/${id}`);
+    if (!response.success) throw new Error(response.message || 'Deactivate failed');
+    return response;
   },
 };

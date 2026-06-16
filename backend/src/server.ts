@@ -19,6 +19,7 @@ import reportRoutes from './routes/reports';
 import emissionCategoryRoutes from './routes/emissionCategories';
 import emissionFactorRoutes from './routes/emissionFactors';
 import supplierRoutes from './routes/suppliers';
+import vehicleRoutes from './routes/vehicles';
 import csvRoutes from './routes/csv';
 
 class Server {
@@ -121,6 +122,7 @@ class Server {
     this.app.use('/api/emission-categories', emissionCategoryRoutes);
     this.app.use('/api/emission-factors', emissionFactorRoutes);
     this.app.use('/api/suppliers', supplierRoutes);
+    this.app.use('/api/vehicles', vehicleRoutes);
     this.app.use('/api/csv', csvRoutes);
 
     // API info

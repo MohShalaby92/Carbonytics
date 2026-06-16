@@ -65,6 +65,23 @@ export interface User {
 	createdAt?: string;
   }
 
+  /** Fleet vehicle (GET /vehicles) — owned mobile-combustion source (§2.2). */
+  export interface Vehicle {
+	id: string;
+	organizationId?: string;
+	name: string;
+	vehicleType: 'car' | 'van' | 'hgv' | 'motorbike' | 'bus' | 'other';
+	fuel?: string;
+	size?: string;
+	registration?: string;
+	// Populated on read (name/factor/unit), or a bare id string on write.
+	factorId?: string | { id?: string; _id?: string; name: string; factor: number; unit: string } | null;
+	facilityId?: string | { id?: string; _id?: string; name: string } | null;
+	notes?: string;
+	isActive?: boolean;
+	createdAt?: string;
+  }
+
   /** Consolidation roll-up (GET /reports/consolidation). */
   export interface ConsolidationResult {
 	approach: 'equity_share' | 'operational_control' | 'financial_control';

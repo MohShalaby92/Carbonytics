@@ -8,6 +8,7 @@ import { DenominatorsTab } from './DenominatorsTab';
 import { AuditLogTab } from './AuditLogTab';
 import { SnapshotsTab } from './SnapshotsTab';
 import { SuppliersTab } from './SuppliersTab';
+import { FleetTab } from './FleetTab';
 import { CompletenessTab } from './CompletenessTab';
 import { InventoriesTab } from './InventoriesTab';
 import {
@@ -20,6 +21,7 @@ import {
   Handshake,
   ClipboardCheck,
   CalendarRange,
+  Truck,
 } from 'lucide-react';
 
 /**
@@ -37,6 +39,7 @@ export const CompliancePage: React.FC = () => {
     { id: 'completeness', name: 'Completeness', icon: ClipboardCheck, component: CompletenessTab },
     { id: 'exclusions', name: 'Exclusions Register', icon: ListX, component: ExclusionsTab },
     { id: 'facilities', name: 'Facilities', icon: Building2, component: FacilitiesTab },
+    { id: 'fleet', name: 'Fleet', icon: Truck, component: FleetTab },
     { id: 'suppliers', name: 'Suppliers', icon: Handshake, component: SuppliersTab },
     { id: 'denominators', name: 'Intensity & Denominators', icon: Divide, component: DenominatorsTab },
     { id: 'snapshots', name: 'Snapshots & Restatements', icon: History, component: SnapshotsTab },
