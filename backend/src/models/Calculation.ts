@@ -65,6 +65,17 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
     ch4: { type: Number },
     n2o: { type: Number },
   },
+  // Fugitive material-balance provenance: the component masses (kg) and the
+  // derived released mass that became this entry's activity quantity. Stored so
+  // the assurance register can show how the refrigerant emission was derived.
+  materialBalance: {
+    releasedKg: { type: Number },
+    purchases: { type: Number },
+    inventoryStart: { type: Number },
+    inventoryEnd: { type: Number },
+    chargedIntoEquipment: { type: Number },
+    recovered: { type: Number },
+  },
   // Estimation flags: gap-filled values are never silently mixed with
   // measured data (estimates carry the method and force low quality / DQ 5).
   isEstimate: { type: Boolean, default: false },

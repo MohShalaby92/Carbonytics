@@ -85,6 +85,20 @@ export interface CalculationResult {
    * the factor is flagged biogenic and per-gas computation was used.
    */
   biogenicCO2?: number;
+  /**
+   * Fugitive material balance — set when refrigerant component masses were
+   * supplied. `releasedKg` is the derived activity quantity (× the blend factor).
+   */
+  materialBalance?: {
+    releasedKg: number;
+    components: {
+      purchases: number;
+      inventoryStart: number;
+      inventoryEnd: number;
+      chargedIntoEquipment: number;
+      recovered: number;
+    };
+  };
   /** Scope 2 dual reporting (purchased electricity only). */
   scope2Dual?: {
     locationBased: number; // kg CO2e via grid-average factor
@@ -116,9 +130,16 @@ export class CalculationEngine {
       
       // 2. Get appropriate emission factor
       const factor = await this.selectEmissionFactor(category, input);
-      
+
+      // 2b. Fugitive material balance: when component masses are supplied, derive
+      // the released refrigerant mass and use it as the activity quantity (× the
+      // selected blend's kg CO2e/kg). Never fabricates a factor or a leak rate.
+      const materialBalance = this.computeMaterialBalance(category, input);
+      const activityValue = materialBalance ? materialBalance.releasedKg : input.value;
+      const activityUnit = materialBalance ? 'kg' : input.unit;
+
       // 3. Perform unit conversion if needed
-      const normalizedValue = await this.convertUnits(input.value, input.unit, category, factor);
+      const normalizedValue = await this.convertUnits(activityValue, activityUnit, category, factor);
 
       // 4. Resolve the organization's GWP set and calculate emissions.
       //    If the factor carries per-gas values, compute per gas × GWP;
@@ -162,15 +183,21 @@ export class CalculationEngine {
       const result: CalculationResult = {
         calculation: {
           categoryId: input.categoryId,
-          value: input.value,
-          unit: input.unit,
+          // For a material-balance calc the stored activity quantity is the
+          // derived released mass (kg), not the placeholder input value.
+          value: activityValue,
+          unit: activityUnit,
           factor: factor.factor,
           emissions: finalEmissions,
           metadata: {
             ...input.metadata,
-            // Supplier-linked factors are primary data — the entry records the
-            // supplier-specific method (top of the GHGP Scope 3 method hierarchy).
-            calculationMethod: factor.supplierId ? 'supplier-specific' : category.calculationMethod,
+            // Method precedence: material balance (fugitive) > supplier-specific
+            // (primary data) > the category default. Records how the number was made.
+            calculationMethod: materialBalance
+              ? 'material-balance'
+              : factor.supplierId
+              ? 'supplier-specific'
+              : category.calculationMethod,
             factorRegion: factor.region,
             qualityRating: quality.rating,
           },
@@ -197,6 +224,7 @@ export class CalculationEngine {
         quality,
         provenance,
         ...(biogenicCO2 ? { biogenicCO2 } : {}),
+        ...(materialBalance ? { materialBalance } : {}),
         ...(scope2Dual ? { scope2Dual } : {}),
       };
 
@@ -717,6 +745,48 @@ export class CalculationEngine {
     } catch {
       return DEFAULT_GWP_SET;
     }
+  }
+
+  /**
+   * Fugitive material balance (GHG Protocol screening / mass-balance method).
+   * Derives the refrigerant mass RELEASED over the period from component masses:
+   *
+   *   released = purchases + (inventoryStart − inventoryEnd)
+   *              − chargedIntoEquipment − recovered
+   *
+   * i.e. refrigerant acquired/drawn-down that did NOT go into new equipment and
+   * was NOT recovered/recycled/destroyed. Every input is a user-supplied mass
+   * (kg) — no leak rate or factor is assumed. Returns null (use the plain path)
+   * unless the category is Fugitive and a `materialBalance` metadata object is
+   * present. The released mass is later multiplied by the selected blend factor
+   * (kg CO2e/kg), so the GWP is the publisher's embedded value.
+   */
+  private computeMaterialBalance(
+    category: any,
+    input: CalculationInput
+  ): { releasedKg: number; components: { purchases: number; inventoryStart: number; inventoryEnd: number; chargedIntoEquipment: number; recovered: number } } | null {
+    const name = (category.category || '').toLowerCase();
+    const mb = input.metadata?.materialBalance;
+    if (!name.includes('fugitive') || !mb || typeof mb !== 'object') return null;
+
+    const n = (v: any) => (typeof v === 'number' && isFinite(v) && v >= 0 ? v : 0);
+    const components = {
+      purchases: n(mb.purchases),
+      inventoryStart: n(mb.inventoryStart),
+      inventoryEnd: n(mb.inventoryEnd),
+      chargedIntoEquipment: n(mb.chargedIntoEquipment),
+      recovered: n(mb.recovered),
+    };
+    // Released mass cannot be negative (a net inventory build-up is not an
+    // emission); clamp at 0 and let the user document any anomaly.
+    const released = Math.max(
+      0,
+      components.purchases +
+        (components.inventoryStart - components.inventoryEnd) -
+        components.chargedIntoEquipment -
+        components.recovered
+    );
+    return { releasedKg: Math.round(released * 10000) / 10000, components };
   }
 
   /**

@@ -310,6 +310,15 @@ export interface ICalculationEntry {
   // Per-gas masses (kg) when computed via the per-gas path (co2 is the in-scope
   // CO2; biogenic CO2 lives in biogenicCO2). Absent for CO2e-denominated factors.
   gasBreakdown?: { co2: number; ch4: number; n2o: number };
+  // Fugitive material-balance provenance (component masses + derived released kg).
+  materialBalance?: {
+    releasedKg?: number;
+    purchases?: number;
+    inventoryStart?: number;
+    inventoryEnd?: number;
+    chargedIntoEquipment?: number;
+    recovered?: number;
+  };
   // Gap-filling / estimation flags (estimates must be distinguishable)
   isEstimate?: boolean;
   estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'

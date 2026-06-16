@@ -254,6 +254,10 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
             },
           }
         : {}),
+      // Fugitive material-balance provenance (component masses + released kg).
+      ...(computed.materialBalance
+        ? { materialBalance: { releasedKg: computed.materialBalance.releasedKg, ...computed.materialBalance.components } }
+        : {}),
       notes: calc.notes,
     };
 
