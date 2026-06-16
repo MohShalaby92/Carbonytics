@@ -76,8 +76,11 @@ async function seedScope1Categories(): Promise<void> {
       baseUnit: 'L',
       allowedUnits: [
         { unit: 'L', description: 'Liters', conversionToBase: 1 },
-        { unit: 'km', description: 'Kilometers traveled', conversionToBase: 1 },
-        { unit: 'miles', description: 'Miles traveled', conversionToBase: 1.60934 },
+        // Distance units carry NO conversionToBase: a km/miles input is only valid
+        // against a distance-denominated factor (kg CO2e/km); against an L/gallon
+        // fuel factor it must fail loud, not be treated as a volume (failure mode #5).
+        { unit: 'km', description: 'Distance travelled (vehicle-km, distance-based method)' },
+        { unit: 'miles', description: 'Distance travelled (vehicle-miles)' },
         // Imperial entry units for EPA mobile CO2 factors (per gallon / scf).
         { unit: 'gallon', description: 'US gallon', conversionToBase: 1 },
         { unit: 'scf', description: 'Standard cubic feet', conversionToBase: 1 },

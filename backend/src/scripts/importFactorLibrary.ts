@@ -48,6 +48,20 @@ const MAPPINGS: Mapping[] = [
     uoms: { 'tonnes': { unitOut: 'kg CO2e/kg', scale: 1 / 1000 } },
   },
   {
+    // Owned/controlled fleet — distance-based (Scope 1). DEFRA per-vehicle-km
+    // tailpipe factors for company cars/motorbikes. (Business travel reuses the
+    // same physical factors but is Scope 3, mapped separately below.)
+    categoryName: 'Mobile Combustion',
+    l1: 'Passenger vehicles',
+    uoms: { 'km': { unitOut: 'kg CO2e/km', scale: 1 } },
+  },
+  {
+    // Owned/controlled vans & HGVs — distance-based (Scope 1), per vehicle-km.
+    categoryName: 'Mobile Combustion',
+    l1: 'Delivery vehicles',
+    uoms: { 'km': { unitOut: 'kg CO2e/km', scale: 1 } },
+  },
+  {
     categoryName: 'Business Travel',
     l1: 'Business travel- air',
     uoms: { 'passenger.km': { unitOut: 'kg CO2e/km', scale: 1 } },
@@ -185,6 +199,35 @@ async function run(): Promise<void> {
   console.log(`Imported/updated ${ops.length} DEFRA 2024 factors`);
   console.log('By category: ' + JSON.stringify(counts));
   console.log(`upserted=${result.upsertedCount} modified=${result.modifiedCount} matched=${result.matchedCount}`);
+
+  // Mobile Combustion now holds distance-based factors (kg CO2e/km), so the
+  // calculator must offer 'km' (and 'miles'). Distance units carry NO
+  // conversionToBase ON PURPOSE: the engine converts a distance input only
+  // against a distance-denominated factor (the factor's own denominator path,
+  // which runs first); a km/miles input against an L/gallon FUEL factor must
+  // FAIL LOUD rather than be silently treated as a volume (failure mode #5).
+  // (The seed previously gave km/miles conversionToBase 1 / 1.60934 — a latent
+  // volume-vs-distance bug that was dormant until distance factors existed.)
+  const mobile = await EmissionCategory.findOne({ category: 'Mobile Combustion' });
+  if (mobile) {
+    const units = (mobile.allowedUnits || []).map((u: any) => {
+      const o: any = { unit: u.unit, description: u.description };
+      if (u.unit !== 'km' && u.unit !== 'miles' && u.conversionToBase !== undefined) {
+        o.conversionToBase = u.conversionToBase;
+      }
+      return o;
+    });
+    if (!units.some((u: any) => u.unit === 'km')) {
+      units.push({ unit: 'km', description: 'Distance travelled (vehicle-km, distance-based method)' });
+    }
+    if (!units.some((u: any) => u.unit === 'miles')) {
+      units.push({ unit: 'miles', description: 'Distance travelled (vehicle-miles)' });
+    }
+    mobile.allowedUnits = units as any;
+    mobile.markModified('allowedUnits');
+    await mobile.save();
+    console.log('  ~ Mobile Combustion: distance units km/miles normalized (no conversionToBase)');
+  }
   await mongoose.disconnect();
 }
 
