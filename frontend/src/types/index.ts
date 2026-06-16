@@ -130,6 +130,43 @@ export interface User {
 	changes: Array<{ path: string; from: any; to: any }>;
   }
 
+  /** A single recompute-check entry result (§3 deterministic recompute). */
+  export interface RecomputeEntry {
+	index: number;
+	categoryName?: string;
+	factorName?: string;
+	factorVersion?: number | null;
+	currentFactorVersion?: number | null;
+	versionPinned: boolean;
+	recomputeSupported: boolean;
+	storedEmissions?: number;
+	recomputedEmissions?: number;
+	matches?: boolean;
+	liveEmissions?: number;
+	factorChangedSincePin?: boolean;
+	note?: string;
+  }
+
+  /** Result of GET /calculations/:id/recompute-check (§3). */
+  export interface RecomputeCheckResult {
+	calculationId: string;
+	title: string;
+	status: string;
+	locked: boolean;
+	entryCount: number;
+	reproducible: boolean;
+	deterministic: boolean;
+	summary: {
+		pinned: number;
+		unpinned: number;
+		supported: number;
+		unsupported: number;
+		mismatches: number;
+		driftedFactors: number;
+	};
+	entries: RecomputeEntry[];
+  }
+
   /** Conservative gap-filling suggestion from POST /calculations/estimate. */
   export interface EstimateSuggestion {
 	suggestedValue: number;

@@ -4,9 +4,9 @@ import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { calculationService } from '../../services/calculationService';
 import { complianceService } from '../../services/complianceService';
-import { SnapshotMeta, SnapshotDiff } from '../../types';
+import { SnapshotMeta, SnapshotDiff, RecomputeCheckResult } from '../../types';
 import { format } from 'date-fns';
-import { History, GitCompareArrows } from 'lucide-react';
+import { History, GitCompareArrows, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 /**
  * Publication snapshots + restatement diffs: every lock records a version;
@@ -21,6 +21,8 @@ export const SnapshotsTab: React.FC = () => {
   const [toVersion, setToVersion] = useState('');
   const [diff, setDiff] = useState<SnapshotDiff | null>(null);
   const [diffing, setDiffing] = useState(false);
+  const [recompute, setRecompute] = useState<RecomputeCheckResult | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export const SnapshotsTab: React.FC = () => {
   useEffect(() => {
     setSnapshots([]);
     setDiff(null);
+    setRecompute(null);
     setFromVersion('');
     setToVersion('');
     setError(null);
@@ -72,6 +75,20 @@ export const SnapshotsTab: React.FC = () => {
       setDiff(null);
     } finally {
       setDiffing(false);
+    }
+  };
+
+  const handleRecompute = async () => {
+    if (!selectedCalcId) return;
+    try {
+      setRecomputing(true);
+      setError(null);
+      setRecompute(await complianceService.getRecomputeCheck(selectedCalcId));
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Recompute check failed');
+      setRecompute(null);
+    } finally {
+      setRecomputing(false);
     }
   };
 
@@ -212,6 +229,114 @@ export const SnapshotsTab: React.FC = () => {
             )}
           </>
         )
+      )}
+
+      {selectedCalcId && (
+        <div className="mt-6 p-4 border border-line rounded-lg space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-fg flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-primary-600" />
+                Deterministic recompute check
+              </p>
+              <p className="text-xs text-muted mt-0.5 max-w-xl">
+                Re-runs the engine math against the immutable factor version pinned to each
+                entry and confirms the stored figures still reproduce — even if the live
+                factor was edited or a new annual set was imported over it.
+              </p>
+            </div>
+            <Button size="sm" onClick={handleRecompute} loading={recomputing}>
+              Run check
+            </Button>
+          </div>
+
+          {recompute && (
+            <>
+              <div
+                className={`p-3 rounded-lg text-sm border ${
+                  recompute.summary.mismatches > 0
+                    ? 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+                    : recompute.deterministic
+                    ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
+                    : 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                <span className="font-semibold">
+                  {recompute.summary.mismatches > 0
+                    ? 'Not reproducible — recomputed figures differ from stored'
+                    : recompute.deterministic
+                    ? 'Deterministic — every entry reproduces from a pinned, immutable factor version'
+                    : 'Reproducible against current factors — some entries predate version pinning'}
+                </span>
+                <div className="mt-1 text-xs opacity-90">
+                  {recompute.summary.pinned} pinned · {recompute.summary.unpinned} unpinned ·{' '}
+                  {recompute.summary.supported} checked · {recompute.summary.unsupported} not
+                  recomputable · {recompute.summary.mismatches} mismatch(es) ·{' '}
+                  {recompute.summary.driftedFactors} factor(s) drifted since pin
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted border-b border-line">
+                      <th className="py-2 pr-4 font-medium">Category</th>
+                      <th className="py-2 pr-4 font-medium">Factor</th>
+                      <th className="py-2 pr-4 font-medium">Pinned ver.</th>
+                      <th className="py-2 pr-4 font-medium text-right">Stored</th>
+                      <th className="py-2 pr-4 font-medium text-right">Recomputed</th>
+                      <th className="py-2 font-medium">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recompute.entries.map((e) => (
+                      <tr key={e.index} className="border-b border-line/50">
+                        <td className="py-2 pr-4 text-fg/80">{e.categoryName || '—'}</td>
+                        <td className="py-2 pr-4 text-fg/70 truncate max-w-[14rem]">{e.factorName || '—'}</td>
+                        <td className="py-2 pr-4 text-fg/70">
+                          {e.versionPinned ? (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-500/15 text-primary-700 dark:text-primary-300">
+                              v{e.factorVersion}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted">unpinned</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-fg/80">
+                          {e.storedEmissions?.toLocaleString()}
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-fg/80">
+                          {e.recomputeSupported ? e.recomputedEmissions?.toLocaleString() : '—'}
+                        </td>
+                        <td className="py-2">
+                          {!e.recomputeSupported ? (
+                            <span className="text-xs text-muted" title={e.note}>not recomputable</span>
+                          ) : e.matches ? (
+                            <span className="text-xs text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+                              <ShieldCheck className="w-3.5 h-3.5" /> reproduced
+                              {e.factorChangedSincePin && (
+                                <span
+                                  className="ml-1 text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5"
+                                  title={`Live factor (v${e.currentFactorVersion}) would now give ${e.liveEmissions?.toLocaleString()} — the pin preserves the original`}
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5" /> factor drifted
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-red-600 dark:text-red-400 inline-flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" /> mismatch
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </Card>
   );

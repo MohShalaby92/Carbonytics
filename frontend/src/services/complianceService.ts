@@ -7,6 +7,7 @@ import {
   OrgExclusion,
   SnapshotDiff,
   SnapshotMeta,
+  RecomputeCheckResult,
   Supplier,
   SupplierEngagementSummary,
   CompletenessResult,
@@ -84,6 +85,18 @@ export const complianceService = {
     );
     if (!response.success || !response.data) {
       throw new Error(response.message || 'Diff failed');
+    }
+    return response.data;
+  },
+
+  // Deterministic recompute check (§3): re-run the engine math against the pinned
+  // immutable factor versions and confirm the stored figures reproduce.
+  getRecomputeCheck: async (calculationId: string): Promise<RecomputeCheckResult> => {
+    const response = await apiService.get<RecomputeCheckResult>(
+      `/calculations/${calculationId}/recompute-check`
+    );
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Recompute check failed');
     }
     return response.data;
   },
