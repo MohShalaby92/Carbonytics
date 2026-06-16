@@ -126,6 +126,18 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     type: String,
     default: '1.0',
   },
+  // License / terms of use of the underlying factor source (§3 versioned
+  // reference data — required field of an audit-grade factor record).
+  license: {
+    type: String,
+    trim: true,
+  },
+  // Pointer to the latest immutable EmissionFactorVersion number (§3). Bumped by
+  // the factorVersioning choke point whenever the factor's content changes.
+  currentVersion: {
+    type: Number,
+    min: 1,
+  },
   // Additional metadata
   metadata: {
     type: Schema.Types.Mixed,

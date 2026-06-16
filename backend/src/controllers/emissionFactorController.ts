@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { EmissionFactor } from '../models/EmissionFactor';
+import { EmissionFactorVersion } from '../models/EmissionFactorVersion';
 import { EmissionCategory } from '../models/EmissionCategory';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { recordAudit } from '../utils/audit';
+import { recordFactorVersion, licenseForSource } from '../services/factorVersioning';
 
 // .lean() bypasses the model's toJSON transform, so re-add the `id` field the
 // frontend relies on.
@@ -265,32 +267,41 @@ export const createEmissionFactor = asyncHandler(async (req: AuthenticatedReques
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
 
-  const { categoryId, name, factor, unit, source, year, description, co2, ch4, n2o } = req.body;
+  const { categoryId, name, factor, unit, source, year, description, co2, ch4, n2o, license } = req.body;
 
   const category = await EmissionCategory.findById(categoryId);
   if (!category) {
     return ApiResponseUtil.error(res, 'Category not found', 404);
   }
 
+  const resolvedSource = source ? String(source).trim() : 'Custom';
   const doc = await EmissionFactor.create({
     categoryId,
     name: String(name).trim(),
     description: description ? String(description).trim() : undefined,
     factor: parseFloat(factor),
     unit: String(unit).trim(),
-    source: source ? String(source).trim() : 'Custom',
+    source: resolvedSource,
     region: 'global',
     country: 'EG',
     year: year ? parseInt(year, 10) : new Date().getFullYear(),
     qualityRating: 'medium',
     organizationId: req.user.organizationId,
     isDefault: false,
+    ...(license ? { license: String(license).trim() } : {}),
     // Optional per-gas values (kg gas per activity unit). When present, the
     // engine computes per gas × the organization's GWP set instead of using
     // the CO2e value directly.
     ...(co2 !== undefined ? { co2: parseFloat(co2) } : {}),
     ...(ch4 !== undefined ? { ch4: parseFloat(ch4) } : {}),
     ...(n2o !== undefined ? { n2o: parseFloat(n2o) } : {}),
+  });
+
+  // Record the immutable v1 snapshot (§3). Calculations pin the version in force
+  // at save time so a locked inventory recomputes deterministically.
+  const { version } = await recordFactorVersion(doc, {
+    recordedBy: req.user.email,
+    changeReason: 'Custom factor created',
   });
 
   await recordAudit({
@@ -300,10 +311,104 @@ export const createEmissionFactor = asyncHandler(async (req: AuthenticatedReques
     action: 'create',
     resourceType: 'emission-factor',
     resourceId: doc._id.toString(),
-    after: { name: doc.name, factor: doc.factor, unit: doc.unit, source: doc.source, year: doc.year, co2: doc.co2, ch4: doc.ch4, n2o: doc.n2o },
+    after: { name: doc.name, factor: doc.factor, unit: doc.unit, source: doc.source, year: doc.year, co2: doc.co2, ch4: doc.ch4, n2o: doc.n2o, version: version.version },
   });
 
-  ApiResponseUtil.success(res, doc.toJSON(), 'Custom emission factor created', 201);
+  ApiResponseUtil.success(res, { ...doc.toJSON(), currentVersion: version.version }, 'Custom emission factor created', 201);
+});
+
+/**
+ * Edit an organization's own custom emission factor (admin/manager). Shared
+ * library factors (no organizationId) are refused — those change only through
+ * the versioned import pipeline, never an ad-hoc edit. Every value-changing edit
+ * records a NEW immutable version (§3); the old version stays pinned to any
+ * calculation that used it, so locked inventories never silently restate.
+ */
+export const updateEmissionFactor = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const doc = await EmissionFactor.findById(req.params.id);
+  if (!doc) {
+    return ApiResponseUtil.error(res, 'Emission factor not found', 404);
+  }
+  // Org-custom factors only, and only the owning organization's.
+  if (!doc.organizationId || doc.organizationId.toString() !== req.user.organizationId) {
+    return ApiResponseUtil.error(
+      res,
+      'Only your organization\'s custom factors can be edited. Shared library factors are versioned through the import pipeline.',
+      403
+    );
+  }
+
+  const before = { name: doc.name, factor: doc.factor, unit: doc.unit, source: doc.source, year: doc.year, co2: doc.co2, ch4: doc.ch4, n2o: doc.n2o, license: doc.license };
+
+  const { name, factor, unit, source, year, description, co2, ch4, n2o, license } = req.body;
+  if (name !== undefined) doc.name = String(name).trim();
+  if (description !== undefined) doc.description = String(description).trim();
+  if (factor !== undefined) doc.factor = parseFloat(factor);
+  if (unit !== undefined) doc.unit = String(unit).trim();
+  if (source !== undefined) doc.source = String(source).trim();
+  if (year !== undefined) doc.year = parseInt(year, 10);
+  if (license !== undefined) doc.license = String(license).trim();
+  if (co2 !== undefined) doc.co2 = parseFloat(co2);
+  if (ch4 !== undefined) doc.ch4 = parseFloat(ch4);
+  if (n2o !== undefined) doc.n2o = parseFloat(n2o);
+
+  await doc.save();
+
+  const { version, created } = await recordFactorVersion(doc, {
+    recordedBy: req.user.email,
+    changeReason: req.body.changeReason ? String(req.body.changeReason).trim() : 'Custom factor edited',
+  });
+
+  await recordAudit({
+    organizationId: req.user.organizationId,
+    userId: req.user.id,
+    userEmail: req.user.email,
+    action: 'update',
+    resourceType: 'emission-factor',
+    resourceId: doc._id.toString(),
+    before,
+    after: { name: doc.name, factor: doc.factor, unit: doc.unit, source: doc.source, year: doc.year, co2: doc.co2, ch4: doc.ch4, n2o: doc.n2o, license: doc.license, version: version.version, newVersionRecorded: created },
+  });
+
+  ApiResponseUtil.success(
+    res,
+    { ...doc.toJSON(), currentVersion: version.version },
+    created ? `Factor updated — version ${version.version} recorded` : 'Factor updated (no value change; version unchanged)'
+  );
+});
+
+/**
+ * Immutable version history for a factor (§3). Visible for shared-library
+ * factors and the organization's own custom factors. Newest version first.
+ */
+export const getFactorVersions = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const factor = await EmissionFactor.findById(req.params.id)
+    .select('name organizationId currentVersion')
+    .lean();
+  if (!factor) {
+    return ApiResponseUtil.error(res, 'Emission factor not found', 404);
+  }
+  // Shared factors are visible to all; a custom factor only to its own org.
+  const orgId = req.user?.organizationId;
+  if ((factor as any).organizationId && (factor as any).organizationId.toString() !== orgId) {
+    return ApiResponseUtil.error(res, 'Emission factor not found', 404);
+  }
+
+  const versions = await EmissionFactorVersion.find({ factorId: req.params.id })
+    .sort({ version: -1 })
+    .lean();
+
+  ApiResponseUtil.success(res, {
+    factorId: req.params.id,
+    factorName: (factor as any).name,
+    currentVersion: (factor as any).currentVersion ?? (versions[0] as any)?.version ?? null,
+    count: versions.length,
+    versions: versions.map((v: any) => ({ ...v, id: v._id.toString() })),
+  });
 });
 
 export const getFactorSources = asyncHandler(async (req: Request, res: Response) => {

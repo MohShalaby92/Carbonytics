@@ -149,6 +149,56 @@ export interface IEmissionFactor extends Document {
   tags?: string[];
   isDefault?: boolean;
   version?: string;
+  // License / terms of use of the underlying factor source (§3 versioned
+  // reference data). Free text, e.g. 'Open Government Licence v3.0' (DEFRA).
+  license?: string;
+  // Pointer to the latest immutable EmissionFactorVersion number (§3). A value
+  // edit/import records a new version and bumps this; calculations pin the
+  // version in force at save time so a locked inventory recomputes deterministically.
+  currentVersion?: number;
+}
+
+/**
+ * Immutable, append-only snapshot of an emission factor's value-bearing state at
+ * a point in time (§3 — factor library as versioned reference data). One row per
+ * distinct content state per factor; calculations pin `factorVersion` so a locked
+ * inventory recomputes deterministically even after the live factor is edited or
+ * a new annual factor set is imported over it.
+ */
+export interface IEmissionFactorVersion extends Document {
+  _id: Types.ObjectId;
+  factorId: Types.ObjectId;
+  factorCode?: string;
+  version: number; // 1-based, monotonic per factorId
+  // --- value-bearing snapshot (the fields a recompute depends on) ---
+  name: string;
+  factor: number;
+  unit: string;
+  co2: number;
+  ch4: number;
+  n2o: number;
+  otherGhg: number;
+  source: string;
+  sourceUrl?: string;
+  sourceDocument?: string;
+  region: string;
+  country?: string;
+  year: number;
+  validFrom?: Date;
+  validTo?: Date;
+  license?: string;
+  qualityRating?: string;
+  uncertainty?: number;
+  metadata?: Record<string, any>;
+  organizationId?: Types.ObjectId;
+  supplierId?: Types.ObjectId;
+  supplierName?: string;
+  // --- bookkeeping ---
+  contentHash: string; // sha256 of the canonicalized value-bearing fields
+  recordedBy: string; // user email, or 'import' / 'seed' / 'backfill'
+  changeReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IIndustryBenchmark extends mongoose.Document {
@@ -294,6 +344,11 @@ export interface ICalculationEntry {
   factorName?: string;
   factorSource?: string;
   factorYear?: number;
+  // Pinned immutable factor version used for this entry (§3). Lets a locked
+  // inventory recompute deterministically against the exact factor values in
+  // force at save time, even after the live factor is edited / re-imported.
+  factorVersion?: number;
+  factorVersionId?: Types.ObjectId;
   gwpSet?: string; // GWP set in force when computed (e.g. 'AR6')
   gwpApplied?: 'per-gas' | 'embedded'; // whether GWPs were applied or already embedded in a CO2e factor
   method?: string; // calculation method (activity_based / spend_based / supplier-specific / ...)
