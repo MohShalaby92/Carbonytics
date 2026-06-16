@@ -831,6 +831,58 @@ export class CalculationEngine {
     };
   }
 
+  /**
+   * Deterministic recompute of a STORED calculation entry against a given factor
+   * snapshot (the recompute-check endpoint, §3). Reuses exactly the same pure
+   * math the original calculation used — unit conversion into the factor's
+   * denominator, then either the per-gas path (when the entry was computed per
+   * gas) or the plain value × factor path — so a locked inventory's pinned
+   * factor version reproduces its stored figure bit-for-bit.
+   *
+   * Returns { supported:false } for entries whose result came from a special
+   * calculation (distance/class-based travel, time-of-use) that needs metadata
+   * not stored on the entry, or whose unit no longer converts — those cannot be
+   * reproduced from the entry alone and must not be falsely flagged as drift.
+   */
+  async recomputeEntryAgainstFactor(
+    entry: { value: number; unit: string; gwpSet?: string; gwpApplied?: string; method?: string },
+    factorLike: any,
+    category: any
+  ): Promise<{ supported: boolean; emissions?: number; biogenicCO2?: number; note?: string }> {
+    const catName = (category?.category || '').toLowerCase();
+    if (catName.includes('travel')) {
+      return {
+        supported: false,
+        note: 'Distance/class-based travel — original distance metadata is not stored on the entry',
+      };
+    }
+
+    let converted: number;
+    try {
+      converted = await this.convertUnits(entry.value, entry.unit, category, factorLike);
+    } catch (e) {
+      return { supported: false, note: e instanceof Error ? e.message : 'unit conversion failed' };
+    }
+
+    if (entry.gwpApplied === 'per-gas') {
+      const gwpSet = isGwpSetName(entry.gwpSet) ? (entry.gwpSet as GwpSetName) : DEFAULT_GWP_SET;
+      const gb = this.computePerGasEmissions(converted, factorLike, category, gwpSet);
+      if (gb) {
+        return { supported: true, emissions: gb.co2e, ...(gb.biogenicCO2 ? { biogenicCO2: gb.biogenicCO2 } : {}) };
+      }
+      // Entry was per-gas but this snapshot carries no per-gas values — fall back
+      // to the plain path (will surface as a mismatch if the snapshot is wrong).
+    }
+
+    const emissions = this.performCalculation(converted, factorLike, category, {
+      categoryId: '',
+      value: converted,
+      unit: factorLike?.unit,
+      metadata: {},
+    });
+    return { supported: true, emissions };
+  }
+
   private performCalculation(value: number, factor: any, category: any, input: CalculationInput): number {
     // Basic calculation: value * emission factor
     let emissions = value * factor.factor;

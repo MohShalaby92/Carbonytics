@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
+import { getCurrentVersion, getVersionByNumber } from '../services/factorVersioning';
 import { suggestEstimate } from '../services/estimationService';
 import { computeCompleteness } from '../services/completenessService';
 import { ensureInventory, midpointYear } from '../services/inventoryService';
@@ -212,6 +213,12 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       return ApiResponseUtil.error(res, `Could not compute entry for category ${calc.categoryId}: ${reason}`, 400);
     }
 
+    // Pin the immutable factor version in force at save time (§3) so a locked
+    // inventory recomputes deterministically even after the live factor changes.
+    const pinnedVersion = computed.factor.id
+      ? await getCurrentVersion(computed.factor.id)
+      : null;
+
     // Gap-filled values stay distinguishable: estimates force quality low
     // and the worst PCAF score; the method used is stored verbatim.
     const isEstimate = calc.isEstimate === true;
@@ -230,6 +237,9 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       factorName: computed.factor.name,
       factorSource: computed.factor.source,
       factorYear: computed.factor.year,
+      ...(pinnedVersion
+        ? { factorVersion: pinnedVersion.version, factorVersionId: pinnedVersion._id }
+        : {}),
       gwpSet: computed.provenance?.gwpSet,
       gwpApplied: computed.provenance?.gwpApplied,
       method: computed.calculation.metadata?.calculationMethod,
@@ -421,6 +431,145 @@ export const lockCalculation = asyncHandler(async (req: AuthenticatedRequest, re
     res,
     { ...updated!.toJSON(), completenessWarning },
     `Calculation locked — snapshot v${version} recorded${completenessWarning ? ' (with completeness warning)' : ''}`
+  );
+});
+
+/**
+ * Deterministic recompute check (§3 — the §2.1 "recompute a locked inventory
+ * and get identical results" requirement). For each entry, re-run the engine
+ * math against the PINNED immutable factor version (or, for pre-versioning
+ * entries, the live factor as best-effort) and compare to the stored figure.
+ * Also re-runs against the LIVE factor to detect whether the factor has drifted
+ * since the pin — proving the pin, not the live factor, is what reproduces a
+ * locked result. Read-only; never mutates anything.
+ */
+export const recomputeCheck = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const calc = await Calculation.findOne({
+    _id: req.params.id,
+    organizationId: req.user.organizationId,
+  }).lean();
+  if (!calc) {
+    return ApiResponseUtil.error(res, 'Calculation not found', 404);
+  }
+
+  const entries: any[] = (calc as any).data || [];
+  const catIds = [...new Set(entries.map((e) => String(e.categoryId)).filter(Boolean))];
+  const cats = await EmissionCategory.find({ _id: { $in: catIds } }).lean();
+  const catById = new Map(cats.map((c: any) => [String(c._id), c]));
+
+  const TOL = 0.011; // stored results are rounded to 2dp
+  let pinned = 0;
+  let unpinned = 0;
+  let supported = 0;
+  let unsupported = 0;
+  let mismatches = 0;
+  let drifted = 0;
+  const results: any[] = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const category = catById.get(String(e.categoryId));
+    const versionPinned = e.factorVersion != null && e.factorVersionId != null;
+    if (versionPinned) pinned++;
+    else unpinned++;
+
+    const factorSnapshot = versionPinned
+      ? await getVersionByNumber(String(e.factorId), e.factorVersion)
+      : null;
+    const liveFactor = e.factorId ? await EmissionFactor.findById(e.factorId).lean() : null;
+    // Check against the pinned version when present, else the live factor.
+    const checkFactor = factorSnapshot || liveFactor;
+
+    if (!category || !checkFactor) {
+      unsupported++;
+      results.push({
+        index: i,
+        categoryName: (category as any)?.category,
+        factorName: e.factorName,
+        factorVersion: e.factorVersion ?? null,
+        versionPinned,
+        recomputeSupported: false,
+        note: !category ? 'category not found' : 'factor record not found',
+        storedEmissions: e.emissions,
+      });
+      continue;
+    }
+
+    const rc = await calculationEngine.recomputeEntryAgainstFactor(e, checkFactor, category);
+    if (!rc.supported) {
+      unsupported++;
+      results.push({
+        index: i,
+        categoryName: (category as any).category,
+        factorName: e.factorName,
+        factorVersion: e.factorVersion ?? null,
+        versionPinned,
+        recomputeSupported: false,
+        note: rc.note,
+        storedEmissions: e.emissions,
+      });
+      continue;
+    }
+
+    supported++;
+    const recomputed = rc.emissions as number;
+    const matches = Math.abs(recomputed - e.emissions) <= TOL;
+    if (!matches) mismatches++;
+
+    // Drift: would the LIVE factor now produce a different number than the pin?
+    let liveEmissions: number | undefined;
+    let factorChangedSincePin = false;
+    if (versionPinned && liveFactor) {
+      const live = await calculationEngine.recomputeEntryAgainstFactor(e, liveFactor, category);
+      if (live.supported && typeof live.emissions === 'number') {
+        liveEmissions = live.emissions;
+        factorChangedSincePin = Math.abs(live.emissions - recomputed) > TOL;
+        if (factorChangedSincePin) drifted++;
+      }
+    }
+
+    results.push({
+      index: i,
+      categoryName: (category as any).category,
+      factorName: e.factorName,
+      factorVersion: e.factorVersion ?? null,
+      currentFactorVersion: (liveFactor as any)?.currentVersion ?? null,
+      versionPinned,
+      recomputeSupported: true,
+      storedEmissions: e.emissions,
+      recomputedEmissions: Math.round(recomputed * 100) / 100,
+      matches,
+      ...(liveEmissions !== undefined ? { liveEmissions: Math.round(liveEmissions * 100) / 100 } : {}),
+      factorChangedSincePin,
+    });
+  }
+
+  const reproducible = supported > 0 && mismatches === 0;
+  // Deterministic = every entry pins an immutable version, so the result is
+  // reproducible FOREVER (not just against today's live factor).
+  const deterministic = supported > 0 && unpinned === 0 && mismatches === 0;
+
+  ApiResponseUtil.success(
+    res,
+    {
+      calculationId: (calc as any)._id.toString(),
+      title: (calc as any).title,
+      status: (calc as any).status,
+      locked: (calc as any).status === 'locked',
+      entryCount: entries.length,
+      reproducible,
+      deterministic,
+      summary: { pinned, unpinned, supported, unsupported, mismatches, driftedFactors: drifted },
+      entries: results,
+    },
+    deterministic
+      ? 'Deterministic — every entry reproduces its stored figure from a pinned, immutable factor version'
+      : reproducible
+      ? 'Reproducible against current factors; some entries predate version pinning'
+      : 'Recompute check complete — see per-entry detail'
   );
 });
 

@@ -38,6 +38,11 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
   factorName: { type: String, trim: true },
   factorSource: { type: String, trim: true },
   factorYear: { type: Number },
+  // Pinned immutable factor version (§3). Lets a locked inventory recompute
+  // deterministically against the exact factor values in force at save time,
+  // even after the live factor is edited or a new annual set is imported over it.
+  factorVersion: { type: Number },
+  factorVersionId: { type: Schema.Types.ObjectId, ref: 'EmissionFactorVersion' },
   // GWP set in force when computed, and whether GWPs were applied per gas or
   // were already embedded in a CO2e-denominated factor (never both).
   gwpSet: { type: String },

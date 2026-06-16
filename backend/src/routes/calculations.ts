@@ -11,6 +11,7 @@ import {
   verifyCalculation,
   getCalculationSnapshots,
   getSnapshotDiff,
+  recomputeCheck,
   estimateCalculationValue,
 } from '../controllers/calculationController';
 import { authenticate, authorize } from '../middleware/auth';
@@ -97,5 +98,9 @@ router.patch('/:id/verify', authorize('verifier', 'admin'), clearCache('calculat
 // Publication snapshots + restatement diffs.
 router.get('/:id/snapshots', getCalculationSnapshots);
 router.get('/:id/snapshots/diff', getSnapshotDiff);
+
+// Deterministic recompute check: re-run the engine math against the pinned
+// immutable factor versions and confirm the stored figures reproduce (§3).
+router.get('/:id/recompute-check', recomputeCheck);
 
 export default router;
