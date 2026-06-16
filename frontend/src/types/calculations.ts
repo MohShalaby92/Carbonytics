@@ -72,5 +72,17 @@ export interface CalculationEntry {
     // Biogenic CO2 (kg) from biomass combustion — memo item, EXCLUDED from
     // calculation.emissions (the scope total) per the GHG Protocol.
     biogenicCO2?: number;
+    // Fugitive material balance: the derived released refrigerant mass (kg) and
+    // the component masses it came from.
+    materialBalance?: {
+      releasedKg: number;
+      components: {
+        purchases: number;
+        inventoryStart: number;
+        inventoryEnd: number;
+        chargedIntoEquipment: number;
+        recovered: number;
+      };
+    };
   }
   

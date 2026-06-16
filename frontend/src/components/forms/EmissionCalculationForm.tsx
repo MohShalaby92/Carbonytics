@@ -19,6 +19,16 @@ import { Calculator, Zap, Truck, Factory, Lightbulb } from 'lucide-react';
 // period {start,end} object, breaking validation), so they are skipped.
 const RESERVED_INPUT_FIELDS = ['unit', 'period', 'value'];
 
+// Fugitive material-balance component fields (refrigerant masses, kg).
+const EMPTY_MB = { purchases: '', inventoryStart: '', inventoryEnd: '', chargedIntoEquipment: '', recovered: '' };
+const MB_FIELDS: { key: keyof typeof EMPTY_MB; label: string; hint: string }[] = [
+  { key: 'purchases', label: 'Refrigerant purchased / added', hint: 'Acquired during the period (cylinders, top-ups)' },
+  { key: 'inventoryStart', label: 'Inventory at period start', hint: 'In storage, not yet in equipment' },
+  { key: 'inventoryEnd', label: 'Inventory at period end', hint: 'Still in storage at period end' },
+  { key: 'chargedIntoEquipment', label: 'Charged into new equipment', hint: 'Put into newly installed units (not a leak)' },
+  { key: 'recovered', label: 'Recovered / recycled / destroyed', hint: 'Removed and not emitted' },
+];
+
 const dynamicInputs = (category: EmissionCategory | null) =>
   (category?.requiredInputs || []).filter(
     (input) => !RESERVED_INPUT_FIELDS.includes(input.field)
@@ -100,6 +110,10 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const [estimating, setEstimating] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
+  // Fugitive material-balance mode (derive released refrigerant mass from inventory).
+  const [mbMode, setMbMode] = useState(false);
+  const [mb, setMb] = useState<Record<string, string>>({ ...EMPTY_MB });
+
   // Dynamic form setup
   const emptySchema = z.object({
     categoryId: z.string(),
@@ -141,6 +155,40 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   const watchedUnit = watch('unit');
   const watchedCategoryId = watch('categoryId');
   const watchedPeriod = watch('period');
+
+  // Fugitive material balance: released = purchases + (invStart - invEnd)
+  //   - chargedIntoEquipment - recovered, clamped at >= 0 (GHG Protocol mass balance).
+  const isFugitive = !!selectedCategory && /fugitive/i.test(selectedCategory.category || '');
+  const mbNum = (k: string) => {
+    const n = parseFloat(mb[k]);
+    return isFinite(n) && n >= 0 ? n : 0;
+  };
+  const mbReleasedKg =
+    Math.round(
+      Math.max(
+        0,
+        mbNum('purchases') +
+          (mbNum('inventoryStart') - mbNum('inventoryEnd')) -
+          mbNum('chargedIntoEquipment') -
+          mbNum('recovered')
+      ) * 10000
+    ) / 10000;
+
+  // Reset material-balance mode whenever the category changes.
+  useEffect(() => {
+    setMbMode(false);
+    setMb({ ...EMPTY_MB });
+  }, [watchedCategoryId]);
+
+  // In material-balance mode the released mass IS the activity value (kg); push
+  // it into the form so the existing calculate/save flow + validation work.
+  useEffect(() => {
+    if (mbMode && isFugitive) {
+      setValue('unit', 'kg', { shouldValidate: true });
+      setValue('value', mbReleasedKg, { shouldValidate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mbMode, isFugitive, mb]);
 
   // The estimate flag only survives as long as the suggested value is what's in
   // the field — a manual edit makes it the user's own (measured) figure again.
@@ -243,6 +291,17 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         metadata[input.field] = v;
       }
     });
+    // Fugitive material balance: send the component masses so the server derives
+    // (and re-verifies) the released refrigerant mass.
+    if (mbMode && isFugitive) {
+      metadata.materialBalance = {
+        purchases: mbNum('purchases'),
+        inventoryStart: mbNum('inventoryStart'),
+        inventoryEnd: mbNum('inventoryEnd'),
+        chargedIntoEquipment: mbNum('chargedIntoEquipment'),
+        recovered: mbNum('recovered'),
+      };
+    }
     return metadata;
   };
 
@@ -692,6 +751,56 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           </div>
         )}
 
+        {/* Fugitive material balance (refrigerant inventory) */}
+        {isFugitive && (
+          <div className="p-4 rounded-lg border border-line bg-fg/[0.03] space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mbMode}
+                onChange={(e) => setMbMode(e.target.checked)}
+                className="rounded border-line"
+              />
+              <span className="text-sm font-medium text-fg">
+                Estimate from refrigerant inventory (material balance)
+              </span>
+            </label>
+            <p className="text-xs text-muted">
+              GHG Protocol mass balance — released = purchases + (inventory start − inventory end) −
+              charged into new equipment − recovered. The released mass is multiplied by the selected
+              refrigerant blend factor.
+            </p>
+            {mbMode && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {MB_FIELDS.map((f) => (
+                    <div key={f.key} className="space-y-1">
+                      <label className="block text-xs font-medium text-fg/80">{f.label} (kg)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={mb[f.key]}
+                        placeholder="0"
+                        onChange={(e) => setMb((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      />
+                      <p className="text-[11px] text-muted">{f.hint}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-line">
+                  <span className="text-sm text-muted">
+                    Released refrigerant (used as the activity value):
+                  </span>
+                  <span className="text-sm font-semibold text-fg">
+                    {mbReleasedKg.toLocaleString()} kg
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Gap-filling estimate status */}
         {estimateError && (
           <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-700 dark:text-amber-300">
@@ -842,6 +951,25 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                     </div>
                   </div>
                 )}
+              {calculationResult.materialBalance && (
+                <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
+                  <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                    Material balance (refrigerant)
+                  </p>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted">Released (activity value):</span>
+                    <span className="font-medium text-green-700 dark:text-green-300">
+                      {calculationResult.materialBalance.releasedKg.toLocaleString()} kg
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted">
+                    = purchases {calculationResult.materialBalance.components.purchases} + Δinventory{' '}
+                    {calculationResult.materialBalance.components.inventoryStart - calculationResult.materialBalance.components.inventoryEnd}{' '}
+                    − charged {calculationResult.materialBalance.components.chargedIntoEquipment} − recovered{' '}
+                    {calculationResult.materialBalance.components.recovered}
+                  </p>
+                </div>
+              )}
               {calculationResult.scope2Dual && (
                 <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
                   <p className="text-xs font-medium text-green-700 dark:text-green-300">
