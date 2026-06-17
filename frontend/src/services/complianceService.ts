@@ -8,6 +8,8 @@ import {
   SnapshotDiff,
   SnapshotMeta,
   RecomputeCheckResult,
+  EvidenceList,
+  EvidenceItem,
   Supplier,
   SupplierEngagementSummary,
   CompletenessResult,
@@ -99,6 +101,44 @@ export const complianceService = {
       throw new Error(response.message || 'Recompute check failed');
     }
     return response.data;
+  },
+
+  // ---- Evidence attachments per data line (§4.3) ----
+  listEvidence: async (calculationId: string): Promise<EvidenceList> => {
+    const response = await apiService.get<EvidenceList>(`/evidence/calculation/${calculationId}`);
+    if (!response.success || !response.data) throw new Error(response.message || 'Failed to load evidence');
+    return response.data;
+  },
+
+  uploadEvidence: async (
+    calculationId: string,
+    entryIndex: number,
+    file: File,
+    description?: string
+  ): Promise<EvidenceItem> => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('entryIndex', String(entryIndex));
+    if (description) form.append('description', description);
+    const response = await apiService.postForm<EvidenceItem>(
+      `/evidence/calculation/${calculationId}`,
+      form
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Upload failed');
+    return response.data;
+  },
+
+  downloadEvidence: async (item: EvidenceItem) => {
+    const blob = (await apiService.get<any>(`/evidence/${item.id}/download`, {
+      responseType: 'blob',
+    })) as unknown as Blob;
+    downloadBlob(blob, item.filename);
+  },
+
+  deleteEvidence: async (id: string) => {
+    const response = await apiService.delete(`/evidence/${id}`);
+    if (!response.success) throw new Error(response.message || 'Delete failed');
+    return response;
   },
 
   // ---- Facilities (organizational boundary) ----

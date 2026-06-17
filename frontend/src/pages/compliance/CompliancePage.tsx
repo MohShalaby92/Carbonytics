@@ -11,6 +11,7 @@ import { SuppliersTab } from './SuppliersTab';
 import { FleetTab } from './FleetTab';
 import { CompletenessTab } from './CompletenessTab';
 import { InventoriesTab } from './InventoriesTab';
+import { EvidenceTab } from './EvidenceTab';
 import {
   FileText,
   ListX,
@@ -22,6 +23,7 @@ import {
   ClipboardCheck,
   CalendarRange,
   Truck,
+  FileCheck2,
 } from 'lucide-react';
 
 /**
@@ -43,6 +45,7 @@ export const CompliancePage: React.FC = () => {
     { id: 'suppliers', name: 'Suppliers', icon: Handshake, component: SuppliersTab },
     { id: 'denominators', name: 'Intensity & Denominators', icon: Divide, component: DenominatorsTab },
     { id: 'snapshots', name: 'Snapshots & Restatements', icon: History, component: SnapshotsTab },
+    { id: 'evidence', name: 'Evidence', icon: FileCheck2, component: EvidenceTab },
     { id: 'audit', name: 'Audit Trail', icon: ScrollText, component: AuditLogTab, adminOnly: true },
   ];
 

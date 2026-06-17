@@ -127,6 +127,14 @@ class ApiService {
     return response.data;
   }
 
+  /** POST a prepared multipart/form-data body (e.g. file + extra fields). */
+  async postForm<T>(url: string, formData: FormData): Promise<ApiResponse<T>> {
+    const response = await this.api.post<ApiResponse<T>>(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
   async uploadFile<T>(
     url: string,
     file: File,

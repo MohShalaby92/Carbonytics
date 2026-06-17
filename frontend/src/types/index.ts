@@ -167,6 +167,28 @@ export interface User {
 	entries: RecomputeEntry[];
   }
 
+  /** A single evidence attachment on a calculation data line (§4.3). */
+  export interface EvidenceItem {
+	id: string;
+	calculationId: string;
+	entryIndex: number;
+	filename: string;
+	contentType: string;
+	size: number;
+	sha256: string;
+	description?: string;
+	uploadedByEmail: string;
+	createdAt: string;
+  }
+
+  /** Result of GET /evidence/calculation/:calcId (§4.3). */
+  export interface EvidenceList {
+	calculationId: string;
+	count: number;
+	countByEntry: Record<number, number>;
+	evidence: EvidenceItem[];
+  }
+
   /** Conservative gap-filling suggestion from POST /calculations/estimate. */
   export interface EstimateSuggestion {
 	suggestedValue: number;
