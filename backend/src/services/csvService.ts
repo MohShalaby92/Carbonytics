@@ -8,6 +8,7 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { calculationEngine } from './calculationEngine';
 import { escapeRegex } from '../utils/security';
 import { logger } from '../utils/logger';
+import { analyzeImportQuality, QualityRow, HistoryPoint, ImportWarning } from './importQuality';
 
 interface CSVCalculationRow {
   category: string;
@@ -85,7 +86,10 @@ export class CSVService {
     return new Promise((resolve, reject) => {
       const rows: CSVCalculationRow[] = [];
       fs.createReadStream(filePath)
-        .pipe(csvParser())
+        // Strip a leading UTF-8 BOM from the first header — Excel and our own CSV
+        // export (UTF-8 BOM for "m³" etc.) prepend one, which would otherwise turn
+        // the first column into "﻿category" and fail every row.
+        .pipe(csvParser({ mapHeaders: ({ header }) => header.replace(/^﻿/, '').trim() }))
         .on('data', (row: CSVCalculationRow) => rows.push(row))
         .on('end', () => resolve(rows))
         .on('error', (error) => reject(error));
@@ -450,11 +454,16 @@ export class CSVService {
     }
   }
 
-  /** Validate an uploaded CSV or Excel file (shared row reader). */
-  async validateCSV(filePath: string): Promise<{
+  /**
+   * Validate an uploaded CSV or Excel file (shared row reader). When an
+   * organizationId is supplied, also runs advisory data-quality screening (§4.3)
+   * — duplicate / outlier / spend-double-count warnings that never block import.
+   */
+  async validateCSV(filePath: string, organizationId?: string): Promise<{
     valid: boolean;
     rowCount: number;
     errors: string[];
+    warnings: ImportWarning[];
     preview: any[];
   }> {
     const errors: string[] = [];
@@ -467,11 +476,83 @@ export class CSVService {
       if (!row.unit) errors.push(`Row ${n}: Missing unit`);
     });
 
+    let warnings: ImportWarning[] = [];
+    if (organizationId) {
+      try {
+        warnings = await this.computeImportWarnings(rows, organizationId);
+      } catch (e) {
+        // Quality screening is advisory — never fail a validation on it.
+        logger.warn('Import quality screening failed (non-blocking):', e);
+      }
+    }
+
     return {
       valid: errors.length === 0,
       rowCount: rows.length,
       errors,
+      warnings,
       preview: rows.slice(0, 5),
     };
+  }
+
+  /**
+   * Resolve categories + the organization's historical activity, then run the
+   * pure import-quality checks (§4.3). Category identity is the lowercased name.
+   */
+  private async computeImportWarnings(
+    rows: CSVCalculationRow[],
+    organizationId: string
+  ): Promise<ImportWarning[]> {
+    const categories = await EmissionCategory.find()
+      .select('category scope calculationMethod')
+      .lean();
+    const byName = new Map<string, any>();
+    const byId = new Map<string, any>();
+    for (const c of categories as any[]) {
+      byName.set(String(c.category).trim().toLowerCase(), c);
+      byId.set(c._id.toString(), c);
+    }
+
+    // Parsed file rows (skip ones that fail the basic required-field checks).
+    const qualityRows: QualityRow[] = [];
+    rows.forEach((row, idx) => {
+      const value = parseFloat(row.value);
+      const name = String(row.category || '').trim().toLowerCase();
+      const cat = byName.get(name);
+      if (!row.category || !cat || isNaN(value) || !row.unit) return;
+      qualityRows.push({
+        rowNumber: idx + 2,
+        categoryKey: name,
+        categoryName: cat.category,
+        scope: cat.scope,
+        spendBased: cat.calculationMethod === 'spend_based',
+        value,
+        unit: row.unit,
+        periodStart: row.period_start || undefined,
+        periodEnd: row.period_end || undefined,
+      });
+    });
+    if (qualityRows.length === 0) return [];
+
+    // History: the org's existing activity entries (category + period + value).
+    const calcs = await Calculation.find({ organizationId })
+      .select('period data.categoryId data.value')
+      .lean();
+    const history: HistoryPoint[] = [];
+    for (const c of calcs as any[]) {
+      for (const e of c.data || []) {
+        const cat = e.categoryId ? byId.get(e.categoryId.toString()) : undefined;
+        if (!cat) continue;
+        history.push({
+          categoryKey: String(cat.category).trim().toLowerCase(),
+          scope: cat.scope,
+          value: e.value,
+          periodStart: c.period?.start ? new Date(c.period.start).toISOString() : undefined,
+          periodEnd: c.period?.end ? new Date(c.period.end).toISOString() : undefined,
+        });
+      }
+    }
+
+    return analyzeImportQuality(qualityRows, history);
   }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, File, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Upload, File, CheckCircle, AlertCircle, AlertTriangle, Download } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
@@ -13,12 +13,25 @@ interface FileUploadProps {
   className?: string;
 }
 
+interface ImportWarning {
+  type: 'duplicate' | 'outlier' | 'spend-double-count';
+  rows: number[];
+  message: string;
+}
+
 interface ValidationResult {
   valid: boolean;
   rowCount: number;
   errors: string[];
+  warnings?: ImportWarning[];
   preview: any[];
 }
+
+const WARNING_LABEL: Record<string, string> = {
+  duplicate: 'Possible duplicate',
+  outlier: 'Outlier vs prior period',
+  'spend-double-count': 'Spend double-counting risk',
+};
 
 export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadSuccess,
@@ -86,10 +99,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-  
-      // Remove the third parameter - browser handles Content-Type automatically
-      const response = await apiService.post('/csv/validate', formData);
-  
+
+      // Must go through postForm so the multipart Content-Type (with boundary) is
+      // set — apiService.post forces application/json, which makes multer see no file.
+      const response = await apiService.postForm('/csv/validate', formData);
+
       setValidation((response.data as { validation: ValidationResult }).validation);
     } catch (error: any) {
       onUploadError?.(error.response?.data?.message || 'Validation failed');
@@ -106,7 +120,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           const formData = new FormData();
           formData.append('file', selectedFile);
 
-          const response = await apiService.post('/csv/import', formData);
+          const response = await apiService.postForm('/csv/import', formData);
 
           setImportResult((response.data as { result: any }).result);
           onUploadSuccess?.((response.data as { result: any }).result);
@@ -259,6 +273,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
                 {validation.errors.map((error, index) => (
                   <li key={index}>• {error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {validation.warnings && validation.warnings.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25">
+              <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" />
+                Data-quality warnings ({validation.warnings.length}) — advisory, you can still import
+              </h4>
+              <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1.5">
+                {validation.warnings.map((w, index) => (
+                  <li key={index}>
+                    <span className="font-medium">{WARNING_LABEL[w.type] || w.type}:</span> {w.message}
+                  </li>
                 ))}
               </ul>
             </div>

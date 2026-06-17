@@ -58,7 +58,7 @@ export const validateCSVFile = asyncHandler(async (req: AuthenticatedRequest, re
 
   try {
     const csvService = new CSVService();
-    const validation = await csvService.validateCSV(req.file.path);
+    const validation = await csvService.validateCSV(req.file.path, req.user.organizationId);
 
     // Clean up uploaded file after validation
     setTimeout(() => {
