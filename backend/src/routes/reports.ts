@@ -12,6 +12,7 @@ import {
   getConsolidationReport,
   getAssurancePackage,
   getInventoryManagementPlan,
+  getDataQualityTrend,
   getCdpMapping,
   getSbtiSummary,
   getEsrsE1Mapping,
@@ -83,6 +84,9 @@ router.get('/assurance-package', validate(validateDateRange), getAssurancePackag
 // Inventory Management Plan (process document, auto-generated from live
 // configuration; ?format=markdown downloads). Uncached export action.
 router.get('/imp', validate(validateDateRange), getInventoryManagementPlan);
+
+// Year-over-year data-quality trend (weighted DQ + primary share per year; §5).
+router.get('/data-quality-trend', getDataQualityTrend);
 
 // Disclosure-framework mappings (preparation aids; ?format=markdown downloads).
 router.get('/cdp', validate(validateDateRange), getCdpMapping);

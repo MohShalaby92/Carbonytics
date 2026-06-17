@@ -744,16 +744,93 @@ async function buildInventoryManagementPlan(
         'Restatements of published figures occur only through the audited unlock → correct → re-lock path, each producing a new snapshot version with the operator and comment recorded. A formal significance threshold (e.g. 5% of base-year emissions) and frozen base-year inventories await the reporting-year object (planned).',
     },
     improvementPlan: [
-      'Evidence attachments per data line (planned).',
-      'Factor version history for in-place edits (planned).',
-      'Reporting-year object: per-year GWP locking, frozen base year, recalculation threshold engine (planned).',
-      'PDF/DOCX report rendering (currently markdown/JSON).',
-      'Hard publish gate on the full-year inventory (soft completeness gate on lock is in place).',
+      'Raise the primary (supplier-specific) data share per Scope 3 category year over year — tracked via the data-quality trend.',
+      'Spend-based EEIO engine + Category 3 T&D losses (awaiting an EEIO sector factor table + Egypt grid T&D loss rate).',
+      'Verifier flag/comment/resolve workflow over the activity-data register and its evidence chain.',
+      'Qualitative uncertainty assessment per the GHG Protocol uncertainty guidance.',
     ],
   };
 }
 
 const CONSERVATIVENESS_UPLIFT_PCT = CONSERVATIVENESS_UPLIFT * 100;
+
+/**
+ * Year-over-year data-quality improvement tracking (§5) — the strategic point of
+ * DQ scoring is to move PCAF 5s toward 1s and raise the primary-data share over
+ * time. Walks every reporting year (period-midpoint year) and returns the
+ * emissions-weighted DQ score + primary/secondary/estimated shares per year, with
+ * the YoY delta and an `improving` flag.
+ */
+export const getDataQualityTrend = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+
+  const calcs = await Calculation.find({ organizationId: req.user.organizationId })
+    .select('period data')
+    .lean();
+
+  const byYear = new Map<
+    number,
+    { items: { emissions: number; dataType: DataType }[]; dqWeighted: number; dqEmissions: number; total: number; entries: number }
+  >();
+
+  for (const c of calcs as any[]) {
+    if (!c.period?.start || !c.period?.end) continue;
+    const year = midpointYear(c.period.start, c.period.end);
+    let b = byYear.get(year);
+    if (!b) {
+      b = { items: [], dqWeighted: 0, dqEmissions: 0, total: 0, entries: 0 };
+      byYear.set(year, b);
+    }
+    for (const e of c.data || []) {
+      const em = e.emissions || 0;
+      const dataType = classifyEntryDataType({ method: e.method, supplierId: e.supplierId, isEstimate: e.isEstimate });
+      b.items.push({ emissions: em, dataType });
+      if (e.dqScore) {
+        b.dqWeighted += e.dqScore * em;
+        b.dqEmissions += em;
+      }
+      b.total += em;
+      b.entries += 1;
+    }
+  }
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const years: any[] = [...byYear.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, b]) => {
+      const shares = summarizeDataTypeShares(b.items);
+      return {
+        year,
+        totalEmissions: round(b.total),
+        entries: b.entries,
+        weightedDqScore: b.dqEmissions > 0 ? round(b.dqWeighted / b.dqEmissions) : null,
+        primarySharePercent: shares.primarySharePercent,
+        secondarySharePercent: shares.secondarySharePercent,
+        estimatedEmissions: shares.estimatedEmissions,
+      };
+    });
+
+  // YoY deltas — improvement = DQ score falling (toward 1) and/or primary share rising.
+  for (let i = 1; i < years.length; i++) {
+    const prev = years[i - 1];
+    const cur = years[i];
+    cur.dqScoreDelta =
+      cur.weightedDqScore != null && prev.weightedDqScore != null
+        ? round(cur.weightedDqScore - prev.weightedDqScore)
+        : null;
+    cur.primaryShareDelta = round(cur.primarySharePercent - prev.primarySharePercent);
+    cur.improving = (cur.dqScoreDelta != null && cur.dqScoreDelta < 0) || cur.primaryShareDelta > 0;
+  }
+
+  ApiResponseUtil.success(res, {
+    years,
+    count: years.length,
+    note:
+      'Data quality improves as the weighted PCAF score falls toward 1 and the primary (supplier-specific) data share rises. SBTi expects year-over-year improvement; this trend is the evidence.',
+  });
+});
 
 export const getInventoryManagementPlan = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
