@@ -10,6 +10,7 @@ import { EmissionFactor } from '../models/EmissionFactor';
 import { AuditLog } from '../models/AuditLog';
 import { CalculationSnapshot } from '../models/CalculationSnapshot';
 import { Inventory } from '../models/Inventory';
+import { Evidence } from '../models/Evidence';
 import { midpointYear } from '../services/inventoryService';
 import { computeConsolidation, ConsolidationApproach } from '../services/consolidationService';
 import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
@@ -497,48 +498,92 @@ export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest
       .lean(),
   ]);
 
+  // Per-data-line evidence (§4.3): index the evidence for this period's
+  // calculations so each register row carries its attachment chain — the
+  // sampling/traceability surface a verifier needs.
+  const evidenceDocs = await Evidence.find({
+    organizationId: req.user.organizationId,
+    calculationId: { $in: calcs.map((c: any) => c._id) },
+  })
+    .select('calculationId entryIndex filename contentType size sha256 uploadedByEmail createdAt')
+    .lean();
+  const evidenceByLine = new Map<string, any[]>();
+  for (const ev of evidenceDocs as any[]) {
+    const key = `${ev.calculationId.toString()}:${ev.entryIndex}`;
+    const list = evidenceByLine.get(key) || [];
+    list.push({
+      id: ev._id.toString(),
+      filename: ev.filename,
+      contentType: ev.contentType,
+      size: ev.size,
+      sha256: ev.sha256,
+      uploadedByEmail: ev.uploadedByEmail,
+      uploadedAt: ev.createdAt,
+      downloadPath: `/api/evidence/${ev._id.toString()}/download`,
+    });
+    evidenceByLine.set(key, list);
+  }
+
   // Flat activity-data register: every entry with its full provenance chain —
   // the sampling surface for a verifier.
   const activityRegister = calcs.flatMap((c: any) =>
-    (c.data || []).map((e: any) => ({
-      calculationId: c._id.toString(),
-      calculationTitle: c.title,
-      status: c.status,
-      period: c.period,
-      facilityId: c.facilityId,
-      category: e.categoryId?.category,
-      scope: e.categoryId?.scope,
-      value: e.value,
-      unit: e.unit,
-      emissions: e.emissions,
-      factor: e.factor,
-      factorId: e.factorId,
-      factorName: e.factorName,
-      factorSource: e.factorSource,
-      factorYear: e.factorYear,
-      gwpSet: e.gwpSet,
-      gwpApplied: e.gwpApplied,
-      method: e.method,
-      supplierId: e.supplierId,
-      supplierName: e.supplierName,
-      quality: e.quality,
-      dqScore: e.dqScore,
-      isEstimate: e.isEstimate,
-      estimationMethod: e.estimationMethod,
-      scope2Location: e.scope2Location,
-      scope2Market: e.scope2Market,
-      scope2MarketMethod: e.scope2MarketMethod,
-      notes: e.notes,
-    }))
+    (c.data || []).map((e: any, idx: number) => {
+      const evidence = evidenceByLine.get(`${c._id.toString()}:${idx}`) || [];
+      return {
+        calculationId: c._id.toString(),
+        calculationTitle: c.title,
+        entryIndex: idx,
+        status: c.status,
+        period: c.period,
+        facilityId: c.facilityId,
+        category: e.categoryId?.category,
+        scope: e.categoryId?.scope,
+        value: e.value,
+        unit: e.unit,
+        emissions: e.emissions,
+        factor: e.factor,
+        factorId: e.factorId,
+        factorName: e.factorName,
+        factorSource: e.factorSource,
+        factorYear: e.factorYear,
+        factorVersion: e.factorVersion,
+        gwpSet: e.gwpSet,
+        gwpApplied: e.gwpApplied,
+        method: e.method,
+        supplierId: e.supplierId,
+        supplierName: e.supplierName,
+        quality: e.quality,
+        dqScore: e.dqScore,
+        isEstimate: e.isEstimate,
+        estimationMethod: e.estimationMethod,
+        scope2Location: e.scope2Location,
+        scope2Market: e.scope2Market,
+        scope2MarketMethod: e.scope2MarketMethod,
+        notes: e.notes,
+        evidenceCount: evidence.length,
+        evidence,
+      };
+    })
   );
+
+  const linesWithEvidence = activityRegister.filter((r: any) => r.evidenceCount > 0).length;
 
   ApiResponseUtil.success(res, {
     inventoryReport: report,
     activityRegister,
+    evidenceSummary: {
+      totalAttachments: evidenceDocs.length,
+      dataLinesTotal: activityRegister.length,
+      dataLinesWithEvidence: linesWithEvidence,
+      coveragePercent:
+        activityRegister.length > 0
+          ? Math.round((linesWithEvidence / activityRegister.length) * 1000) / 10
+          : 0,
+    },
     auditTrail: audit.map((a: any) => ({ ...a, id: a._id.toString() })),
     snapshots: snapshots.map((s: any) => ({ ...s, id: s._id.toString() })),
-    contents: ['inventoryReport', 'activityRegister', 'auditTrail', 'snapshots'],
-    note: 'Per-data-line evidence attachments are not yet supported (gap analysis §4.3); audit extract capped at 500 entries.',
+    contents: ['inventoryReport', 'activityRegister', 'evidenceSummary', 'auditTrail', 'snapshots'],
+    note: 'Per-data-line evidence attachments are included (§4.3): each activity-register row carries its evidence chain with download links; audit extract capped at 500 entries.',
   });
 });
 

@@ -201,6 +201,28 @@ export interface IEmissionFactorVersion extends Document {
   updatedAt: Date;
 }
 
+/**
+ * Evidence attachment for a single calculation data line (§4.3 — required for
+ * assurance). The bytes live in GridFS (bucket `evidence`); this is the metadata
+ * record linking a file to a specific `Calculation.data[entryIndex]`.
+ */
+export interface IEvidence extends Document {
+  _id: Types.ObjectId;
+  organizationId: Types.ObjectId;
+  calculationId: Types.ObjectId;
+  entryIndex: number; // position in Calculation.data[]
+  gridFsId: Types.ObjectId; // _id in the evidence.files GridFS collection
+  filename: string;
+  contentType: string;
+  size: number; // bytes
+  sha256: string; // integrity / duplicate hint
+  description?: string;
+  uploadedBy: Types.ObjectId;
+  uploadedByEmail: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface IIndustryBenchmark extends mongoose.Document {
   industry: string;
   region: string;
