@@ -10,6 +10,7 @@ import {
   RecomputeCheckResult,
   EvidenceList,
   EvidenceItem,
+  DataQualityTrend,
   Supplier,
   SupplierEngagementSummary,
   CompletenessResult,
@@ -139,6 +140,13 @@ export const complianceService = {
     const response = await apiService.delete(`/evidence/${id}`);
     if (!response.success) throw new Error(response.message || 'Delete failed');
     return response;
+  },
+
+  // Year-over-year data-quality trend (§5).
+  getDataQualityTrend: async (): Promise<DataQualityTrend> => {
+    const response = await apiService.get<DataQualityTrend>('/reports/data-quality-trend');
+    if (!response.success || !response.data) throw new Error(response.message || 'Failed to load trend');
+    return response.data;
   },
 
   // ---- Facilities (organizational boundary) ----

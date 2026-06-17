@@ -189,6 +189,27 @@ export interface User {
 	evidence: EvidenceItem[];
   }
 
+  /** One reporting year in the data-quality trend (§5). */
+  export interface DataQualityTrendYear {
+	year: number;
+	totalEmissions: number;
+	entries: number;
+	weightedDqScore: number | null;
+	primarySharePercent: number;
+	secondarySharePercent: number;
+	estimatedEmissions: number;
+	dqScoreDelta?: number | null;
+	primaryShareDelta?: number;
+	improving?: boolean;
+  }
+
+  /** Result of GET /reports/data-quality-trend (§5). */
+  export interface DataQualityTrend {
+	years: DataQualityTrendYear[];
+	count: number;
+	note: string;
+  }
+
   /** Conservative gap-filling suggestion from POST /calculations/estimate. */
   export interface EstimateSuggestion {
 	suggestedValue: number;

@@ -12,6 +12,7 @@ import { FleetTab } from './FleetTab';
 import { CompletenessTab } from './CompletenessTab';
 import { InventoriesTab } from './InventoriesTab';
 import { EvidenceTab } from './EvidenceTab';
+import { DataQualityTab } from './DataQualityTab';
 import {
   FileText,
   ListX,
@@ -24,6 +25,7 @@ import {
   CalendarRange,
   Truck,
   FileCheck2,
+  Gauge,
 } from 'lucide-react';
 
 /**
@@ -39,6 +41,7 @@ export const CompliancePage: React.FC = () => {
     { id: 'reports', name: 'Reports & Exports', icon: FileText, component: ReportsTab },
     { id: 'inventories', name: 'Reporting Years', icon: CalendarRange, component: InventoriesTab },
     { id: 'completeness', name: 'Completeness', icon: ClipboardCheck, component: CompletenessTab },
+    { id: 'data-quality', name: 'Data Quality', icon: Gauge, component: DataQualityTab },
     { id: 'exclusions', name: 'Exclusions Register', icon: ListX, component: ExclusionsTab },
     { id: 'facilities', name: 'Facilities', icon: Building2, component: FacilitiesTab },
     { id: 'fleet', name: 'Fleet', icon: Truck, component: FleetTab },
