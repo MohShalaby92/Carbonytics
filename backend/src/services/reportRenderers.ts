@@ -194,17 +194,19 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
   }
 
   heading('5. Emissions by category (with method mix)');
-  table(['Category', 'Scope', 'kg CO2e', 'Methods'], [maxW * 0.32, 40, 90, maxW - maxW * 0.32 - 130],
+  table(['Category', 'Scope', 'kg CO2e', 'Primary', 'Methods'], [maxW * 0.3, 36, 84, 52, maxW - maxW * 0.3 - 172],
     r.emissions.byCategory.map((c: any) => [
       `${c.category}${c.subcategory ? ` (${c.subcategory})` : ''}`,
       String(c.scope),
       num(c.emissions),
+      c.dataSources ? `${c.dataSources.primarySharePercent}%` : '—',
       methodMix(c.methods, c.emissions),
     ]));
 
   heading('6. Data quality');
   draw(`High: ${r.dataQuality.high} · Medium: ${r.dataQuality.medium} · Low: ${r.dataQuality.low} · Unrated: ${r.dataQuality.unrated} (rated share ${r.dataQuality.ratedShare}%)`, { indent: 10, size: 9 });
   if (r.dataQuality.weightedDqScore) draw(`PCAF-style weighted DQ score: ${r.dataQuality.weightedDqScore} (1 best … 5 worst, emissions-weighted)`, { indent: 10, size: 9 });
+  if (r.dataQuality.dataSources) draw(`Data source: ${r.dataQuality.dataSources.primarySharePercent}% primary (supplier-specific / measured) · ${r.dataQuality.dataSources.secondarySharePercent}% secondary. Primary-data share per category is tracked for CDP/SBTi and should rise over time.`, { indent: 10, size: 9 });
   draw(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions`, { indent: 10, size: 9 });
 
   heading('7. Completeness');
@@ -334,11 +336,12 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
   children.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
-      dRow(['Category', 'Scope', 'kg CO2e', 'Methods'], true),
+      dRow(['Category', 'Scope', 'kg CO2e', 'Primary', 'Methods'], true),
       ...r.emissions.byCategory.map((c: any) => dRow([
         `${c.category}${c.subcategory ? ` (${c.subcategory})` : ''}`,
         String(c.scope),
         num(c.emissions),
+        c.dataSources ? `${c.dataSources.primarySharePercent}%` : '—',
         methodMix(c.methods, c.emissions),
       ])),
     ],
@@ -347,6 +350,7 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
   h('6. Data quality');
   p(`High: ${r.dataQuality.high} · Medium: ${r.dataQuality.medium} · Low: ${r.dataQuality.low} · Unrated: ${r.dataQuality.unrated} (rated share ${r.dataQuality.ratedShare}%)`);
   if (r.dataQuality.weightedDqScore) p(`PCAF-style weighted DQ score: ${r.dataQuality.weightedDqScore} (1 best … 5 worst, emissions-weighted)`);
+  if (r.dataQuality.dataSources) p(`Data source: ${r.dataQuality.dataSources.primarySharePercent}% primary (supplier-specific / measured) · ${r.dataQuality.dataSources.secondarySharePercent}% secondary. Primary-data share per category is tracked for CDP/SBTi.`);
   p(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions`);
 
   h('7. Completeness');
@@ -460,9 +464,11 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
     { header: 'Subcategory', key: 'sub', width: 20 },
     { header: 'kg CO2e', key: 'e', width: 16 },
     { header: 'Entries', key: 'n', width: 10 },
+    { header: 'Primary %', key: 'p', width: 11 },
+    { header: 'Secondary %', key: 'sec', width: 12 },
     { header: 'Method mix', key: 'm', width: 50 },
   ];
-  r.emissions.byCategory.forEach((c: any) => cat.addRow({ c: c.category, s: c.scope, sub: c.subcategory || '', e: c.emissions, n: c.entries, m: methodMix(c.methods, c.emissions) }));
+  r.emissions.byCategory.forEach((c: any) => cat.addRow({ c: c.category, s: c.scope, sub: c.subcategory || '', e: c.emissions, n: c.entries, p: c.dataSources ? c.dataSources.primarySharePercent : 0, sec: c.dataSources ? c.dataSources.secondarySharePercent : 0, m: methodMix(c.methods, c.emissions) }));
   headerStyle(cat);
 
   if ((r.intensity.metrics || []).length) {
@@ -509,6 +515,8 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
     ['Unrated entries', r.dataQuality.unrated],
     ['Rated share %', r.dataQuality.ratedShare],
     ['Weighted DQ score (PCAF 1-5)', r.dataQuality.weightedDqScore ?? 'n/a'],
+    ['Primary data share %', r.dataQuality.dataSources?.primarySharePercent ?? 'n/a'],
+    ['Secondary data share %', r.dataQuality.dataSources?.secondarySharePercent ?? 'n/a'],
     ['Estimated entries', r.dataQuality.estimates.count],
     ['Estimated emissions share %', r.dataQuality.estimates.emissionsShare],
     ['Relevant categories', r.completeness.relevantCount],

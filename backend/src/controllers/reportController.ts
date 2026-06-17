@@ -13,6 +13,7 @@ import { Inventory } from '../models/Inventory';
 import { Evidence } from '../models/Evidence';
 import { midpointYear } from '../services/inventoryService';
 import { computeConsolidation, ConsolidationApproach } from '../services/consolidationService';
+import { classifyEntryDataType, summarizeDataTypeShares, DataType } from '../services/dataQuality';
 import { GWP_SETS, DEFAULT_GWP_SET, isGwpSetName } from '../data/gwpSets';
 import { CONSERVATIVENESS_UPLIFT } from '../services/estimationService';
 import { ApiResponseUtil } from '../utils/apiResponse';
@@ -78,7 +79,9 @@ async function buildGHGInventoryReport(
 
   // Totals by scope + per-category breakdown with method mix.
   const byScope = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
-  const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number }> = {};
+  const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number; primary: number; secondary: number; estimated: number }> = {};
+  // Org-wide primary/secondary/estimated data-source split (§5).
+  const dataTypeItems: { emissions: number; dataType: DataType }[] = [];
   const dual = { locationBased: 0, marketBased: 0, electricityEntries: 0, methods: new Set<string>() };
   const quality = { high: 0, medium: 0, low: 0, unrated: 0 };
   // PCAF-style weighted DQ (emissions-weighted) + estimated-data share.
@@ -108,12 +111,21 @@ async function buildGHGInventoryReport(
       const cat: any = entry.categoryId;
       const name = cat?.category || 'Unknown';
       if (!byCategory[name]) {
-        byCategory[name] = { scope: cat?.scope || 0, subcategory: cat?.subcategory, emissions: 0, methods: {}, entries: 0 };
+        byCategory[name] = { scope: cat?.scope || 0, subcategory: cat?.subcategory, emissions: 0, methods: {}, entries: 0, primary: 0, secondary: 0, estimated: 0 };
       }
       byCategory[name].emissions += entry.emissions || 0;
       byCategory[name].entries += 1;
       const method = (entry as any).method || 'unspecified';
       byCategory[name].methods[method] = (byCategory[name].methods[method] || 0) + (entry.emissions || 0);
+
+      // Primary vs secondary data-source split (§5), per category + org-wide.
+      const dataType = classifyEntryDataType({
+        method: (entry as any).method,
+        supplierId: (entry as any).supplierId,
+        isEstimate: (entry as any).isEstimate,
+      });
+      byCategory[name][dataType] += entry.emissions || 0;
+      dataTypeItems.push({ emissions: entry.emissions || 0, dataType });
 
       if ((entry as any).scope2Location !== undefined) {
         dual.locationBased += (entry as any).scope2Location || 0;
@@ -338,7 +350,26 @@ async function buildGHGInventoryReport(
         methodsUsed: Array.from(dual.methods),
       },
       byCategory: Object.entries(byCategory)
-        .map(([category, v]) => ({ category, ...v, emissions: Math.round(v.emissions * 100) / 100 }))
+        .map(([category, v]) => {
+          const total = v.primary + v.secondary + v.estimated;
+          const pct = (x: number) => (total > 0 ? Math.round((x / total) * 1000) / 10 : 0);
+          return {
+            category,
+            scope: v.scope,
+            subcategory: v.subcategory,
+            emissions: Math.round(v.emissions * 100) / 100,
+            methods: v.methods,
+            entries: v.entries,
+            // Primary vs secondary data-source share for this category (§5).
+            dataSources: {
+              primaryEmissions: Math.round(v.primary * 100) / 100,
+              secondaryEmissions: Math.round(v.secondary * 100) / 100,
+              estimatedEmissions: Math.round(v.estimated * 100) / 100,
+              primarySharePercent: pct(v.primary),
+              secondarySharePercent: pct(v.secondary + v.estimated),
+            },
+          };
+        })
         .sort((a, b) => b.emissions - a.emissions),
     },
     // Consolidation roll-up: gross vs the org's reported share (§1.2).
@@ -363,6 +394,10 @@ async function buildGHGInventoryReport(
                 (quality.high + quality.medium + quality.low + quality.unrated)) * 100
             )
           : 0,
+      // Org-wide primary vs secondary data-source share (§5). Primary =
+      // supplier-specific / material-balance (directly sourced); secondary =
+      // database/average factor; estimated = gap-filled (weakest secondary).
+      dataSources: summarizeDataTypeShares(dataTypeItems),
     },
     supplierEngagement,
     completeness,
@@ -775,13 +810,16 @@ async function buildCdpMapping(user: { organizationId: string; email: string }, 
   // electricity-only dual figures, so non-electricity Scope 2 is not dropped.
   const scope2 = scope2Totals(r);
 
-  // Scope 3 categories present, mapped to CDP C6.5 relevance rows.
+  // Scope 3 categories present, mapped to CDP C6.5 relevance rows. CDP asks for
+  // the share of each category calculated from primary (supplier-specific) data.
   const scope3Categories = r.emissions.byCategory
     .filter((c: any) => c.scope === 3)
     .map((c: any) => ({
       category: c.category,
       tCO2e: toTonnes(c.emissions),
       methodsUsed: Object.keys(c.methods),
+      'primary data %': c.dataSources ? c.dataSources.primarySharePercent : 0,
+      'secondary data %': c.dataSources ? c.dataSources.secondarySharePercent : 0,
       relevance: 'Relevant, calculated',
     }));
 
@@ -1406,19 +1444,26 @@ function renderInventoryMarkdown(r: any): string {
     lines.push('');
   }
   lines.push('## 5. Emissions by category (with method mix)');
-  lines.push(`| Category | Scope | kg CO2e | Methods |`);
-  lines.push(`|---|---|---|---|`);
+  lines.push(`| Category | Scope | kg CO2e | Primary data | Methods |`);
+  lines.push(`|---|---|---|---|---|`);
   r.emissions.byCategory.forEach((c: any) => {
     const methods = Object.entries(c.methods)
       .map(([m, v]: any) => `${m}: ${Math.round((v / Math.max(c.emissions, 0.01)) * 100)}%`)
       .join(', ');
-    lines.push(`| ${c.category}${c.subcategory ? ` (${c.subcategory})` : ''} | ${c.scope} | ${c.emissions.toLocaleString()} | ${methods} |`);
+    const prim = c.dataSources ? `${c.dataSources.primarySharePercent}%` : '—';
+    lines.push(`| ${c.category}${c.subcategory ? ` (${c.subcategory})` : ''} | ${c.scope} | ${c.emissions.toLocaleString()} | ${prim} | ${methods} |`);
   });
   lines.push('');
   lines.push('## 6. Data quality');
   lines.push(`High: ${r.dataQuality.high} · Medium: ${r.dataQuality.medium} · Low: ${r.dataQuality.low} · Unrated: ${r.dataQuality.unrated} (rated share ${r.dataQuality.ratedShare}%)`);
   if (r.dataQuality.weightedDqScore) {
     lines.push(`PCAF-style weighted DQ score: **${r.dataQuality.weightedDqScore}** (1 best … 5 worst, emissions-weighted)`);
+  }
+  if (r.dataQuality.dataSources) {
+    const ds = r.dataQuality.dataSources;
+    lines.push(
+      `Data source: **${ds.primarySharePercent}% primary** (supplier-specific / measured) · ${ds.secondarySharePercent}% secondary (incl. ${r.dataQuality.estimates.emissionsShare}% estimated). Primary ${kg(ds.primaryEmissions)} / secondary ${kg(ds.secondaryEmissions + ds.estimatedEmissions)}. CDP/SBTi track primary-data share per category (see §5 table above) and expect it to rise over time.`
+    );
   }
   lines.push(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions — estimates carry +10% conservativeness and DQ 5.`);
   lines.push('');
