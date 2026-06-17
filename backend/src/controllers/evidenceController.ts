@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response, Request, NextFunction } from 'express';
 import crypto from 'crypto';
 import multer from 'multer';
 import { Calculation } from '../models/Calculation';
@@ -38,6 +38,26 @@ export const evidenceUpload = multer({
     cb(new Error('Unsupported evidence file type. Allowed: PDF, image, CSV/Excel, Word, text.'));
   },
 });
+
+/**
+ * Run the evidence multer middleware and convert ITS errors (rejected file type,
+ * size limit) into a clean 400 instead of letting them fall through to the
+ * generic 500 error handler — these are client errors, not server faults.
+ */
+export const evidenceUploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  evidenceUpload.single('file')(req, res, (err: any) => {
+    if (err) {
+      const message =
+        err instanceof multer.MulterError
+          ? err.code === 'LIMIT_FILE_SIZE'
+            ? `File too large (max ${Math.round(config.MAX_FILE_SIZE / 1048576)}MB)`
+            : err.message
+          : err?.message || 'File upload failed';
+      return ApiResponseUtil.error(res, message, 400);
+    }
+    next();
+  });
+};
 
 const evidenceMeta = (e: any) => ({
   id: e._id.toString(),

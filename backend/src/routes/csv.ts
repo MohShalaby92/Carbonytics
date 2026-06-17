@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { 
-  upload,
+import {
+  uploadCsvMiddleware,
   validateCSVFile,
   importCSVFile,
   getImportTemplate,
@@ -22,13 +22,13 @@ const exportValidation = [
 ];
 
 // Import routes
-router.post('/validate', 
-  upload.single('file'), 
+router.post('/validate',
+  uploadCsvMiddleware,
   validateCSVFile
 );
 
-router.post('/import', 
-  upload.single('file'), 
+router.post('/import',
+  uploadCsvMiddleware,
   importCSVFile
 );
 

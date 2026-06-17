@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  evidenceUpload,
+  evidenceUploadMiddleware,
   uploadEvidence,
   listEvidence,
   downloadEvidence,
@@ -18,7 +18,7 @@ const CONTRIBUTOR_ROLES = ['admin', 'manager', 'user'] as const;
 router.post(
   '/calculation/:calcId',
   authorize(...CONTRIBUTOR_ROLES),
-  evidenceUpload.single('file'),
+  evidenceUploadMiddleware,
   uploadEvidence
 );
 router.get('/calculation/:calcId', listEvidence);

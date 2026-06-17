@@ -47,6 +47,25 @@ export const upload = multer({
   },
 });
 
+/**
+ * Run the CSV upload middleware and map multer errors (rejected type, size
+ * limit) to a clean 400 rather than a generic 500 — these are client errors.
+ */
+export const uploadCsvMiddleware = (req: Request, res: Response, next: import('express').NextFunction) => {
+  upload.single('file')(req, res, (err: any) => {
+    if (err) {
+      const message =
+        err instanceof multer.MulterError
+          ? err.code === 'LIMIT_FILE_SIZE'
+            ? `File too large (max ${Math.round(config.MAX_FILE_SIZE / 1048576)}MB)`
+            : err.message
+          : err?.message || 'File upload failed';
+      return ApiResponseUtil.error(res, message, 400);
+    }
+    next();
+  });
+};
+
 export const validateCSVFile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
     return ApiResponseUtil.error(res, 'Authentication required', 401);
