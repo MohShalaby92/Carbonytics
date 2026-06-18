@@ -458,5 +458,114 @@ export interface User {
 	};
   }
   
-  export * from './calculations'; 
+  /** An evidence attachment surfaced inline in the lineage drill-down (§7). */
+  export interface LineageEvidence {
+	id: string;
+	filename: string;
+	contentType: string;
+	size: number;
+	sha256: string;
+	uploadedByEmail?: string;
+	uploadedAt?: string;
+	downloadPath: string;
+  }
+
+  /** One contributing data line in the lineage tree (§7). */
+  export interface LineageLine {
+	calculationId: string;
+	calculationTitle?: string;
+	status?: string;
+	entryIndex: number;
+	value: number;
+	unit: string;
+	factor: number;
+	emissions: number;
+	factorId?: string;
+	factorName?: string;
+	factorSource?: string;
+	factorYear?: number;
+	factorVersion?: number | null;
+	factorVersionId?: string;
+	versionPinned: boolean;
+	gwpSet?: string;
+	gwpApplied?: 'per-gas' | 'embedded';
+	method?: string;
+	dqScore?: number;
+	quality?: 'high' | 'medium' | 'low';
+	isEstimate?: boolean;
+	estimationMethod?: string;
+	supplierId?: string;
+	supplierName?: string;
+	scope2Location?: number;
+	scope2Market?: number;
+	scope2MarketMethod?: string;
+	biogenicCO2?: number;
+	formula: string;
+	evidenceCount: number;
+	evidence: LineageEvidence[];
+  }
+
+  /** A calculation node grouping its contributing lines within a category (§7). */
+  export interface LineageCalculation {
+	calculationId: string;
+	title?: string;
+	status?: string;
+	period?: { start: string; end: string };
+	facilityId?: string;
+	facilityName?: string;
+	lineSum: number;
+	lineCount: number;
+	lines: LineageLine[];
+  }
+
+  /** A reconciliation verdict attached to a scope/category node (§7). */
+  export interface LineageReconcile {
+	lineSum: number;
+	reportedEmissions: number;
+	residual: number;
+	reconciled: boolean;
+  }
+
+  /** A category node under a scope, reconciled against the reported figure (§7). */
+  export interface LineageCategory extends LineageReconcile {
+	category: string;
+	scope: number;
+	subcategory?: string;
+	lineCount: number;
+	dataSources?: {
+	  primaryEmissions: number;
+	  secondaryEmissions: number;
+	  estimatedEmissions: number;
+	  primarySharePercent: number;
+	  secondarySharePercent: number;
+	};
+	methods?: Record<string, number>;
+	calculations: LineageCalculation[];
+  }
+
+  /** A scope node, reconciled against the reported scope figure (§7). */
+  export interface LineageScope extends LineageReconcile {
+	scope: number;
+	label: string;
+	lineCount: number;
+	categories: LineageCategory[];
+  }
+
+  /** Result of GET /reports/lineage (§7 calculation-lineage drill-down). */
+  export interface LineageReport {
+	period: { start: string; end: string };
+	reportingYear: number;
+	gwpSet?: string;
+	gwpSetPinned: boolean;
+	reportTotals: {
+	  byScope: { scope1: number; scope2: number; scope3: number; total: number };
+	  scope2Dual?: { locationBased: number; marketBased: number };
+	  total: number;
+	};
+	totals: LineageReconcile & { lineCount: number };
+	scopes: LineageScope[];
+	note: string;
+  }
+
+  export * from './calculations';
   

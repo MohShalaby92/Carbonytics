@@ -7,6 +7,7 @@ import { FacilitiesTab } from './FacilitiesTab';
 import { DenominatorsTab } from './DenominatorsTab';
 import { AuditLogTab } from './AuditLogTab';
 import { SnapshotsTab } from './SnapshotsTab';
+import { LineageTab } from './LineageTab';
 import { SuppliersTab } from './SuppliersTab';
 import { FleetTab } from './FleetTab';
 import { CompletenessTab } from './CompletenessTab';
@@ -26,6 +27,7 @@ import {
   Truck,
   FileCheck2,
   Gauge,
+  Network,
 } from 'lucide-react';
 
 /**
@@ -48,6 +50,7 @@ export const CompliancePage: React.FC = () => {
     { id: 'suppliers', name: 'Suppliers', icon: Handshake, component: SuppliersTab },
     { id: 'denominators', name: 'Intensity & Denominators', icon: Divide, component: DenominatorsTab },
     { id: 'snapshots', name: 'Snapshots & Restatements', icon: History, component: SnapshotsTab },
+    { id: 'lineage', name: 'Calculation Lineage', icon: Network, component: LineageTab },
     { id: 'evidence', name: 'Evidence', icon: FileCheck2, component: EvidenceTab },
     { id: 'audit', name: 'Audit Trail', icon: ScrollText, component: AuditLogTab, adminOnly: true },
   ];

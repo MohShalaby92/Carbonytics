@@ -18,6 +18,7 @@ import {
   Inventory,
   RecalculationCheck,
   Vehicle,
+  LineageReport,
 } from '../types';
 
 /**
@@ -436,6 +437,16 @@ export const complianceService = {
       { responseType: 'blob' }
     )) as unknown as Blob;
     downloadBlob(blob, `ghg-inventory_${startDate}_${endDate}.${ext}`);
+  },
+
+  // Calculation-lineage drill-down (§7): reported numbers -> contributing lines
+  // with full provenance, derived formulas, evidence and reconciliation.
+  getLineage: async (startDate: string, endDate: string): Promise<LineageReport> => {
+    const response = await apiService.get<LineageReport>(
+      `/reports/lineage?${dateRangeQuery(startDate, endDate)}`
+    );
+    if (!response.success || !response.data) throw new Error(response.message || 'Failed to load lineage');
+    return response.data;
   },
 
   downloadAssurancePackage: async (startDate: string, endDate: string) => {
