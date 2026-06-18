@@ -38,6 +38,9 @@ import {
 export const CompliancePage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('reports');
+  // Deep-link context: a "Trace" from the Reports preview opens the Lineage tab
+  // focused on the same reporting period.
+  const [lineageContext, setLineageContext] = useState<{ start: string; end: string } | null>(null);
 
   const tabs = [
     { id: 'reports', name: 'Reports & Exports', icon: FileText, component: ReportsTab },
@@ -58,6 +61,24 @@ export const CompliancePage: React.FC = () => {
   const visibleTabs = tabs.filter((tab) => !tab.adminOnly || user?.role === 'admin');
   const ActiveComponent =
     visibleTabs.find((tab) => tab.id === activeTab)?.component || ReportsTab;
+
+  // Reports and Lineage take props (deep-link wiring); the rest render plain.
+  const renderActive = () => {
+    if (activeTab === 'reports') {
+      return (
+        <ReportsTab
+          onTrace={(start, end) => {
+            setLineageContext({ start, end });
+            setActiveTab('lineage');
+          }}
+        />
+      );
+    }
+    if (activeTab === 'lineage') {
+      return <LineageTab initialPeriod={lineageContext} />;
+    }
+    return <ActiveComponent />;
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -94,7 +115,7 @@ export const CompliancePage: React.FC = () => {
         </div>
 
         <div className="flex-1 min-w-0">
-          <ActiveComponent />
+          {renderActive()}
         </div>
       </div>
     </div>

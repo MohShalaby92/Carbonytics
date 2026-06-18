@@ -11,6 +11,8 @@ import {
   LineageCalculation,
   LineageLine,
   LineageEvidence,
+  RecomputeCheckResult,
+  RecomputeEntry,
 } from '../../types';
 import {
   Network,
@@ -24,6 +26,7 @@ import {
   Building2,
   Lock,
   Download,
+  ShieldCheck,
 } from 'lucide-react';
 
 /**
@@ -52,7 +55,7 @@ const ReconBadge: React.FC<{ reconciled: boolean; residual: number }> = ({ recon
   );
 
 /** A single contributing data line: the formula + full provenance + evidence. */
-const LineDetail: React.FC<{ line: LineageLine }> = ({ line }) => {
+const LineDetail: React.FC<{ line: LineageLine; recompute?: RecomputeEntry }> = ({ line, recompute }) => {
   const downloadEvidence = (ev: LineageEvidence) =>
     complianceService.downloadEvidence({ id: ev.id, filename: ev.filename } as any);
 
@@ -94,6 +97,36 @@ const LineDetail: React.FC<{ line: LineageLine }> = ({ line }) => {
           </span>
         )}
       </div>
+
+      {/* Deterministic recompute verdict (§3, overlaid on demand) */}
+      {recompute && (
+        <div className="text-xs">
+          {!recompute.recomputeSupported ? (
+            <span className="text-muted inline-flex items-center gap-1" title={recompute.note}>
+              not recomputable
+            </span>
+          ) : recompute.matches ? (
+            <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> reproduced ({fmt(recompute.recomputedEmissions)} kg)
+              {recompute.factorChangedSincePin && (
+                <span
+                  className="ml-1 text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5"
+                  title={`Live factor (v${recompute.currentFactorVersion}) would now give ${fmt(
+                    recompute.liveEmissions
+                  )} kg — the pinned version preserves the original`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" /> factor drifted
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-red-600 dark:text-red-400 inline-flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> mismatch (recomputed{' '}
+              {fmt(recompute.recomputedEmissions)} vs stored {fmt(recompute.storedEmissions)} kg)
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Method / GWP / DQ / estimate badges */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -161,10 +194,12 @@ const LineDetail: React.FC<{ line: LineageLine }> = ({ line }) => {
   );
 };
 
-export const LineageTab: React.FC = () => {
+export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string } | null }> = ({
+  initialPeriod,
+}) => {
   const yr = new Date().getFullYear();
-  const [start, setStart] = useState(`${yr}-01-01`);
-  const [end, setEnd] = useState(`${yr}-12-31`);
+  const [start, setStart] = useState(initialPeriod?.start || `${yr}-01-01`);
+  const [end, setEnd] = useState(initialPeriod?.end || `${yr}-12-31`);
   const [lineage, setLineage] = useState<LineageReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,9 +209,14 @@ export const LineageTab: React.FC = () => {
   const [openCats, setOpenCats] = useState<Set<string>>(new Set());
   const [openCalcs, setOpenCalcs] = useState<Set<string>>(new Set());
 
+  // Deterministic recompute-check results, overlaid per calculation on demand (§3).
+  const [recompute, setRecompute] = useState<Record<string, RecomputeCheckResult>>({});
+  const [checking, setChecking] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     setError(null);
+    setRecompute({});
     try {
       setLineage(await complianceService.getLineage(start, end));
     } catch (err: any) {
@@ -184,6 +224,18 @@ export const LineageTab: React.FC = () => {
       setLineage(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runCheck = async (calcId: string) => {
+    setChecking(calcId);
+    try {
+      const res = await complianceService.getRecomputeCheck(calcId);
+      setRecompute((prev) => ({ ...prev, [calcId]: res }));
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Recompute check failed');
+    } finally {
+      setChecking(null);
     }
   };
 
@@ -318,13 +370,14 @@ export const LineageTab: React.FC = () => {
                                 {c.calculations.map((calc: LineageCalculation) => {
                                   const calcKey = `${cKey}:${calc.calculationId}`;
                                   const calcOpen = openCalcs.has(calcKey);
+                                  const rc = recompute[calc.calculationId];
                                   return (
                                     <div key={calcKey} className="rounded-md border border-line/70 bg-fg/[0.02]">
-                                      <button
-                                        onClick={() => toggle(openCalcs, calcKey, setOpenCalcs)}
-                                        className="w-full flex items-center justify-between gap-3 px-3 py-2 hover:bg-fg/[0.03] transition-colors text-left"
-                                      >
-                                        <span className="flex items-center gap-2 min-w-0">
+                                      <div className="flex items-center justify-between gap-2 px-3 py-2">
+                                        <button
+                                          onClick={() => toggle(openCalcs, calcKey, setOpenCalcs)}
+                                          className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity text-left"
+                                        >
                                           {calcOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                                           <span className="text-sm text-fg/90 truncate">{calc.title || '(untitled)'}</span>
                                           {calc.status === 'locked' && (
@@ -334,13 +387,40 @@ export const LineageTab: React.FC = () => {
                                             <span className="text-xs text-muted shrink-0">· {calc.facilityName}</span>
                                           )}
                                           <span className="text-xs text-muted shrink-0">· {calc.lineCount} line{calc.lineCount === 1 ? '' : 's'}</span>
-                                        </span>
-                                        <span className="text-sm tabular-nums text-fg/80 shrink-0">{fmt(calc.lineSum)} kg</span>
-                                      </button>
+                                        </button>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-sm tabular-nums text-fg/80">{fmt(calc.lineSum)} kg</span>
+                                          {rc ? (
+                                            <Badge
+                                              variant={rc.summary.mismatches > 0 ? 'error' : rc.deterministic ? 'success' : 'warning'}
+                                              size="sm"
+                                            >
+                                              {rc.summary.mismatches > 0
+                                                ? 'mismatch'
+                                                : rc.deterministic
+                                                ? 'deterministic'
+                                                : 'reproducible'}
+                                            </Badge>
+                                          ) : (
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => runCheck(calc.calculationId)}
+                                              loading={checking === calc.calculationId}
+                                            >
+                                              <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Check
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
                                       {calcOpen && (
                                         <div className="px-3 pb-3 pt-1 space-y-2">
                                           {calc.lines.map((line) => (
-                                            <LineDetail key={`${line.calculationId}:${line.entryIndex}`} line={line} />
+                                            <LineDetail
+                                              key={`${line.calculationId}:${line.entryIndex}`}
+                                              line={line}
+                                              recompute={rc?.entries.find((e) => e.index === line.entryIndex)}
+                                            />
                                           ))}
                                         </div>
                                       )}

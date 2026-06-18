@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { complianceService } from '../../services/complianceService';
 import { formatEmissions } from '../../utils/calculations';
-import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList, Globe, Target, Landmark } from 'lucide-react';
+import { Download, FileText, ShieldCheck, RefreshCw, ClipboardList, Globe, Target, Landmark, Network } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
@@ -12,7 +12,7 @@ const currentYear = new Date().getFullYear();
  * GHG inventory report + assurance package exports for an arbitrary reporting
  * period, with an on-screen preview of the inventory content.
  */
-export const ReportsTab: React.FC = () => {
+export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => void }> = ({ onTrace }) => {
   const [startDate, setStartDate] = useState(`${currentYear}-01-01`);
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
@@ -232,9 +232,17 @@ export const ReportsTab: React.FC = () => {
 
       {report && (
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-fg mb-4">
-            Inventory Preview — {report.organization?.name}
-          </h3>
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <h3 className="text-lg font-semibold text-fg">
+              Inventory Preview — {report.organization?.name}
+            </h3>
+            {onTrace && (
+              <Button variant="outline" size="sm" onClick={() => onTrace(startDate, endDate)}>
+                <Network className="w-4 h-4 mr-2" />
+                Trace in lineage
+              </Button>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="p-3 bg-fg/[0.04] rounded-lg">
