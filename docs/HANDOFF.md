@@ -1,6 +1,6 @@
 # Carbonytics — Session Handoff Document
 
-**Date:** 2026-06-17 · **Branch:** `remediation` — tip is this HANDOFF rewrite, on top of `528da2f` (pre-merge verification fix: upload 500→400) / `9f9679a`…`451c14e` (§5 data quality) / `954bd30`…`6432bc7` (§4.3 evidence + import DQ) / `3d071b4`…`b6480b4` (§3 factor version history); **88 commits ahead of `master`; master untouched; branch verified merge-ready (do NOT push until the embedded PAT is rotated — §7.1)** · **Author of prior work:** Claude Code sessions with MohShalaby92
+**Date:** 2026-06-17 · **Branch:** `remediation` — tip is this HANDOFF rewrite, on top of `528da2f` (pre-merge verification fix: upload 500→400) / `9f9679a`…`451c14e` (§5 data quality) / `954bd30`…`6432bc7` (§4.3 evidence + import DQ) / `3d071b4`…`b6480b4` (§3 factor version history); **88 commits ahead of `master`; master untouched; branch verified merge-ready — the GitHub PAT was rotated 2026-06-17 (§7.1), so pushing `remediation` is now safe** · **Author of prior work:** Claude Code sessions with MohShalaby92
 
 **Purpose:** complete continuation context for a new session. Read top-to-bottom before changing anything. Companion artifacts: `docs/ENTERPRISE_GAP_ANALYSIS.md` (requirement-by-requirement status + per-increment addenda §14–§38), the git log (detailed commit messages with verification evidence), and `ENTERPRISE_REQUIREMENTS_REPORT.md` on the user's Desktop (the master spec; implementation follows its priority order P0 → P1 → P2). Overall completeness vs that spec ≈ **60% unweighted / ~65% priority-weighted; P0 tier ~73%** (the rest is data-dependent, deploy-time, or P2 differentiators — see §5).
 
@@ -201,7 +201,7 @@ Source files: `C:\Users\Shalaby\Desktop\ALX\Carbonytics_ ALX_Graduation_Project\
 
 ## 7. Outside-the-code action items (user-owned)
 
-1. 🔴 **Rotate the GitHub PAT embedded in the git remote URL** (`.git/config`) — treat as compromised; do not push until rotated, then rewrite the remote (credential manager or SSH).
+1. ✅ **DONE (2026-06-17) — GitHub PAT rotated.** The compromised PAT that was embedded in the git remote URL was revoked on GitHub; the remote was rewritten to a clean `https://github.com/MohShalaby92/Carbonytics.git` (no embedded token) and auth now goes through **Git Credential Manager** (`manager`), which holds the new credential in Windows Credential Manager — no plaintext token in `.git/config`. Verified with a non-interactive `git ls-remote` (exit 0 after revocation). **Pushing `remediation` is now safe.** (Note: the same token may be reused by other local projects — strip it from their remotes the same way + re-auth via GCM if any break.)
 2. `docker-compose.prod.yml` was never aligned with the new env contract (JWT pair, COOKIE_SECURE, Vite build) — required before any real deploy, with HTTPS, real secrets, Mongo auth, backups.
 3. Consider `npm ci` in Dockerfiles now that lockfiles are committed.
 
