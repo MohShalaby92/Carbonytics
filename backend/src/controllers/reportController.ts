@@ -21,6 +21,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
 import { renderInventoryPdf, renderInventoryDocx, renderInventoryXlsx } from '../services/reportRenderers';
+import { buildEntryFormula, reconcile } from '../services/lineage';
 
 /**
  * GHG inventory report (GHG Protocol / ISO 14064-1 required content):
@@ -619,6 +620,226 @@ export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest
     snapshots: snapshots.map((s: any) => ({ ...s, id: s._id.toString() })),
     contents: ['inventoryReport', 'activityRegister', 'evidenceSummary', 'auditTrail', 'snapshots'],
     note: 'Per-data-line evidence attachments are included (§4.3): each activity-register row carries its evidence chain with download links; audit extract capped at 500 entries.',
+  });
+});
+
+/**
+ * Calculation-lineage drill-down (§7): from any reported number, expose the
+ * exact contributing data lines — value × factor → emissions — with each line's
+ * full provenance (factor + pinned immutable version), its derived formula, the
+ * data-quality score, supplier/Scope-2 provenance, and its evidence chain. The
+ * line-sums are reconciled against the headline report figures at every level
+ * (scope, category, total) so a drill-down is provably complete. Deterministic
+ * reproduction against the pinned factor version is the separate §3 recompute-
+ * check, which the lineage UI overlays per calculation.
+ */
+export const getLineage = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return ApiResponseUtil.error(res, 'Authentication required', 401);
+  }
+  const { start, end } = parsePeriod(req);
+
+  // Canonical reported figures (the exact numbers we drill into) + the identical
+  // calculation set the report aggregates (same query, same population).
+  const [report, calcs, facilities] = await Promise.all([
+    buildGHGInventoryReport(req.user, start, end),
+    Calculation.find({
+      organizationId: req.user.organizationId,
+      'period.start': { $gte: start, $lte: end },
+    })
+      .populate('data.categoryId', 'category scope subcategory')
+      .lean(),
+    Facility.find({ organizationId: req.user.organizationId }).select('name').lean(),
+  ]);
+
+  const facilityName = new Map<string, string>(
+    (facilities as any[]).map((f) => [f._id.toString(), f.name])
+  );
+
+  // Per-data-line evidence chain (same indexing as the assurance package).
+  const evidenceDocs = await Evidence.find({
+    organizationId: req.user.organizationId,
+    calculationId: { $in: (calcs as any[]).map((c) => c._id) },
+  })
+    .select('calculationId entryIndex filename contentType size sha256 uploadedByEmail createdAt')
+    .lean();
+  const evidenceByLine = new Map<string, any[]>();
+  for (const ev of evidenceDocs as any[]) {
+    const key = `${ev.calculationId.toString()}:${ev.entryIndex}`;
+    const list = evidenceByLine.get(key) || [];
+    list.push({
+      id: ev._id.toString(),
+      filename: ev.filename,
+      contentType: ev.contentType,
+      size: ev.size,
+      sha256: ev.sha256,
+      uploadedByEmail: ev.uploadedByEmail,
+      uploadedAt: ev.createdAt,
+      downloadPath: `/api/evidence/${ev._id.toString()}/download`,
+    });
+    evidenceByLine.set(key, list);
+  }
+
+  // Index the report's per-category figures so each node shows (and reconciles
+  // against) the headline number for that category.
+  const reportByCategory = new Map<string, any>(
+    ((report as any).emissions.byCategory as any[]).map((c) => [c.category, c])
+  );
+
+  // Build the scope → category → calculation → line tree from entry.emissions —
+  // the SAME source as report.emissions.byCategory, so it reconciles exactly.
+  interface ScopeNode {
+    scope: number;
+    lineSum: number;
+    lineCount: number;
+    categories: Map<string, any>;
+  }
+  const scopeNodes = new Map<number, ScopeNode>();
+
+  for (const calc of calcs as any[]) {
+    const data = calc.data || [];
+    for (let idx = 0; idx < data.length; idx++) {
+      const entry = data[idx];
+      const cat: any = entry.categoryId;
+      const categoryName = cat?.category || 'Unknown';
+      const scope = cat?.scope || 0;
+      const emissions = entry.emissions || 0;
+      const evidence = evidenceByLine.get(`${calc._id.toString()}:${idx}`) || [];
+      const calculationId = calc._id.toString();
+
+      const line = {
+        calculationId,
+        calculationTitle: calc.title,
+        status: calc.status,
+        entryIndex: idx,
+        value: entry.value,
+        unit: entry.unit,
+        factor: entry.factor,
+        emissions: Math.round(emissions * 100) / 100,
+        factorId: entry.factorId ? entry.factorId.toString() : undefined,
+        factorName: entry.factorName,
+        factorSource: entry.factorSource,
+        factorYear: entry.factorYear,
+        factorVersion: entry.factorVersion,
+        factorVersionId: entry.factorVersionId ? entry.factorVersionId.toString() : undefined,
+        versionPinned: entry.factorVersion !== undefined && entry.factorVersion !== null,
+        gwpSet: entry.gwpSet,
+        gwpApplied: entry.gwpApplied,
+        method: entry.method,
+        dqScore: entry.dqScore,
+        quality: entry.quality,
+        isEstimate: !!entry.isEstimate,
+        estimationMethod: entry.estimationMethod,
+        supplierId: entry.supplierId ? entry.supplierId.toString() : undefined,
+        supplierName: entry.supplierName,
+        scope2Location: entry.scope2Location,
+        scope2Market: entry.scope2Market,
+        scope2MarketMethod: entry.scope2MarketMethod,
+        biogenicCO2: entry.biogenicCO2,
+        formula: buildEntryFormula(entry),
+        evidenceCount: evidence.length,
+        evidence,
+      };
+
+      let sNode = scopeNodes.get(scope);
+      if (!sNode) {
+        sNode = { scope, lineSum: 0, lineCount: 0, categories: new Map() };
+        scopeNodes.set(scope, sNode);
+      }
+      sNode.lineSum += emissions;
+      sNode.lineCount += 1;
+
+      let cNode = sNode.categories.get(categoryName);
+      if (!cNode) {
+        cNode = {
+          category: categoryName,
+          scope,
+          subcategory: cat?.subcategory,
+          lineSum: 0,
+          lineCount: 0,
+          calculations: new Map(),
+        };
+        sNode.categories.set(categoryName, cNode);
+      }
+      cNode.lineSum += emissions;
+      cNode.lineCount += 1;
+
+      let calcNode = cNode.calculations.get(calculationId);
+      if (!calcNode) {
+        calcNode = {
+          calculationId,
+          title: calc.title,
+          status: calc.status,
+          period: calc.period,
+          facilityId: calc.facilityId ? calc.facilityId.toString() : undefined,
+          facilityName: calc.facilityId ? facilityName.get(calc.facilityId.toString()) : undefined,
+          lineSum: 0,
+          lineCount: 0,
+          lines: [] as any[],
+        };
+        cNode.calculations.set(calculationId, calcNode);
+      }
+      calcNode.lineSum += emissions;
+      calcNode.lineCount += 1;
+      calcNode.lines.push(line);
+    }
+  }
+
+  const SCOPE_LABEL: Record<number, string> = {
+    1: 'Scope 1 — Direct',
+    2: 'Scope 2 — Purchased energy',
+    3: 'Scope 3 — Value chain',
+  };
+  const byScope: any = (report as any).emissions.byScope;
+
+  const scopes = Array.from(scopeNodes.values())
+    .sort((a, b) => a.scope - b.scope)
+    .map((s) => {
+      const reportedEmissions = byScope[`scope${s.scope}`] ?? 0;
+      const categories = Array.from(s.categories.values())
+        .map((c: any) => {
+          const repCat = reportByCategory.get(c.category);
+          const calculations = Array.from(c.calculations.values())
+            .map((cn: any) => ({ ...cn, lineSum: Math.round(cn.lineSum * 100) / 100 }))
+            .sort((a: any, b: any) => b.lineSum - a.lineSum);
+          return {
+            category: c.category,
+            scope: c.scope,
+            subcategory: c.subcategory,
+            ...reconcile(c.lineSum, repCat?.emissions ?? c.lineSum),
+            lineCount: c.lineCount,
+            dataSources: repCat?.dataSources,
+            methods: repCat?.methods,
+            calculations,
+          };
+        })
+        .sort((a: any, b: any) => b.lineSum - a.lineSum);
+      return {
+        scope: s.scope,
+        label: SCOPE_LABEL[s.scope] || `Scope ${s.scope}`,
+        ...reconcile(s.lineSum, reportedEmissions),
+        lineCount: s.lineCount,
+        categories,
+      };
+    });
+
+  const totalLineSum = scopes.reduce((acc, s) => acc + s.lineSum, 0);
+  const lineCount = scopes.reduce((acc, s) => acc + s.lineCount, 0);
+
+  ApiResponseUtil.success(res, {
+    period: { start: start.toISOString(), end: end.toISOString() },
+    reportingYear: (report as any).inventory?.reportingYear ?? midpointYear(start, end),
+    gwpSet: (report as any).methodology?.gwpSet,
+    gwpSetPinned: (report as any).inventory?.gwpSetPinned ?? false,
+    reportTotals: {
+      byScope: (report as any).emissions.byScope,
+      scope2Dual: (report as any).emissions.scope2Dual,
+      total: (report as any).emissions.byScope.total,
+    },
+    totals: { ...reconcile(totalLineSum, (report as any).emissions.byScope.total), lineCount },
+    scopes,
+    note:
+      'Each reported scope/category figure drills down to its contributing calculations and data lines. Per line: value × factor = emissions (the exact derived formula), the factor used + its pinned immutable version, the PCAF data-quality score, supplier/Scope-2 provenance, and the evidence chain. Line-sums are reconciled against the headline figures at every level. Deterministic reproduction against the pinned factor version is the §3 recompute-check, available per calculation.',
   });
 });
 

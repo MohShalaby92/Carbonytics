@@ -11,6 +11,7 @@ import {
   getCompletenessReport,
   getConsolidationReport,
   getAssurancePackage,
+  getLineage,
   getInventoryManagementPlan,
   getDataQualityTrend,
   getCdpMapping,
@@ -80,6 +81,10 @@ router.get('/consolidation', validate(validateDateRange), getConsolidationReport
 
 // Assurance package (verifier bundle). Uncached export action.
 router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);
+
+// Calculation-lineage drill-down (§7): reported numbers → contributing lines
+// with full provenance, derived formulas, evidence and reconciliation. Uncached.
+router.get('/lineage', validate(validateDateRange), getLineage);
 
 // Inventory Management Plan (process document, auto-generated from live
 // configuration; ?format=markdown downloads). Uncached export action.
