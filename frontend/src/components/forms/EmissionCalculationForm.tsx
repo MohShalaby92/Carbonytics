@@ -12,7 +12,8 @@ import { apiService } from '../../services/api';
 import { complianceService } from '../../services/complianceService';
 import { EmissionCategory, EmissionFactor, CalculationResult, EstimateSuggestion, Vehicle } from '../../types';
 import { formatEmissions } from '../../utils/calculations';
-import { Calculator, Zap, Truck, Factory, Lightbulb } from 'lucide-react';
+import { getSourcingGuidance } from '../../constants/sourcingGuidance';
+import { Calculator, Zap, Truck, Factory, Lightbulb, BookOpen, ChevronDown, ChevronRight, MapPin, ListChecks, AlertTriangle } from 'lucide-react';
 
 // Category requiredInputs that duplicate the form's own base fields. Rendering
 // them twice bound the same form path twice (and the 'period' one clobbered the
@@ -113,6 +114,10 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
   // Fugitive material-balance mode (derive released refrigerant mass from inventory).
   const [mbMode, setMbMode] = useState(false);
   const [mb, setMb] = useState<Record<string, string>>({ ...EMPTY_MB });
+
+  // Inline per-category data-sourcing guidance (§4.2): where the data lives,
+  // preferred form and pitfalls. Collapsed by default to keep the form clean.
+  const [showSourcing, setShowSourcing] = useState(false);
 
   // Fleet registry quick-select (Mobile Combustion distance-based).
   const [fleet, setFleet] = useState<Vehicle[]>([]);
@@ -556,6 +561,58 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             </div>
           </Alert>
         )}
+
+        {/* Data-sourcing guidance (§4.2): where the data lives, preferred form, pitfalls */}
+        {selectedCategory && (() => {
+          const g = getSourcingGuidance(selectedCategory.category);
+          return (
+            <div className="rounded-lg border border-line bg-fg/[0.02]">
+              <button
+                type="button"
+                onClick={() => setShowSourcing((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-fg/[0.02]"
+              >
+                <span className="inline-flex items-center gap-2 text-sm font-medium text-fg/90">
+                  <BookOpen className="w-4 h-4 text-primary-600" />
+                  How to source this data
+                </span>
+                {showSourcing ? (
+                  <ChevronDown className="w-4 h-4 text-muted" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted" />
+                )}
+              </button>
+              {showSourcing && (
+                <div className="px-4 pb-4 pt-1 space-y-3 text-xs">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 mt-0.5 text-primary-600 shrink-0" />
+                    <p className="text-fg/80">
+                      <span className="font-semibold text-fg">Where it lives — </span>
+                      {g.whereItLives}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <ListChecks className="w-3.5 h-3.5 mt-0.5 text-primary-600 shrink-0" />
+                    <p className="text-fg/80">
+                      <span className="font-semibold text-fg">Preferred form — </span>
+                      {g.preferredForm}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-amber-600 shrink-0" />
+                    <p className="text-fg/80">
+                      <span className="font-semibold text-fg">Avoid — </span>
+                      {g.pitfalls}
+                    </p>
+                  </div>
+                  {g.egyptNote && (
+                    <p className="text-blue-600 dark:text-blue-400">🇪🇬 {g.egyptNote}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Fleet quick-select (Mobile Combustion distance-based) */}
         {isMobile && fleet.length > 0 && (
