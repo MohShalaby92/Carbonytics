@@ -18,7 +18,7 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
   const sortedData = Object.entries(data)
     .sort(([, a], [, b]) => b - a)
     .map(([category, emissions]) => ({
-      category: category.length > 20 ? category.substring(0, 20) + '...' : category,
+      category: category.length > 16 ? category.substring(0, 16) + '…' : category,
       fullCategory: category,
       emissions,
       formattedEmissions: formatEmissions(emissions),
@@ -54,23 +54,24 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
         )}
       </div>
 
-      <ChartContainer className="h-64 mb-4">
+      <ChartContainer className="h-80 mb-4">
         {displayData.length > 0 ? (
           <ResponsiveContainer
             width="100%"
             height="100%"
             minWidth={0}
-            minHeight={220}
-            initialDimension={{ width: 400, height: 240 }}
+            minHeight={300}
+            initialDimension={{ width: 400, height: 320 }}
           >
-            <BarChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--line))" />
               <XAxis
                 dataKey="category"
                 angle={-45}
                 textAnchor="end"
-                height={80}
-                fontSize={12}
+                height={110}
+                interval={0}
+                fontSize={11}
                 tick={{ fill: 'rgb(var(--muted))' }}
                 stroke="rgb(var(--line))"
               />

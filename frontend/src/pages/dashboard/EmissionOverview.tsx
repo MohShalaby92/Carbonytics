@@ -56,7 +56,7 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
       value: formatEmissions(data.scopeBreakdown[2] || 0),
       change: share(data.scopeBreakdown[2] || 0),
       trend: 'stable' as const,
-      subtitle: 'Energy emissions',
+      subtitle: 'Indirect emissions',
     },
     {
       title: 'Scope 3',

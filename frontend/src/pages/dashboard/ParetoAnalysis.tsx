@@ -28,7 +28,7 @@ interface ParetoAnalysisProps {
  * and where reduction effort pays off. Complements the plain "by category" bar
  * chart (which is unsorted-for-cumulative and has no threshold line).
  */
-const short = (s: string) => (s.length > 18 ? s.slice(0, 18) + '…' : s);
+const short = (s: string) => (s.length > 16 ? s.slice(0, 16) + '…' : s);
 
 export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
   if (!data) return null;
@@ -79,23 +79,24 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
         the "vital few" categories above it are where reduction effort pays off most.
       </p>
 
-      <ChartContainer className="h-72 mb-3">
+      <ChartContainer className="h-80 mb-3">
         {chartData.length > 0 ? (
           <ResponsiveContainer
             width="100%"
             height="100%"
             minWidth={0}
-            minHeight={240}
-            initialDimension={{ width: 400, height: 280 }}
+            minHeight={300}
+            initialDimension={{ width: 400, height: 320 }}
           >
-            <ComposedChart data={chartData} margin={{ top: 20, right: 16, left: 8, bottom: 5 }}>
+            <ComposedChart data={chartData} margin={{ top: 20, right: 16, left: 8, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--line))" />
               <XAxis
                 dataKey="category"
                 angle={-45}
                 textAnchor="end"
-                height={80}
-                fontSize={12}
+                height={110}
+                interval={0}
+                fontSize={11}
                 tick={{ fill: 'rgb(var(--muted))' }}
                 stroke="rgb(var(--line))"
               />

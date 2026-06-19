@@ -27,10 +27,14 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
 
   const ThemedTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
+      const value = Number(payload[0].value);
+      const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
       return (
         <div className="bg-surface p-3 border border-line rounded-lg shadow-lg">
           <p className="font-medium text-fg">{payload[0].name}</p>
-          <p className="text-primary-600">{formatEmissions(Number(payload[0].value))}</p>
+          <p className="text-primary-600">
+            {formatEmissions(value)} · {pct}%
+          </p>
         </div>
       );
     }
@@ -92,7 +96,7 @@ export const ScopeBreakdown: React.FC<ScopeBreakdownProps> = ({ data }) => {
                     <p className="font-medium text-fg">{item.name}</p>
                     <p className="text-sm text-muted">
                       {item.name === 'Scope 1' && 'Direct emissions'}
-                      {item.name === 'Scope 2' && 'Energy emissions'}
+                      {item.name === 'Scope 2' && 'Indirect emissions'}
                       {item.name === 'Scope 3' && 'Value chain emissions'}
                     </p>
                   </div>
