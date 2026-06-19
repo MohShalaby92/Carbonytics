@@ -5,6 +5,7 @@ import { EmissionOverview } from '../../pages/dashboard/EmissionOverview';
 import { ScopeBreakdown } from '../../pages/dashboard/ScopeBreakdown';
 import { CategoryAnalysis } from '../../pages/dashboard/CategoryAnalysis';
 import { ParetoAnalysis } from '../../pages/dashboard/ParetoAnalysis';
+import { EntityBreakdown } from '../../pages/dashboard/EntityBreakdown';
 import { RecentCalculations } from '../../pages/dashboard/RecentCalculations';
 import { QuickCalculator } from '../../pages/dashboard/QuickCalculator';
 import { TargetsProgress } from '../../pages/dashboard/TargetsProgress';
@@ -41,6 +42,9 @@ export const DashboardPage: React.FC = () => {
   const [facilityId, setFacilityId] = useState<string>('');
   // Completeness over the selected timeframe (relevance screening coverage).
   const [completeness, setCompleteness] = useState<CompletenessResult | null>(null);
+  // The resolved period for the current timeframe, shared with the entity
+  // breakdown (consolidation roll-up) so it tracks the dashboard window.
+  const [period, setPeriod] = useState<{ start: string; end: string } | null>(null);
 
   const {
     calculations: sessionCalculations,
@@ -80,6 +84,9 @@ export const DashboardPage: React.FC = () => {
       const spanMs = endDate.getTime() - startDate.getTime();
       const prevEnd = new Date(startDate.getTime());
       const prevStart = new Date(startDate.getTime() - spanMs);
+
+      // Share the resolved window with the entity breakdown (consolidation).
+      setPeriod({ start: startDate.toISOString(), end: endDate.toISOString() });
 
       // getCalculations() resolves to the calculations ARRAY (not an object).
       const [current, previous, categoriesResp] = await Promise.all([
@@ -335,6 +342,11 @@ export const DashboardPage: React.FC = () => {
           <ScopeBreakdown data={dashboardData?.scopeBreakdown} />
           <CategoryAnalysis data={dashboardData?.categoryBreakdown} />
           <ParetoAnalysis data={dashboardData?.categoryBreakdown} />
+          <EntityBreakdown
+            period={period}
+            selectedFacilityId={facilityId}
+            onSelectFacility={setFacilityId}
+          />
           <TargetsProgress
             onConfigure={() => setShowTargetsModal(true)}
             refreshToken={targetsRefreshToken}
