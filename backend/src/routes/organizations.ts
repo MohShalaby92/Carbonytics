@@ -67,6 +67,7 @@ const validateSettings = [
   body('timezone').optional().notEmpty().withMessage('Timezone cannot be empty'),
   body('language').optional().notEmpty().withMessage('Language cannot be empty'),
   body('gwpSet').optional().isIn(['AR4', 'AR5', 'AR6']).withMessage('GWP set must be AR4, AR5 or AR6'),
+  body('persona').optional().isIn(['enterprise', 'consultant', 'sme']).withMessage('Persona must be enterprise, consultant or sme'),
 ];
 
 const validateExclusions = [

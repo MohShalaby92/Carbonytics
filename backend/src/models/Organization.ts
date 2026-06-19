@@ -64,6 +64,15 @@ const organizationSchema = new Schema<IOrganization>({
       enum: ['AR4', 'AR5', 'AR6'],
       default: 'AR6',
     },
+    // Persona mode (§10): tailors the UI to the three target users — enterprise
+    // sustainability teams (full toolset), consultants (full + export emphasis),
+    // and SMEs (a streamlined essentials view). A presentation-layer preference
+    // only; it never changes stored data or which calculations/factors exist.
+    persona: {
+      type: String,
+      enum: ['enterprise', 'consultant', 'sme'],
+      default: 'enterprise',
+    },
   },
   // Documented exclusions register (GHG Protocol completeness/transparency):
   // every excluded source/category needs a justification and a materiality

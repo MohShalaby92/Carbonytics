@@ -740,13 +740,19 @@ export const updateOrganizationSettings = asyncHandler(async (req: Authenticated
     return ApiResponseUtil.error(res, 'Authentication required', 401);
   }
 
-  const { currency, timezone, language, gwpSet } = req.body;
+  const { currency, timezone, language, gwpSet, persona } = req.body;
   const settingsUpdate: any = {};
 
   if (currency) settingsUpdate['settings.currency'] = currency;
   if (timezone) settingsUpdate['settings.timezone'] = timezone;
   if (language) settingsUpdate['settings.language'] = language;
   if (gwpSet) settingsUpdate['settings.gwpSet'] = gwpSet;
+  if (persona !== undefined) {
+    if (!['enterprise', 'consultant', 'sme'].includes(persona)) {
+      return ApiResponseUtil.error(res, 'Invalid persona (enterprise | consultant | sme)', 400);
+    }
+    settingsUpdate['settings.persona'] = persona;
+  }
 
   const prior = await Organization.findById(req.user.organizationId).select('settings').lean();
 

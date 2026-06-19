@@ -37,6 +37,7 @@ export interface IOrganization extends Document {
     timezone: string;
     language: string;
     gwpSet?: 'AR4' | 'AR5' | 'AR6';
+    persona?: 'enterprise' | 'consultant' | 'sme';
   };
   exclusions?: Array<{
     source: string;
