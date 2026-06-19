@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { EmissionOverview } from '../../pages/dashboard/EmissionOverview';
 import { ScopeBreakdown } from '../../pages/dashboard/ScopeBreakdown';
 import { CategoryAnalysis } from '../../pages/dashboard/CategoryAnalysis';
+import { ParetoAnalysis } from '../../pages/dashboard/ParetoAnalysis';
 import { RecentCalculations } from '../../pages/dashboard/RecentCalculations';
 import { QuickCalculator } from '../../pages/dashboard/QuickCalculator';
 import { TargetsProgress } from '../../pages/dashboard/TargetsProgress';
@@ -94,7 +95,13 @@ export const DashboardPage: React.FC = () => {
           ...(facilityId ? { facilityId } : {}),
           limit: 100,
         }),
-        apiService.get<any[]>('/emission-categories').then((r) => r?.data ?? []).catch(() => []),
+        // /emission-categories returns { data: { categories: [...] } } (gotcha 14),
+        // not a flat array — read .data.categories so the category map actually
+        // builds (else every entry fell back to "Other" in the breakdowns).
+        apiService
+          .get<any>('/emission-categories')
+          .then((r: any) => r?.data?.categories ?? r?.data ?? [])
+          .catch(() => []),
       ]);
 
       const currentCalcs = Array.isArray(current) ? current : [];
@@ -327,6 +334,7 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           <ScopeBreakdown data={dashboardData?.scopeBreakdown} />
           <CategoryAnalysis data={dashboardData?.categoryBreakdown} />
+          <ParetoAnalysis data={dashboardData?.categoryBreakdown} />
           <TargetsProgress
             onConfigure={() => setShowTargetsModal(true)}
             refreshToken={targetsRefreshToken}
