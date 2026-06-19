@@ -18,6 +18,7 @@ import {
   Moon,
   LayoutGrid,
   Check,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -127,6 +128,9 @@ export const Navbar: React.FC = () => {
                     </Link>
                     <Link to="/settings" className="flex items-center gap-3 px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]" onClick={() => setUserMenuOpen(false)}>
                       <Settings className="w-4 h-4" /> Settings
+                    </Link>
+                    <Link to="/glossary" className="flex items-center gap-3 px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]" onClick={() => setUserMenuOpen(false)}>
+                      <BookOpen className="w-4 h-4" /> Glossary &amp; Methodology
                     </Link>
                     {user.role === 'admin' && (
                       <>
