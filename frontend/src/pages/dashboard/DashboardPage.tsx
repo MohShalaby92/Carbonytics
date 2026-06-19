@@ -16,6 +16,7 @@ import { useCalculations } from '../../hooks/useCalculations';
 import { calculationService } from '../../services/calculationService';
 import { complianceService } from '../../services/complianceService';
 import { apiService } from '../../services/api';
+import { usePersona, showsConsolidation } from '../../hooks/usePersona';
 import { Facility, CompletenessResult } from '../../types';
 import { 
   BarChart3, 
@@ -29,6 +30,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
+  const { persona } = usePersona();
   const [timeframe, setTimeframe] = useState<'month' | 'quarter' | 'year'>('month');
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -342,11 +344,13 @@ export const DashboardPage: React.FC = () => {
           <ScopeBreakdown data={dashboardData?.scopeBreakdown} />
           <CategoryAnalysis data={dashboardData?.categoryBreakdown} />
           <ParetoAnalysis data={dashboardData?.categoryBreakdown} />
-          <EntityBreakdown
-            period={period}
-            selectedFacilityId={facilityId}
-            onSelectFacility={setFacilityId}
-          />
+          {showsConsolidation(persona) && (
+            <EntityBreakdown
+              period={period}
+              selectedFacilityId={facilityId}
+              onSelectFacility={setFacilityId}
+            />
+          )}
           <TargetsProgress
             onConfigure={() => setShowTargetsModal(true)}
             refreshToken={targetsRefreshToken}

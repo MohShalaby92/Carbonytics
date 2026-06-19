@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
+import { usePersona, PERSONAS, PERSONA_LABEL } from '../../hooks/usePersona';
 import {
   BarChart3,
   Calculator,
@@ -15,6 +16,8 @@ import {
   Upload,
   Sun,
   Moon,
+  LayoutGrid,
+  Check,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -50,6 +53,7 @@ const Brand: React.FC<{ to: string }> = ({ to }) => (
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
+  const { persona, setPersona } = usePersona();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -108,20 +112,43 @@ export const Navbar: React.FC = () => {
                 </span>
                 <span className="text-left leading-tight">
                   <span className="block text-sm font-semibold text-fg">{user.name}</span>
-                  <span className="block text-xs text-muted capitalize">{user.role}</span>
+                  <span className="block text-xs text-muted">
+                    <span className="capitalize">{user.role}</span> · {PERSONA_LABEL[persona]}
+                  </span>
                 </span>
               </button>
 
               {userMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-52 bg-surface border border-line rounded-xl shadow-lift py-1.5 z-50">
+                  <div className="absolute right-0 mt-2 w-60 bg-surface border border-line rounded-xl shadow-lift py-1.5 z-50">
                     <Link to="/profile" className="flex items-center gap-3 px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]" onClick={() => setUserMenuOpen(false)}>
                       <User className="w-4 h-4" /> Profile
                     </Link>
                     <Link to="/settings" className="flex items-center gap-3 px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]" onClick={() => setUserMenuOpen(false)}>
                       <Settings className="w-4 h-4" /> Settings
                     </Link>
+                    {user.role === 'admin' && (
+                      <>
+                        <div className="my-1.5 border-t border-line" />
+                        <p className="px-4 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                          Workspace mode
+                        </p>
+                        {PERSONAS.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => { setPersona(p.id); setUserMenuOpen(false); }}
+                            title={p.tagline}
+                            className="flex items-center justify-between gap-2 w-full px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]"
+                          >
+                            <span className="flex items-center gap-3">
+                              <LayoutGrid className="w-4 h-4" /> {p.label}
+                            </span>
+                            {persona === p.id && <Check className="w-4 h-4 text-primary-600" />}
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <div className="my-1.5 border-t border-line" />
                     <button onClick={() => { logout(); setUserMenuOpen(false); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]">
                       <LogOut className="w-4 h-4" /> Sign out

@@ -3,10 +3,15 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Alert';
 import { organizationService, OrganizationSettings } from '../../services/organizationService';
+import { usePersona, PERSONAS } from '../../hooks/usePersona';
+import { useAuth } from '../../hooks/useAuth';
 import { CURRENCIES, LANGUAGES } from '../../constants';
-import { Settings as SettingsIcon, Save, Globe, DollarSign, Clock } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Globe, DollarSign, Clock, LayoutGrid, Check } from 'lucide-react';
 
 export const GeneralSettings: React.FC = () => {
+  const { persona, setPersona } = usePersona();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState<OrganizationSettings>({
     currency: 'USD',
@@ -68,6 +73,41 @@ export const GeneralSettings: React.FC = () => {
           {message.text}
         </Alert>
       )}
+
+      {/* Persona / workspace mode (§10) */}
+      <Card className="p-6">
+        <div className="flex items-center mb-2">
+          <LayoutGrid className="w-5 h-5 text-primary-600 mr-2" />
+          <h2 className="text-xl font-semibold text-fg">Workspace mode</h2>
+        </div>
+        <p className="text-sm text-muted mb-4">
+          Tailors the interface to how your team works.{' '}
+          {isAdmin ? 'Changes apply organization-wide immediately.' : 'This is set by an administrator.'}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {PERSONAS.map((p) => {
+            const active = persona === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                disabled={!isAdmin}
+                onClick={() => isAdmin && setPersona(p.id)}
+                className={`text-left rounded-xl border p-4 transition-colors ${
+                  active ? 'border-primary-500 bg-primary-500/10' : 'border-line hover:bg-fg/[0.03]'
+                } ${!isAdmin ? 'cursor-default opacity-80' : ''}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-fg">{p.label}</span>
+                  {active && <Check className="w-4 h-4 text-primary-600" />}
+                </div>
+                <p className="text-xs text-primary-600 mb-1">{p.tagline}</p>
+                <p className="text-xs text-muted leading-relaxed">{p.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
 
       <Card className="p-6">
         <div className="flex items-center mb-6">

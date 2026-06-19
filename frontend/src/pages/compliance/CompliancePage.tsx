@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { useAuth } from '../../hooks/useAuth';
+import { usePersona, complianceTabVisible } from '../../hooks/usePersona';
 import { ReportsTab } from './ReportsTab';
 import { ExclusionsTab } from './ExclusionsTab';
 import { FacilitiesTab } from './FacilitiesTab';
@@ -37,6 +38,7 @@ import {
  */
 export const CompliancePage: React.FC = () => {
   const { user } = useAuth();
+  const { persona } = usePersona();
   const [activeTab, setActiveTab] = useState('reports');
   // Deep-link context: a "Trace" from the Reports preview opens the Lineage tab
   // focused on the same reporting period.
@@ -58,7 +60,9 @@ export const CompliancePage: React.FC = () => {
     { id: 'audit', name: 'Audit Trail', icon: ScrollText, component: AuditLogTab, adminOnly: true },
   ];
 
-  const visibleTabs = tabs.filter((tab) => !tab.adminOnly || user?.role === 'admin');
+  const visibleTabs = tabs.filter(
+    (tab) => (!tab.adminOnly || user?.role === 'admin') && complianceTabVisible(tab.id, persona)
+  );
   const ActiveComponent =
     visibleTabs.find((tab) => tab.id === activeTab)?.component || ReportsTab;
 
@@ -87,6 +91,13 @@ export const CompliancePage: React.FC = () => {
         <p className="mt-2 text-muted">
           Audit-ready exports, documented exclusions, organizational boundary and inventory controls
         </p>
+        {persona === 'sme' && (
+          <p className="mt-3 text-xs text-muted inline-flex items-center gap-1.5 rounded-lg border border-line bg-fg/[0.03] px-3 py-1.5">
+            <Gauge className="w-3.5 h-3.5" />
+            Streamlined (SME) view — showing the essentials. Switch to Enterprise in the menu to see
+            consolidation, frameworks, lineage and the audit trail.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">

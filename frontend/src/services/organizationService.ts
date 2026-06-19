@@ -9,6 +9,8 @@ export interface OrganizationSettings {
   language: string;
   // GWP-100 value set applied to per-gas factors (methodology setting).
   gwpSet?: 'AR4' | 'AR5' | 'AR6';
+  // Persona mode (§10): tailors the UI (enterprise/consultant/SME).
+  persona?: 'enterprise' | 'consultant' | 'sme';
 }
 
 export interface OrganizationUser extends User {

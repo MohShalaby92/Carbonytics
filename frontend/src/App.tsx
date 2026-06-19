@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './hooks/useTheme';
 import { AuthProvider } from './hooks/useAuth';
+import { PersonaProvider } from './hooks/usePersona';
 import { Navbar } from './components/layout/Navbar';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -43,6 +44,7 @@ function App() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <PersonaProvider>
           <Router>
             <div className="min-h-screen bg-bg text-fg">
               <Navbar />
@@ -64,6 +66,7 @@ function App() {
               </main>
             </div>
           </Router>
+          </PersonaProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
