@@ -26,6 +26,10 @@ import {
   renderSbtiPdf, renderSbtiDocx,
   renderEsrsPdf, renderEsrsDocx, renderEsrsXlsx,
 } from '../services/frameworkRenderers';
+import {
+  renderAssurancePdf, renderAssuranceDocx, renderAssuranceXlsx,
+  renderImpPdf, renderImpDocx,
+} from '../services/assuranceRenderers';
 import { buildEntryFormula, reconcile } from '../services/lineage';
 import { scoreEntryPedigree, summarizePedigree, EntryPedigree, formatPedigreeLine } from '../services/pedigree';
 
@@ -660,7 +664,7 @@ export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest
 
   const linesWithEvidence = activityRegister.filter((r: any) => r.evidenceCount > 0).length;
 
-  ApiResponseUtil.success(res, {
+  const pkg = {
     inventoryReport: report,
     activityRegister,
     evidenceSummary: {
@@ -676,7 +680,24 @@ export const getAssurancePackage = asyncHandler(async (req: AuthenticatedRequest
     snapshots: snapshots.map((s: any) => ({ ...s, id: s._id.toString() })),
     contents: ['inventoryReport', 'activityRegister', 'evidenceSummary', 'auditTrail', 'snapshots'],
     note: 'Per-data-line evidence attachments are included (§4.3): each activity-register row carries its evidence chain with download links; audit extract capped at 500 entries.',
-  });
+  };
+
+  const format = (req.query.format as string) || 'json';
+  const stem = `assurance_package_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderAssurancePdf(pkg) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderAssuranceDocx(pkg) },
+    xlsx: { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx', build: () => renderAssuranceXlsx(pkg) },
+  };
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
+  }
+
+  ApiResponseUtil.success(res, pkg);
 });
 
 /**
@@ -1116,14 +1137,19 @@ export const getInventoryManagementPlan = asyncHandler(async (req: Authenticated
   const { start, end } = parsePeriod(req);
   const imp = await buildInventoryManagementPlan(req.user, start, end);
 
-  if ((req.query.format as string) === 'markdown') {
-    const md = renderImpMarkdown(imp);
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="imp_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
-    );
-    return res.send(md);
+  const format = (req.query.format as string) || 'json';
+  const stem = `imp_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    markdown: { type: 'text/markdown; charset=utf-8', ext: 'md', build: () => Buffer.from(renderImpMarkdown(imp)) },
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderImpPdf(imp) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderImpDocx(imp) },
+  };
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
   }
 
   ApiResponseUtil.success(res, imp);
