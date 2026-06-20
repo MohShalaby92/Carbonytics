@@ -17,21 +17,46 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
   const [endDate, setEndDate] = useState(`${currentYear}-12-31`);
   const [report, setReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [downloading, setDownloading] = useState<'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs' | null>(null);
-  const [ghgFormat, setGhgFormat] = useState<'markdown' | 'pdf' | 'docx' | 'xlsx' | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGhgDownload = async (format: 'markdown' | 'pdf' | 'docx' | 'xlsx') => {
+  const FMT_LABEL: Record<string, string> = { pdf: 'PDF', docx: 'Word', xlsx: 'Excel' };
+
+  const dl = async (
+    kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs',
+    format: 'pdf' | 'docx' | 'xlsx'
+  ) => {
     try {
-      setGhgFormat(format);
+      setBusy(`${kind}:${format}`);
       setError(null);
-      await complianceService.downloadGhgInventory(startDate, endDate, format);
+      if (kind === 'ghg') await complianceService.downloadGhgInventory(startDate, endDate, format);
+      else await complianceService.downloadReport(kind, startDate, endDate, format);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Download failed');
     } finally {
-      setGhgFormat(null);
+      setBusy(null);
     }
   };
+
+  const fmtButtons = (
+    kind: 'ghg' | 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs',
+    formats: ('pdf' | 'docx' | 'xlsx')[]
+  ) => (
+    <div className="flex flex-wrap gap-2">
+      {formats.map((f) => (
+        <Button
+          key={f}
+          variant={f === 'pdf' ? 'primary' : 'outline'}
+          onClick={() => dl(kind, f)}
+          loading={busy === `${kind}:${f}`}
+          disabled={!!busy}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          {FMT_LABEL[f]}
+        </Button>
+      ))}
+    </div>
+  );
 
   const loadPreview = async () => {
     try {
@@ -44,28 +69,6 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
       setReport(null);
     } finally {
       setLoadingReport(false);
-    }
-  };
-
-  const handleDownload = async (kind: 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs') => {
-    try {
-      setDownloading(kind);
-      setError(null);
-      if (kind === 'imp') {
-        await complianceService.downloadImpMarkdown(startDate, endDate);
-      } else if (kind === 'cdp') {
-        await complianceService.downloadCdpMapping(startDate, endDate);
-      } else if (kind === 'sbti') {
-        await complianceService.downloadSbtiSummary(startDate, endDate);
-      } else if (kind === 'esrs') {
-        await complianceService.downloadEsrsMapping(startDate, endDate);
-      } else {
-        await complianceService.downloadAssurancePackage(startDate, endDate);
-      }
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Download failed');
-    } finally {
-      setDownloading(null);
     }
   };
 
@@ -112,25 +115,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
             factor register, exclusions, targets and inventory controls.
           </p>
           <p className="text-xs text-muted mb-2">Download as:</p>
-          <div className="flex flex-wrap gap-2">
-            {([
-              ['pdf', 'PDF'],
-              ['docx', 'Word'],
-              ['xlsx', 'Excel'],
-              ['markdown', 'Markdown'],
-            ] as const).map(([fmt, label]) => (
-              <Button
-                key={fmt}
-                variant={fmt === 'pdf' ? 'primary' : 'outline'}
-                onClick={() => handleGhgDownload(fmt)}
-                loading={ghgFormat === fmt}
-                disabled={ghgFormat !== null}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {label}
-              </Button>
-            ))}
-          </div>
+          {fmtButtons('ghg', ['pdf', 'docx', 'xlsx'])}
         </Card>
 
         <Card className="p-6">
@@ -143,13 +128,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
             entry with factor, source, year, GWP, method, quality and dual-Scope-2
             provenance), the audit-trail extract and snapshot history.
           </p>
-          <Button
-            onClick={() => handleDownload('assurance')}
-            loading={downloading === 'assurance'}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download (JSON)
-          </Button>
+          {fmtButtons('assurance', ['pdf', 'docx', 'xlsx'])}
         </Card>
 
         <Card className="p-6">
@@ -163,13 +142,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
             policy — generated from the live system configuration so it never drifts from
             actual behavior.
           </p>
-          <Button
-            onClick={() => handleDownload('imp')}
-            loading={downloading === 'imp'}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Download (Markdown)
-          </Button>
+          {fmtButtons('imp', ['pdf', 'docx'])}
         </Card>
       </div>
 
@@ -190,10 +163,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
               Scope 1, dual Scope 2 (location + market), Scope 3 by category with methods,
               intensity and verification status.
             </p>
-            <Button onClick={() => handleDownload('cdp')} loading={downloading === 'cdp'}>
-              <Download className="w-4 h-4 mr-2" />
-              Download (Markdown)
-            </Button>
+            {fmtButtons('cdp', ['pdf', 'docx', 'xlsx'])}
           </Card>
 
           <Card className="p-6">
@@ -206,10 +176,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
               Scope 3 share (the ≥40% Scope 3 rule), implied annual linear reduction vs the
               ~4.2%/yr 1.5°C minimum, and readiness next steps.
             </p>
-            <Button onClick={() => handleDownload('sbti')} loading={downloading === 'sbti'}>
-              <Download className="w-4 h-4 mr-2" />
-              Download (Markdown)
-            </Button>
+            {fmtButtons('sbti', ['pdf', 'docx'])}
           </Card>
 
           <Card className="p-6">
@@ -222,10 +189,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
               dual Scope 2 (location + market), Scope 3 by category and total GHG, plus GHG
               intensity per net revenue and pointers for the E1-1/E1-4 narrative datapoints.
             </p>
-            <Button onClick={() => handleDownload('esrs')} loading={downloading === 'esrs'}>
-              <Download className="w-4 h-4 mr-2" />
-              Download (Markdown)
-            </Button>
+            {fmtButtons('esrs', ['pdf', 'docx', 'xlsx'])}
           </Card>
         </div>
       </div>

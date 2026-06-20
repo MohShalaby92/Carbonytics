@@ -449,45 +449,26 @@ export const complianceService = {
     return response.data;
   },
 
-  downloadAssurancePackage: async (startDate: string, endDate: string) => {
-    const response = await apiService.get<any>(
-      `/reports/assurance-package?${dateRangeQuery(startDate, endDate)}`
-    );
-    if (!response.success || !response.data) throw new Error(response.message || 'Export failed');
-    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `assurance-package_${startDate}_${endDate}.json`);
-  },
-
-  downloadImpMarkdown: async (startDate: string, endDate: string) => {
+  /** Assurance / IMP / CDP / SBTi / ESRS report in a document format (pdf/docx/xlsx). */
+  downloadReport: async (
+    kind: 'assurance' | 'imp' | 'cdp' | 'sbti' | 'esrs',
+    startDate: string,
+    endDate: string,
+    format: 'pdf' | 'docx' | 'xlsx'
+  ) => {
+    const map: Record<string, { path: string; stem: string }> = {
+      assurance: { path: '/reports/assurance-package', stem: 'assurance-package' },
+      imp: { path: '/reports/imp', stem: 'imp' },
+      cdp: { path: '/reports/cdp', stem: 'cdp-mapping' },
+      sbti: { path: '/reports/sbti', stem: 'sbti-summary' },
+      esrs: { path: '/reports/esrs', stem: 'esrs-e1' },
+    };
+    const { path, stem } = map[kind];
     const blob = (await apiService.get<any>(
-      `/reports/imp?${dateRangeQuery(startDate, endDate)}&format=markdown`,
+      `${path}?${dateRangeQuery(startDate, endDate)}&format=${format}`,
       { responseType: 'blob' }
     )) as unknown as Blob;
-    downloadBlob(blob, `imp_${startDate}_${endDate}.md`);
-  },
-
-  downloadCdpMapping: async (startDate: string, endDate: string) => {
-    const blob = (await apiService.get<any>(
-      `/reports/cdp?${dateRangeQuery(startDate, endDate)}&format=markdown`,
-      { responseType: 'blob' }
-    )) as unknown as Blob;
-    downloadBlob(blob, `cdp-mapping_${startDate}_${endDate}.md`);
-  },
-
-  downloadSbtiSummary: async (startDate: string, endDate: string) => {
-    const blob = (await apiService.get<any>(
-      `/reports/sbti?${dateRangeQuery(startDate, endDate)}&format=markdown`,
-      { responseType: 'blob' }
-    )) as unknown as Blob;
-    downloadBlob(blob, `sbti-summary_${startDate}_${endDate}.md`);
-  },
-
-  downloadEsrsMapping: async (startDate: string, endDate: string) => {
-    const blob = (await apiService.get<any>(
-      `/reports/esrs?${dateRangeQuery(startDate, endDate)}&format=markdown`,
-      { responseType: 'blob' }
-    )) as unknown as Blob;
-    downloadBlob(blob, `esrs-e1_${startDate}_${endDate}.md`);
+    downloadBlob(blob, `${stem}_${startDate}_${endDate}.${format}`);
   },
 
   // ---- Fleet registry (§2.2 mobile distance-based) ----
