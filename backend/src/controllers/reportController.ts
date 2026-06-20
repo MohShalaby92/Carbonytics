@@ -21,6 +21,11 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
 import { renderInventoryPdf, renderInventoryDocx, renderInventoryXlsx } from '../services/reportRenderers';
+import {
+  renderCdpPdf, renderCdpDocx, renderCdpXlsx,
+  renderSbtiPdf, renderSbtiDocx,
+  renderEsrsPdf, renderEsrsDocx, renderEsrsXlsx,
+} from '../services/frameworkRenderers';
 import { buildEntryFormula, reconcile } from '../services/lineage';
 import { scoreEntryPedigree, summarizePedigree, EntryPedigree, formatPedigreeLine } from '../services/pedigree';
 
@@ -1421,14 +1426,20 @@ export const getCdpMapping = asyncHandler(async (req: AuthenticatedRequest, res:
   const { start, end } = parsePeriod(req);
   const mapping = await buildCdpMapping(req.user, start, end);
 
-  if ((req.query.format as string) === 'markdown') {
-    const md = renderCdpMarkdown(mapping);
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="cdp_mapping_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
-    );
-    return res.send(md);
+  const format = (req.query.format as string) || 'json';
+  const stem = `cdp_mapping_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    markdown: { type: 'text/markdown; charset=utf-8', ext: 'md', build: () => Buffer.from(renderCdpMarkdown(mapping)) },
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderCdpPdf(mapping) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderCdpDocx(mapping) },
+    xlsx: { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx', build: () => renderCdpXlsx(mapping) },
+  };
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
   }
   ApiResponseUtil.success(res, mapping);
 });
@@ -1440,14 +1451,19 @@ export const getSbtiSummary = asyncHandler(async (req: AuthenticatedRequest, res
   const { start, end } = parsePeriod(req);
   const summary = await buildSbtiSummary(req.user, start, end);
 
-  if ((req.query.format as string) === 'markdown') {
-    const md = renderSbtiMarkdown(summary);
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="sbti_summary_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
-    );
-    return res.send(md);
+  const format = (req.query.format as string) || 'json';
+  const stem = `sbti_summary_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    markdown: { type: 'text/markdown; charset=utf-8', ext: 'md', build: () => Buffer.from(renderSbtiMarkdown(summary)) },
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderSbtiPdf(summary) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderSbtiDocx(summary) },
+  };
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
   }
   ApiResponseUtil.success(res, summary);
 });
@@ -1459,14 +1475,20 @@ export const getEsrsE1Mapping = asyncHandler(async (req: AuthenticatedRequest, r
   const { start, end } = parsePeriod(req);
   const mapping = await buildEsrsE1Mapping(req.user, start, end);
 
-  if ((req.query.format as string) === 'markdown') {
-    const md = renderEsrsMarkdown(mapping);
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="esrs_e1_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.md"`
-    );
-    return res.send(md);
+  const format = (req.query.format as string) || 'json';
+  const stem = `esrs_e1_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}`;
+  const exports: Record<string, { type: string; ext: string; build: () => Promise<Buffer> | Buffer }> = {
+    markdown: { type: 'text/markdown; charset=utf-8', ext: 'md', build: () => Buffer.from(renderEsrsMarkdown(mapping)) },
+    pdf: { type: 'application/pdf', ext: 'pdf', build: () => renderEsrsPdf(mapping) },
+    docx: { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', build: () => renderEsrsDocx(mapping) },
+    xlsx: { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx', build: () => renderEsrsXlsx(mapping) },
+  };
+  if (exports[format]) {
+    const { type, ext, build } = exports[format];
+    const body = await build();
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${stem}.${ext}"`);
+    return res.send(body);
   }
   ApiResponseUtil.success(res, mapping);
 });
