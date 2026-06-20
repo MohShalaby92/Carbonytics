@@ -22,6 +22,7 @@ import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
 import { renderInventoryPdf, renderInventoryDocx, renderInventoryXlsx } from '../services/reportRenderers';
 import { buildEntryFormula, reconcile } from '../services/lineage';
+import { scoreEntryPedigree, summarizePedigree, EntryPedigree } from '../services/pedigree';
 
 /**
  * GHG inventory report (GHG Protocol / ISO 14064-1 required content):
@@ -43,7 +44,7 @@ async function buildGHGInventoryReport(
       organizationId: user.organizationId,
       'period.start': { $gte: start, $lte: end },
     })
-      .populate('data.categoryId', 'category scope subcategory')
+      .populate('data.categoryId', 'category scope subcategory calculationMethod')
       .lean(),
     AuditLog.countDocuments({
       organizationId: user.organizationId,
@@ -80,9 +81,11 @@ async function buildGHGInventoryReport(
 
   // Totals by scope + per-category breakdown with method mix.
   const byScope = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
-  const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number; primary: number; secondary: number; estimated: number }> = {};
+  const byCategory: Record<string, { scope: number; subcategory?: string; emissions: number; methods: Record<string, number>; entries: number; primary: number; secondary: number; estimated: number; pedigreeItems: { emissions: number; pedigree: EntryPedigree }[] }> = {};
   // Org-wide primary/secondary/estimated data-source split (§5).
   const dataTypeItems: { emissions: number; dataType: DataType }[] = [];
+  // GHG-Protocol DQI / pedigree-matrix items, scored per entry (§48).
+  const orgPedigreeItems: { emissions: number; pedigree: EntryPedigree }[] = [];
   const dual = { locationBased: 0, marketBased: 0, electricityEntries: 0, methods: new Set<string>() };
   const quality = { high: 0, medium: 0, low: 0, unrated: 0 };
   // PCAF-style weighted DQ (emissions-weighted) + estimated-data share.
@@ -101,7 +104,26 @@ async function buildGHGInventoryReport(
   let perGasEntries = 0;
   let perGasEntryCo2e = 0;
 
+  // GHG-Protocol DQI / pedigree matrix (§48): region / quality / org-custom live
+  // on the FACTOR (not snapshotted on the entry), so batch-load them once and map
+  // by id. Vintage (factorYear), source, method, gas split and the estimate flag
+  // are already on the entry.
+  const pedigreeFactorIds = new Set<string>();
+  for (const c of calculations)
+    for (const e of (c as any).data || []) {
+      if ((e as any).factorId) pedigreeFactorIds.add(String((e as any).factorId));
+    }
+  const pedigreeFactorDocs = pedigreeFactorIds.size
+    ? await EmissionFactor.find({ _id: { $in: [...pedigreeFactorIds] } })
+        .select('region qualityRating organizationId')
+        .lean()
+    : [];
+  const factorMetaById = new Map<string, any>(
+    pedigreeFactorDocs.map((f: any) => [String(f._id), f])
+  );
+
   for (const calc of calculations) {
+    const activityYear = midpointYear((calc as any).period?.start, (calc as any).period?.end);
     byScope.scope1 += calc.emissions?.scope1 || 0;
     byScope.scope2 += calc.emissions?.scope2 || 0;
     byScope.scope3 += calc.emissions?.scope3 || 0;
@@ -112,7 +134,7 @@ async function buildGHGInventoryReport(
       const cat: any = entry.categoryId;
       const name = cat?.category || 'Unknown';
       if (!byCategory[name]) {
-        byCategory[name] = { scope: cat?.scope || 0, subcategory: cat?.subcategory, emissions: 0, methods: {}, entries: 0, primary: 0, secondary: 0, estimated: 0 };
+        byCategory[name] = { scope: cat?.scope || 0, subcategory: cat?.subcategory, emissions: 0, methods: {}, entries: 0, primary: 0, secondary: 0, estimated: 0, pedigreeItems: [] };
       }
       byCategory[name].emissions += entry.emissions || 0;
       byCategory[name].entries += 1;
@@ -127,6 +149,28 @@ async function buildGHGInventoryReport(
       });
       byCategory[name][dataType] += entry.emissions || 0;
       dataTypeItems.push({ emissions: entry.emissions || 0, dataType });
+
+      // GHG-Protocol DQI / pedigree-matrix score for this data line (§48).
+      const fm = (entry as any).factorId ? factorMetaById.get(String((entry as any).factorId)) : undefined;
+      const pedItem = {
+        emissions: entry.emissions || 0,
+        pedigree: scoreEntryPedigree({
+          method: (entry as any).method,
+          supplierId: (entry as any).supplierId,
+          isEstimate: (entry as any).isEstimate,
+          factorYear: (entry as any).factorYear,
+          factorSource: (entry as any).factorSource,
+          gwpApplied: (entry as any).gwpApplied,
+          gasBreakdown: (entry as any).gasBreakdown,
+          activityYear,
+          factorRegion: fm?.region,
+          factorQualityRating: fm?.qualityRating,
+          factorIsOrgCustom: !!fm?.organizationId,
+          categorySpendBased: cat?.calculationMethod === 'spend_based',
+        }),
+      };
+      byCategory[name].pedigreeItems.push(pedItem);
+      orgPedigreeItems.push(pedItem);
 
       if ((entry as any).scope2Location !== undefined) {
         dual.locationBased += (entry as any).scope2Location || 0;
@@ -369,6 +413,8 @@ async function buildGHGInventoryReport(
               primarySharePercent: pct(v.primary),
               secondarySharePercent: pct(v.secondary + v.estimated),
             },
+            // GHG-Protocol DQI / pedigree matrix for this category (§48).
+            pedigree: summarizePedigree(v.pedigreeItems),
           };
         })
         .sort((a, b) => b.emissions - a.emissions),
@@ -399,6 +445,11 @@ async function buildGHGInventoryReport(
       // supplier-specific / material-balance (directly sourced); secondary =
       // database/average factor; estimated = gap-filled (weakest secondary).
       dataSources: summarizeDataTypeShares(dataTypeItems),
+      // GHG-Protocol DQI / pedigree matrix, emissions-weighted org-wide (§48):
+      // technological/temporal/geographical representativeness + completeness +
+      // reliability, each 1 (best) … 5 (worst). Additive — separate from the
+      // PCAF weightedDqScore above.
+      pedigree: summarizePedigree(orgPedigreeItems),
     },
     supplierEngagement,
     completeness,
