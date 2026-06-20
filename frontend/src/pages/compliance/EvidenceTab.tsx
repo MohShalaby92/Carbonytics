@@ -197,12 +197,15 @@ export const EvidenceTab: React.FC = () => {
                     )}
 
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* Hidden native input; the branded button below is the single
+                          control — it opens the picker and uploads on selection. */}
                       <input
                         ref={(el) => {
                           fileInputs.current[idx] = el;
                         }}
                         type="file"
-                        className="text-xs text-fg/80 file:mr-2 file:py-1 file:px-2 file:rounded file:border file:border-line file:bg-fg/[0.04] file:text-fg/80 file:text-xs"
+                        className="hidden"
+                        onChange={() => handleUpload(idx)}
                       />
                       <input
                         ref={(el) => {
@@ -215,11 +218,12 @@ export const EvidenceTab: React.FC = () => {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => handleUpload(idx)}
+                        onClick={() => fileInputs.current[idx]?.click()}
                         loading={busyEntry === idx}
+                        disabled={busyEntry !== null}
                       >
                         <Paperclip className="w-3.5 h-3.5 mr-1" />
-                        Attach
+                        Attach file
                       </Button>
                     </div>
                   </div>
