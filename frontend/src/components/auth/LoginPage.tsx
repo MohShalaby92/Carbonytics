@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Alert } from '../../components/ui/Alert';
-import { Leaf, TrendingDown, ShieldCheck, BarChart3 } from 'lucide-react';
+import { TrendingDown, ShieldCheck, BarChart3 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login } = useAuth();
@@ -45,11 +45,18 @@ export const LoginPage: React.FC = () => {
             backgroundSize: '22px 22px',
           }}
         />
-        <div className="relative flex items-center gap-2.5">
-          <span className="grid place-items-center w-10 h-10 rounded-xl bg-brand-fg/15">
-            <Leaf className="w-6 h-6" />
-          </span>
-          <span className="text-xl font-display font-semibold">Carbonytics</span>
+        <div className="relative flex items-center gap-3">
+          <img
+            src="/icon.png"
+            alt=""
+            aria-hidden="true"
+            className="w-11 h-11 object-contain"
+            style={{ filter: 'brightness(0) invert(1)' }}
+          />
+          <div className="leading-tight">
+            <span className="block text-xl font-display font-semibold">Carbonytics</span>
+            <span className="block text-xs text-brand-fg/70 tracking-wide">Data. Insight. Impact.</span>
+          </div>
         </div>
 
         <div className="relative max-w-md">
@@ -84,10 +91,8 @@ export const LoginPage: React.FC = () => {
       {/* Form panel */}
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <span className="grid place-items-center w-9 h-9 rounded-xl bg-brand text-brand-fg">
-              <Leaf className="w-5 h-5" />
-            </span>
+          <div className="lg:hidden flex items-center gap-2.5 mb-8">
+            <img src="/icon.png" alt="" aria-hidden="true" className="w-9 h-9 object-contain" />
             <span className="text-lg font-display font-semibold text-fg">Carbonytics</span>
           </div>
 

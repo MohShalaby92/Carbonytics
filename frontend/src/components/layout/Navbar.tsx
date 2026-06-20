@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   X,
-  Leaf,
   Upload,
   Sun,
   Moon,
@@ -44,10 +43,8 @@ const ThemeToggle: React.FC = () => {
 };
 
 const Brand: React.FC<{ to: string }> = ({ to }) => (
-  <Link to={to} className="flex items-center gap-2">
-    <span className="grid place-items-center w-9 h-9 rounded-xl bg-brand text-brand-fg">
-      <Leaf className="w-5 h-5" />
-    </span>
+  <Link to={to} className="flex items-center gap-2.5">
+    <img src="/icon.png" alt="" aria-hidden="true" className="w-9 h-9 object-contain" />
     <span className="text-lg font-display font-semibold tracking-tight text-fg">Carbonytics</span>
   </Link>
 );
