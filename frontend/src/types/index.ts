@@ -210,6 +210,17 @@ export interface User {
 	note: string;
   }
 
+  /** GHG-Protocol DQI / pedigree matrix (§48): each dimension 1 (best) … 5 (worst), emissions-weighted. */
+  export interface Pedigree {
+	technological: number | null;
+	temporal: number | null;
+	geographical: number | null;
+	completeness: number | null;
+	reliability: number | null;
+	overall: number | null;
+	entries: number;
+  }
+
   /** Conservative gap-filling suggestion from POST /calculations/estimate. */
   export interface EstimateSuggestion {
 	suggestedValue: number;

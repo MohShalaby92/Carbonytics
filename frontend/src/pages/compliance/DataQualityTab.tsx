@@ -14,6 +14,25 @@ import { Gauge, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 const dqColor = (s: number | null) =>
   s == null ? 'text-muted' : s <= 2 ? 'text-green-600' : s <= 3.5 ? 'text-yellow-600' : 'text-red-600';
 
+/** Heatmap cell styling for a pedigree score (1 best … 5 worst — lower is better). */
+const pedCell = (s: number | null | undefined) =>
+  s == null
+    ? 'text-muted'
+    : s <= 2
+    ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+    : s <= 3.5
+    ? 'bg-amber-400/20 text-amber-700 dark:text-amber-300'
+    : 'bg-red-500/15 text-red-700 dark:text-red-300';
+
+const PED_DIMS: [string, string][] = [
+  ['Technological', 'technological'],
+  ['Temporal', 'temporal'],
+  ['Geographical', 'geographical'],
+  ['Completeness', 'completeness'],
+  ['Reliability', 'reliability'],
+  ['Overall', 'overall'],
+];
+
 export const DataQualityTab: React.FC = () => {
   const year = new Date().getFullYear();
   const [start, setStart] = useState(`${year}-01-01`);
@@ -142,6 +161,75 @@ export const DataQualityTab: React.FC = () => {
               measured) · <span className="inline-block w-3 h-2 rounded-sm bg-amber-400/70 mb-0.5" /> secondary
               (database/average factor, incl. estimates)
             </p>
+
+            {/* GHG-Protocol pedigree matrix (§48) */}
+            {report?.dataQuality?.pedigree?.overall != null && (
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-fg/80 mb-1">
+                  GHG-Protocol pedigree matrix (data-quality indicators)
+                </h3>
+                <p className="text-xs text-muted mb-3">
+                  Every data line is scored 1 (best) … 5 (worst) across the five GHG Protocol Scope 3
+                  data-quality dimensions, then emissions-weighted. Lower is better.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="text-xs text-muted">
+                        <th className="text-left font-medium py-2 pr-3" />
+                        {PED_DIMS.map(([label]) => (
+                          <th key={label} className="font-medium px-2 py-2 text-center whitespace-nowrap">
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-line">
+                        <td className="py-1.5 pr-3 font-medium text-fg/90 whitespace-nowrap">
+                          Organization <span className="text-muted">(weighted)</span>
+                        </td>
+                        {PED_DIMS.map(([, key]) => {
+                          const v = report.dataQuality.pedigree[key];
+                          return (
+                            <td key={key} className="px-1 py-1 text-center">
+                              <span className={`inline-block min-w-[2.25rem] rounded px-2 py-0.5 font-medium tabular-nums ${pedCell(v)}`}>
+                                {v ?? '—'}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {byCategory
+                        .filter((c) => c.pedigree && c.pedigree.overall != null)
+                        .map((c) => (
+                          <tr key={c.category} className="border-t border-line/50">
+                            <td className="py-1.5 pr-3 text-fg/80 whitespace-nowrap">
+                              {c.category} <span className="text-muted">· S{c.scope}</span>
+                            </td>
+                            {PED_DIMS.map(([, key]) => {
+                              const v = c.pedigree[key];
+                              return (
+                                <td key={key} className="px-1 py-1 text-center">
+                                  <span className={`inline-block min-w-[2.25rem] rounded px-2 py-0.5 tabular-nums ${pedCell(v)}`}>
+                                    {v ?? '—'}
+                                  </span>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted mt-2">
+                  <span className="inline-block w-3 h-2 rounded-sm bg-green-500/40 mb-0.5" /> 1–2 strong ·{' '}
+                  <span className="inline-block w-3 h-2 rounded-sm bg-amber-400/50 mb-0.5" /> 3–3.5 moderate ·{' '}
+                  <span className="inline-block w-3 h-2 rounded-sm bg-red-500/40 mb-0.5" /> 4–5 weak. Derived from
+                  factor vintage, region, source tier, method and gas coverage — no fabricated values.
+                </p>
+              </div>
+            )}
           </>
         )}
       </Card>
