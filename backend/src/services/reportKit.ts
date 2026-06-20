@@ -29,8 +29,10 @@ import {
   ShadingType,
 } from 'docx';
 import { BRAND_ICON_PNG_BASE64 } from '../assets/brandIcon';
+import { BRAND_ICON_WHITE_PNG_BASE64 } from '../assets/brandIconWhite';
 
 const ICON_BUFFER = Buffer.from(BRAND_ICON_PNG_BASE64, 'base64');
+const ICON_WHITE_BUFFER = Buffer.from(BRAND_ICON_WHITE_PNG_BASE64, 'base64');
 
 export type ThemeKey = 'carbonytics' | 'cdp' | 'sbti' | 'esrs';
 
@@ -92,6 +94,7 @@ export class BrandedPdf {
   theme!: Theme;
   reportName = '';
   icon?: PDFImage;
+  iconWhite?: PDFImage;
   page!: PDFPage;
   y = 0;
   readonly pageW = 595.28;
@@ -113,6 +116,7 @@ export class BrandedPdf {
     b.theme = theme;
     b.reportName = reportName;
     try { b.icon = await b.doc.embedPng(ICON_BUFFER); } catch { /* icon optional */ }
+    try { b.iconWhite = await b.doc.embedPng(ICON_WHITE_BUFFER); } catch { /* white variant optional */ }
     return b;
   }
 
@@ -160,13 +164,13 @@ export class BrandedPdf {
     const bandH = 132;
     // accent band
     this.page.drawRectangle({ x: 0, y: this.pageH - bandH, width: this.pageW, height: bandH, color: this.col(this.theme.accent) });
-    // white logo chip + wordmark
-    const chip = 46;
-    const cx = this.margin, cy = this.pageH - 46 - chip;
-    this.page.drawRectangle({ x: cx, y: cy, width: chip, height: chip, color: rgb(1, 1, 1), borderColor: rgb(1, 1, 1), borderWidth: 0, opacity: 1 });
-    if (this.icon) this.page.drawImage(this.icon, { x: cx + 5, y: cy + 5, width: chip - 10, height: chip - 10 });
-    this.page.drawText('Carbonytics', { x: cx + chip + 12, y: cy + chip - 22, size: 20, font: this.bold, color: rgb(1, 1, 1) });
-    this.page.drawText('Data. Insight. Impact.', { x: cx + chip + 12, y: cy + chip - 38, size: 9, font: this.font, color: rgb(1, 1, 1), opacity: 0.85 });
+    // white logo directly on the accent band (no chip / no white box)
+    const logoSize = 50;
+    const cx = this.margin, cy = this.pageH - 42 - logoSize;
+    const logo = this.iconWhite || this.icon;
+    if (logo) this.page.drawImage(logo, { x: cx, y: cy, width: logoSize, height: logoSize });
+    this.page.drawText('Carbonytics', { x: cx + logoSize + 12, y: cy + logoSize - 24, size: 20, font: this.bold, color: rgb(1, 1, 1) });
+    this.page.drawText('Data. Insight. Impact.', { x: cx + logoSize + 12, y: cy + logoSize - 40, size: 9, font: this.font, color: rgb(1, 1, 1), opacity: 0.85 });
     // framework badge (right)
     const badge = pdfSafe(this.theme.badge.toUpperCase());
     const bw = this.bold.widthOfTextAtSize(badge, 8) + 16;
