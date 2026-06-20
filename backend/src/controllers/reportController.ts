@@ -22,7 +22,7 @@ import { AuthenticatedRequest } from '../types';
 import { BenchmarkService } from '../services/benchmarkService';
 import { renderInventoryPdf, renderInventoryDocx, renderInventoryXlsx } from '../services/reportRenderers';
 import { buildEntryFormula, reconcile } from '../services/lineage';
-import { scoreEntryPedigree, summarizePedigree, EntryPedigree } from '../services/pedigree';
+import { scoreEntryPedigree, summarizePedigree, EntryPedigree, formatPedigreeLine } from '../services/pedigree';
 
 /**
  * GHG inventory report (GHG Protocol / ISO 14064-1 required content):
@@ -1228,6 +1228,7 @@ async function buildCdpMapping(user: { organizationId: string; email: string }, 
           ? `${r.inventoryControls.verifiedCalculations} of ${r.inventoryControls.calculationsInPeriod} calculations independently verified in-platform; ${r.inventoryControls.lockedCalculations} locked/published.`
           : 'No third-party verification recorded yet. Inventory controls: audit trail, lock/snapshot immutability, PCAF-style data-quality scoring.',
       dataQualityWeighted: r.dataQuality.weightedDqScore,
+      pedigree: r.dataQuality.pedigree,
       completenessPercent: r.completeness.completenessPercent,
     },
   };
@@ -1405,6 +1406,7 @@ async function buildEsrsE1Mapping(user: { organizationId: string; email: string 
       completenessPercent: r.completeness.completenessPercent,
       relevantCategoriesScreened: r.completeness.screened,
       weightedDataQualityScore: r.dataQuality.weightedDqScore,
+      pedigreeMatrix: r.dataQuality.pedigree,
       independentlyVerifiedCalculations: r.inventoryControls.verifiedCalculations,
       lockedCalculations: r.inventoryControls.lockedCalculations,
       note: 'The CSRD requires limited assurance (phasing toward reasonable assurance). In-platform controls supporting assurance: an append-only audit trail, lock/snapshot immutability, PCAF-style data-quality scoring and independent verifier sign-off.',
@@ -1503,6 +1505,7 @@ function renderCdpMarkdown(m: any): string {
   lines.push('');
   lines.push('## C10. Verification');
   lines.push(`- ${m.C10_verification['C10.1 verification status']}`);
+  lines.push(`- GHG-Protocol pedigree (DQI): ${formatPedigreeLine(m.C10_verification.pedigree)}`);
   lines.push(`- Weighted data-quality score: ${m.C10_verification.dataQualityWeighted ?? '—'} / 5 · Completeness: ${m.C10_verification.completenessPercent}%`);
   lines.push('');
   return lines.join('\n');
@@ -1614,6 +1617,7 @@ function renderEsrsMarkdown(m: any): string {
 
   lines.push('## Data quality & assurance');
   const dq = m.dataQualityAndAssurance;
+  lines.push(`- GHG-Protocol pedigree (DQI): ${formatPedigreeLine(dq.pedigreeMatrix)}`);
   lines.push(`- Completeness: ${dq.completenessPercent}% · relevance screened: ${dq.relevantCategoriesScreened ? 'yes' : 'no'}`);
   lines.push(`- Weighted data-quality score: ${dq.weightedDataQualityScore ?? '—'} / 5 (1 best)`);
   lines.push(`- Independently verified calculations: ${dq.independentlyVerifiedCalculations} · locked/published: ${dq.lockedCalculations}`);
@@ -1815,6 +1819,13 @@ function renderInventoryMarkdown(r: any): string {
     );
   }
   lines.push(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions — estimates carry +10% conservativeness and DQ 5.`);
+  lines.push('GHG-Protocol pedigree (DQI): ' + formatPedigreeLine(r.dataQuality.pedigree));
+  r.emissions.byCategory
+    .filter((c: any) => c.pedigree && c.pedigree.overall != null)
+    .forEach((c: any) => {
+      const pp = c.pedigree;
+      lines.push(`- ${c.category}: pedigree overall ${pp.overall} (T ${pp.technological} / Tm ${pp.temporal} / G ${pp.geographical} / C ${pp.completeness} / R ${pp.reliability})`);
+    });
   lines.push('');
   lines.push('## 7. Completeness');
   const cm = r.completeness;

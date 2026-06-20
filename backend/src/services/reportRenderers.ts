@@ -11,6 +11,7 @@ import {
   WidthType,
 } from 'docx';
 import ExcelJS from 'exceljs';
+import { formatPedigreeLine } from './pedigree';
 
 /**
  * Binary renderers for the GHG inventory report (PDF / DOCX / XLSX), closing the
@@ -208,6 +209,7 @@ export async function renderInventoryPdf(r: any): Promise<Buffer> {
   if (r.dataQuality.weightedDqScore) draw(`PCAF-style weighted DQ score: ${r.dataQuality.weightedDqScore} (1 best … 5 worst, emissions-weighted)`, { indent: 10, size: 9 });
   if (r.dataQuality.dataSources) draw(`Data source: ${r.dataQuality.dataSources.primarySharePercent}% primary (supplier-specific / measured) · ${r.dataQuality.dataSources.secondarySharePercent}% secondary. Primary-data share per category is tracked for CDP/SBTi and should rise over time.`, { indent: 10, size: 9 });
   draw(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions`, { indent: 10, size: 9 });
+  if (r.dataQuality.pedigree) draw(`GHG-Protocol pedigree (DQI): ${formatPedigreeLine(r.dataQuality.pedigree)}`, { indent: 10, size: 9 });
 
   heading('7. Completeness');
   const cm = r.completeness;
@@ -352,6 +354,7 @@ export async function renderInventoryDocx(r: any): Promise<Buffer> {
   if (r.dataQuality.weightedDqScore) p(`PCAF-style weighted DQ score: ${r.dataQuality.weightedDqScore} (1 best … 5 worst, emissions-weighted)`);
   if (r.dataQuality.dataSources) p(`Data source: ${r.dataQuality.dataSources.primarySharePercent}% primary (supplier-specific / measured) · ${r.dataQuality.dataSources.secondarySharePercent}% secondary. Primary-data share per category is tracked for CDP/SBTi.`);
   p(`Estimated (gap-filled) data: ${r.dataQuality.estimates.count} entries, ${r.dataQuality.estimates.emissionsShare}% of emissions`);
+  if (r.dataQuality.pedigree) p(`GHG-Protocol pedigree (DQI): ${formatPedigreeLine(r.dataQuality.pedigree)}`);
 
   h('7. Completeness');
   const cm = r.completeness;
@@ -519,6 +522,12 @@ export async function renderInventoryXlsx(r: any): Promise<Buffer> {
     ['Secondary data share %', r.dataQuality.dataSources?.secondarySharePercent ?? 'n/a'],
     ['Estimated entries', r.dataQuality.estimates.count],
     ['Estimated emissions share %', r.dataQuality.estimates.emissionsShare],
+    ['GHG-Protocol pedigree overall (DQI 1 best-5 worst)', r.dataQuality.pedigree?.overall ?? 'n/a'],
+    ['Pedigree technological', r.dataQuality.pedigree?.technological ?? 'n/a'],
+    ['Pedigree temporal', r.dataQuality.pedigree?.temporal ?? 'n/a'],
+    ['Pedigree geographical', r.dataQuality.pedigree?.geographical ?? 'n/a'],
+    ['Pedigree completeness', r.dataQuality.pedigree?.completeness ?? 'n/a'],
+    ['Pedigree reliability', r.dataQuality.pedigree?.reliability ?? 'n/a'],
     ['Relevant categories', r.completeness.relevantCount],
     ['Covered categories', r.completeness.coveredCount],
     ['Documented exclusions', r.completeness.excludedCount],

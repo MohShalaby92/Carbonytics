@@ -191,3 +191,12 @@ export function summarizePedigree(
       : null;
   return { technological, temporal, geographical, completeness, reliability, overall, entries };
 }
+
+/**
+ * One-line dimension breakdown for the report renderers (markdown / PDF / DOCX /
+ * CDP / ESRS). Callers prefix their own label. Pure formatter.
+ */
+export function formatPedigreeLine(p?: PedigreeSummary | null): string {
+  if (!p || p.overall == null) return 'not yet scored';
+  return `technological ${p.technological} · temporal ${p.temporal} · geographical ${p.geographical} · completeness ${p.completeness} · reliability ${p.reliability} (overall ${p.overall}/5, 1 best)`;
+}
