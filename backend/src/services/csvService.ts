@@ -29,10 +29,12 @@ import {
   addBandTitle,
   addParagraph,
   addReferenceSheet,
+  styleHeaderRow,
   styleHeaderCells,
   applyInlineList,
   applyRangeList,
   workbookToBuffer,
+  BRAND_GREEN,
 } from './importExportKit';
 
 interface CSVCalculationRow {
@@ -124,6 +126,59 @@ interface PreviewResult {
 
 // UTF-8 BOM so spreadsheet apps read exported CSVs (e.g. "m³") with the right encoding.
 const UTF8_BOM = '﻿';
+
+interface ExportColumn {
+  key: string;
+  header: string;
+  /** input = round-trip column (header matches the import template); output = computed/provenance. */
+  input: boolean;
+  width: number;
+}
+
+/**
+ * Export columns: the leading block mirrors the import template headers exactly
+ * (so an export re-imports cleanly), followed by the computed/provenance columns
+ * the importer ignores. This is the round-trip contract.
+ */
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'category', header: 'Category', input: true, width: 28 },
+  { key: 'value', header: 'Value', input: true, width: 12 },
+  { key: 'unit', header: 'Unit', input: true, width: 12 },
+  { key: 'periodStart', header: 'Period Start', input: true, width: 14 },
+  { key: 'periodEnd', header: 'Period End', input: true, width: 14 },
+  { key: 'title', header: 'Title (groups rows)', input: true, width: 22 },
+  { key: 'facility', header: 'Facility', input: true, width: 18 },
+  { key: 'notes', header: 'Notes', input: true, width: 24 },
+  { key: 'factorCode', header: 'Factor Code', input: true, width: 30 },
+  { key: 'isEstimate', header: 'Is Estimate', input: true, width: 11 },
+  { key: 'estimationMethod', header: 'Estimation Method', input: true, width: 20 },
+  { key: 'scope', header: 'Scope', input: false, width: 7 },
+  { key: 'status', header: 'Status', input: false, width: 11 },
+  { key: 'verified', header: 'Verified', input: false, width: 9 },
+  { key: 'emissions', header: 'Emissions (kg CO2e)', input: false, width: 18 },
+  { key: 'factorName', header: 'Factor Name', input: false, width: 36 },
+  { key: 'factorValue', header: 'Factor Value', input: false, width: 14 },
+  { key: 'factorSource', header: 'Factor Source', input: false, width: 24 },
+  { key: 'factorYear', header: 'Factor Year', input: false, width: 10 },
+  { key: 'factorVersion', header: 'Factor Version', input: false, width: 12 },
+  { key: 'method', header: 'Method', input: false, width: 18 },
+  { key: 'gwpSet', header: 'GWP Set', input: false, width: 10 },
+  { key: 'gwpApplied', header: 'GWP Applied', input: false, width: 12 },
+  { key: 'dqScore', header: 'DQ Score', input: false, width: 9 },
+  { key: 'quality', header: 'Quality', input: false, width: 9 },
+  { key: 'supplier', header: 'Supplier', input: false, width: 18 },
+  { key: 'scope2Location', header: 'Scope2 Location', input: false, width: 14 },
+  { key: 'scope2Market', header: 'Scope2 Market', input: false, width: 14 },
+  { key: 'scope2Method', header: 'Scope2 Method', input: false, width: 30 },
+  { key: 'biogenicCO2', header: 'Biogenic CO2 (kg, memo)', input: false, width: 18 },
+  { key: 'gasCo2', header: 'Gas CO2 (kg)', input: false, width: 12 },
+  { key: 'gasCh4', header: 'Gas CH4 (kg)', input: false, width: 12 },
+  { key: 'gasN2o', header: 'Gas N2O (kg)', input: false, width: 12 },
+  { key: 'mbReleased', header: 'MB Released (kg)', input: false, width: 14 },
+  { key: 'reportingYear', header: 'Reporting Year', input: false, width: 12 },
+  { key: 'calculationId', header: 'Calculation ID', input: false, width: 26 },
+  { key: 'entryIndex', header: 'Entry Index', input: false, width: 10 },
+];
 
 export class CSVService {
 
@@ -579,6 +634,15 @@ export class CSVService {
     return analyzeImportQuality(qualityRows, history);
   }
 
+  /**
+   * Export stored calculations as a complete, round-trippable file. Filters on
+   * the reporting PERIOD (not createdAt) and includes ALL statuses by default
+   * (locked/verified data is the audited record), with optional status / scope /
+   * category / facility filters. One row per entry carries every provenance
+   * field (real factor source/year/version, DQ, Scope-2 dual, biogenic, per-gas,
+   * material balance, supplier) — the hard-coded "System Default" / "Medium" of
+   * the old export are gone. Returns the file bytes + content metadata.
+   */
   async exportCalculations(
     organizationId: string,
     filters: {
@@ -586,104 +650,163 @@ export class CSVService {
       endDate?: string;
       scopes?: number[];
       categories?: string[];
-    } = {}
-  ): Promise<string> {
-    try {
-      logger.info('Starting calculations export to CSV');
-
-      // Build query
-      const query: any = { organizationId, status: 'completed' };
-
-      if (filters.startDate || filters.endDate) {
-        query.createdAt = {};
-        if (filters.startDate) query.createdAt.$gte = new Date(filters.startDate);
-        if (filters.endDate) query.createdAt.$lte = new Date(filters.endDate);
-      }
-
-      // Get calculations with populated data
-      const calculations = await Calculation.find(query)
-        .populate('data.categoryId')
-        .sort({ createdAt: -1 })
-        .lean();
-
-      // Generate CSV content
-      const csvContent = await this.generateCSVContent(calculations, filters);
-
-      // Save to temporary file
-      const fileName = `emissions_export_${Date.now()}.csv`;
-      const filePath = path.join(process.cwd(), 'uploads', fileName);
-
-      // Ensure uploads directory exists
-      const uploadsDir = path.dirname(filePath);
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      fs.writeFileSync(filePath, UTF8_BOM + csvContent, 'utf8');
-
-      logger.info(`CSV export saved to: ${filePath}`);
-      return fileName;
-
-    } catch (error) {
-      logger.error('CSV export failed:', error);
-      throw error;
+      facilityId?: string;
+      status?: string;
+    } = {},
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<{ buffer: Buffer; contentType: string; ext: string; fileName: string }> {
+    const query: any = { organizationId };
+    if (filters.status) query.status = filters.status;
+    if (filters.facilityId) query.facilityId = filters.facilityId;
+    if (filters.startDate || filters.endDate) {
+      query['period.start'] = {};
+      if (filters.startDate) query['period.start'].$gte = new Date(filters.startDate);
+      if (filters.endDate) query['period.start'].$lte = new Date(filters.endDate);
     }
+
+    const calculations = await Calculation.find(query)
+      .populate('data.categoryId', 'category scope')
+      .populate('facilityId', 'name')
+      .sort({ 'period.start': 1, createdAt: 1 })
+      .lean();
+
+    const rows = await this.buildExportRows(calculations as any[], filters);
+    const totals = this.exportTotals(rows);
+
+    if (format === 'csv') {
+      return {
+        buffer: this.exportToCsv(rows),
+        contentType: 'text/csv',
+        ext: 'csv',
+        fileName: `carbonytics_emissions_${Date.now()}.csv`,
+      };
+    }
+    return {
+      buffer: await this.exportToXlsx(rows, totals, filters),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ext: 'xlsx',
+      fileName: `carbonytics_emissions_${Date.now()}.xlsx`,
+    };
   }
 
-  private async generateCSVContent(calculations: any[], filters: any): Promise<string> {
-    const headers = [
-      'Date',
-      'Category',
-      'Scope',
-      'Description',
-      'Value',
-      'Unit',
-      'Emission Factor',
-      'Emissions (kg CO2e)',
-      'Source',
-      'Quality Rating',
-      'Notes'
-    ];
-
-    const rows: string[][] = [headers];
-
-    for (const calc of calculations) {
-      for (const entry of calc.data) {
-        const category = entry.categoryId;
-
-        // Apply scope filter
-        if (filters.scopes && !filters.scopes.includes(category.scope)) {
-          continue;
-        }
-
-        // Apply category filter
-        if (filters.categories && !filters.categories.includes(category._id.toString())) {
-          continue;
-        }
-
-        const row = [
-          new Date(calc.createdAt).toISOString().split('T')[0],
-          category.category || 'Unknown',
-          category.scope?.toString() || '1',
-          calc.title || '',
-          entry.value?.toString() || '0',
-          entry.unit || '',
-          entry.factor?.toString() || '0',
-          entry.emissions?.toString() || '0',
-          'System Default',
-          'Medium',
-          entry.notes || ''
-        ];
-
-        rows.push(row);
-      }
+  /** One row per stored entry with every data point, plus the Factor Code for round-trip pinning. */
+  private async buildExportRows(calcs: any[], filters: any): Promise<Record<string, any>[]> {
+    // Resolve factorId → factorCode so the export can pin the same factor on re-import.
+    const factorIds = new Set<string>();
+    for (const c of calcs) for (const e of c.data || []) if (e.factorId) factorIds.add(String(e.factorId));
+    const codeById = new Map<string, string>();
+    if (factorIds.size) {
+      const fl = await EmissionFactor.find({ _id: { $in: [...factorIds] } }).select('factorCode').lean();
+      for (const f of fl as any[]) if (f.factorCode) codeById.set(String(f._id), f.factorCode);
     }
 
-    // Convert to CSV format
-    return rows.map(row =>
-      row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`)
-         .join(',')
-    ).join('\n');
+    const rows: Record<string, any>[] = [];
+    for (const c of calcs) {
+      const facilityName = c.facilityId && (c.facilityId as any).name ? (c.facilityId as any).name : '';
+      const reportingYear =
+        c.period?.start && c.period?.end ? midpointYear(new Date(c.period.start), new Date(c.period.end)) : '';
+      (c.data || []).forEach((e: any, idx: number) => {
+        const cat = e.categoryId;
+        const scope = cat?.scope;
+        if (filters.scopes && filters.scopes.length && !filters.scopes.includes(scope)) return;
+        if (filters.categories && filters.categories.length && cat && !filters.categories.includes(String(cat._id))) return;
+        rows.push({
+          category: cat?.category || '',
+          value: e.value,
+          unit: e.unit,
+          periodStart: c.period?.start ? new Date(c.period.start).toISOString().slice(0, 10) : '',
+          periodEnd: c.period?.end ? new Date(c.period.end).toISOString().slice(0, 10) : '',
+          title: c.title || '',
+          facility: facilityName,
+          notes: e.notes || '',
+          factorCode: e.factorId ? codeById.get(String(e.factorId)) || '' : '',
+          isEstimate: e.isEstimate ? 'Yes' : 'No',
+          estimationMethod: e.estimationMethod || '',
+          scope,
+          status: c.status,
+          verified: c.verification?.verified ? 'Yes' : 'No',
+          emissions: e.emissions,
+          factorName: e.factorName || '',
+          factorValue: e.factor,
+          factorSource: e.factorSource || '',
+          factorYear: e.factorYear || '',
+          factorVersion: e.factorVersion ?? '',
+          method: e.method || '',
+          gwpSet: e.gwpSet || '',
+          gwpApplied: e.gwpApplied || '',
+          dqScore: e.dqScore ?? '',
+          quality: e.quality || '',
+          supplier: e.supplierName || '',
+          scope2Location: e.scope2Location ?? '',
+          scope2Market: e.scope2Market ?? '',
+          scope2Method: e.scope2MarketMethod || '',
+          biogenicCO2: e.biogenicCO2 ?? '',
+          gasCo2: e.gasBreakdown?.co2 ?? '',
+          gasCh4: e.gasBreakdown?.ch4 ?? '',
+          gasN2o: e.gasBreakdown?.n2o ?? '',
+          mbReleased: e.materialBalance?.releasedKg ?? '',
+          reportingYear,
+          calculationId: String(c._id),
+          entryIndex: idx,
+        });
+      });
+    }
+    return rows;
+  }
+
+  private exportTotals(rows: Record<string, any>[]): { count: number; scope1: number; scope2: number; scope3: number; total: number } {
+    const t = { count: rows.length, scope1: 0, scope2: 0, scope3: 0, total: 0 };
+    for (const r of rows) {
+      const e = Number(r.emissions) || 0;
+      if (r.scope === 1) t.scope1 += e;
+      else if (r.scope === 2) t.scope2 += e;
+      else if (r.scope === 3) t.scope3 += e;
+    }
+    t.scope1 = Math.round(t.scope1 * 100) / 100;
+    t.scope2 = Math.round(t.scope2 * 100) / 100;
+    t.scope3 = Math.round(t.scope3 * 100) / 100;
+    t.total = Math.round((t.scope1 + t.scope2 + t.scope3) * 100) / 100;
+    return t;
+  }
+
+  private exportToCsv(rows: Record<string, any>[]): Buffer {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = EXPORT_COLUMNS.map((c) => esc(c.header)).join(',');
+    const body = rows.map((r) => EXPORT_COLUMNS.map((c) => esc(r[c.key])).join(',')).join('\n');
+    return Buffer.from(UTF8_BOM + header + '\n' + body, 'utf8');
+  }
+
+  private async exportToXlsx(
+    rows: Record<string, any>[],
+    totals: { count: number; scope1: number; scope2: number; scope3: number; total: number },
+    filters: any
+  ): Promise<Buffer> {
+    const wb = newBrandedWorkbook();
+
+    const period = filters.startDate || filters.endDate ? `${filters.startDate || '…'} to ${filters.endDate || '…'}` : 'All dates';
+    const sum = wb.addWorksheet('Summary');
+    sum.columns = [{ header: 'Field', key: 'k', width: 32 }, { header: 'Value', key: 'v', width: 52 }] as any;
+    ([
+      ['Report', 'Carbonytics emissions export'],
+      ['Generated at', new Date().toISOString()],
+      ['Reporting period filter', period],
+      ['Status filter', filters.status || 'all statuses'],
+      ['Entries exported', totals.count],
+      ['Scope 1 (kg CO2e)', totals.scope1],
+      ['Scope 2 (kg CO2e)', totals.scope2],
+      ['Scope 3 (kg CO2e)', totals.scope3],
+      ['Total (kg CO2e)', totals.total],
+      ['Note', 'The leading columns match the import template — edit and re-import for a round-trip.'],
+    ] as [string, any][]).forEach((r) => sum.addRow({ k: r[0], v: r[1] }));
+    styleHeaderRow(sum);
+
+    const ws = wb.addWorksheet('Activity Data');
+    ws.columns = EXPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width })) as any;
+    rows.forEach((r) => ws.addRow(r));
+    // Green headers for the round-trip input columns, slate for computed/provenance.
+    styleHeaderCells(ws, EXPORT_COLUMNS.map((c) => (c.input ? BRAND_GREEN : 'FF4E5D70')));
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: EXPORT_COLUMNS.length } };
+    return workbookToBuffer(wb);
   }
 
   /**

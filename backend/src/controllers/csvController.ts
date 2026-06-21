@@ -215,40 +215,28 @@ export const exportCalculationsCSV = asyncHandler(async (req: AuthenticatedReque
   }
 
   try {
-    const { startDate, endDate, scopes, categories } = req.query;
-    
+    const { startDate, endDate, scopes, categories, facilityId, status, format } = req.query;
+    const fmt = String(format || 'xlsx').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
+
     const filters = {
       startDate: startDate as string,
       endDate: endDate as string,
-      scopes: scopes ? (scopes as string).split(',').map(Number) : undefined,
+      scopes: scopes ? (scopes as string).split(',').map(Number).filter((n) => !isNaN(n)) : undefined,
       categories: categories ? (categories as string).split(',') : undefined,
+      facilityId: facilityId as string | undefined,
+      status: status as string | undefined,
     };
 
     const csvService = new CSVService();
-    const fileName = await csvService.exportCalculations(req.user.organizationId, filters);
-    const filePath = path.join(process.cwd(), 'uploads', fileName);
+    const { buffer, contentType, fileName } = await csvService.exportCalculations(
+      req.user.organizationId,
+      filters,
+      fmt
+    );
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    
-    return res.sendFile(filePath, (err) => {
-      if (err) {
-        console.error('Error sending export file:', err);
-        ApiResponseUtil.error(res, 'Failed to download export', 500);
-      } else {
-        // Clean up file after sending
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (cleanupError) {
-            console.error('Error cleaning up export file:', cleanupError);
-          }
-        }, 5000);
-      }
-    });
-
+    return res.send(buffer);
   } catch (error) {
     console.error('CSV export failed:', error);
     ApiResponseUtil.error(res, 'Export failed', 500);
