@@ -1,331 +1,259 @@
 import React, { useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
 import { FileUpload } from '../components/forms/FileUpload';
 import { Alert } from '../components/ui/Alert';
 import { apiService } from '../services/api';
-import { 
-  Upload, 
-  Download, 
-  BarChart3, 
-  Calendar,
-  Filter,
+import {
+  Upload,
+  Download,
+  FileSpreadsheet,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ListChecks,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
+
+const downloadBlob = (data: BlobPart, filename: string) => {
+  const url = window.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+const EXPORT_INCLUDES = [
+  'Category, scope, period, facility, title',
+  'Activity value & unit',
+  'Emissions (kg CO₂e)',
+  'Factor name, value, source, year & pinned version',
+  'Method, GWP set, data-quality score',
+  'Scope-2 location/market, biogenic, per-gas',
+  'Material-balance & supplier provenance',
+  'Status, verification, calculation id',
+];
 
 export const ImportExportPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'import' | 'export'>('import');
-  const [exportFilters, setExportFilters] = useState({
-    startDate: '',
-    endDate: '',
-    scopes: [] as number[],
-  });
+  const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');
+  const [filters, setFilters] = useState({ startDate: '', endDate: '', scopes: [] as number[], status: '' });
   const [exporting, setExporting] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleImportSuccess = (result: any) => {
     setMessage({
       type: 'success',
-      text: `Successfully imported ${result.successful} calculations!`
+      text: `Imported ${result.successful} row(s) into ${result.createdCalculations} calculation(s).`,
     });
   };
-
-  const handleImportError = (error: string) => {
-    setMessage({
-      type: 'error',
-      text: error
-    });
-  };
+  const handleImportError = (error: string) => setMessage({ type: 'error', text: error });
 
   const handleExport = async () => {
     setExporting(true);
     setMessage(null);
-
     try {
       const params = new URLSearchParams();
-      if (exportFilters.startDate) params.append('startDate', exportFilters.startDate);
-      if (exportFilters.endDate) params.append('endDate', exportFilters.endDate);
-      if (exportFilters.scopes.length > 0) params.append('scopes', exportFilters.scopes.join(','));
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+      if (filters.scopes.length > 0) params.append('scopes', filters.scopes.join(','));
+      if (filters.status) params.append('status', filters.status);
+      params.append('format', format);
 
-      const response = await apiService.get(`/csv/export?${params.toString()}`, {
-        responseType: 'blob',
-      });
-
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data as BlobPart]));
-      const link = document.createElement('a');
-      link.href = url;
-      
-      const fileName = `emissions_data_${Date.now()}.csv`;
-      
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      setMessage({
-        type: 'success',
-        text: 'CSV export downloaded successfully!'
-      });
-
+      const response = await apiService.get(`/csv/export?${params.toString()}`, { responseType: 'blob' });
+      downloadBlob(response.data as BlobPart, `carbonytics_emissions_${Date.now()}.${format}`);
+      setMessage({ type: 'success', text: `Export downloaded as ${format.toUpperCase()}.` });
     } catch (error: any) {
-      setMessage({
-        type: 'error',
-        text: error.response?.data?.message || 'Export failed'
-      });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Export failed' });
     } finally {
       setExporting(false);
     }
   };
 
-  const toggleScope = (scope: number) => {
-    setExportFilters(prev => ({
+  const toggleScope = (scope: number) =>
+    setFilters((prev) => ({
       ...prev,
-      scopes: prev.scopes.includes(scope)
-        ? prev.scopes.filter(s => s !== scope)
-        : [...prev.scopes, scope]
+      scopes: prev.scopes.includes(scope) ? prev.scopes.filter((s) => s !== scope) : [...prev.scopes, scope],
     }));
-  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-fg">Import & Export Data</h1>
-        <p className="mt-2 text-muted">
-          Import calculations from CSV files or export your emissions data
-        </p>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <img src="/icon.png" alt="Carbonytics" className="w-8 h-8" />
+        <h1 className="text-3xl font-bold text-fg">Import &amp; Export Data</h1>
       </div>
+      <p className="mb-8 text-muted">
+        Move activity data in and out of the calculator. Imports are recomputed by the same engine the
+        calculator uses — with full provenance and a preview of every row before anything is saved.
+      </p>
 
-      {/* Message Alert */}
       {message && (
-        <Alert 
-          variant={message.type === 'success' ? 'success' : 'error'} 
-          className="mb-6"
-        >
-          {message.type === 'success' ? (
-            <CheckCircle className="w-4 h-4" />
-          ) : (
-            <AlertCircle className="w-4 h-4" />
-          )}
+        <Alert variant={message.type === 'success' ? 'success' : 'error'} className="mb-6">
+          {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           <span>{message.text}</span>
         </Alert>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex space-x-1 bg-fg/[0.06] p-1 rounded-lg mb-8">
-        <button
-          onClick={() => setActiveTab('import')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'import'
-              ? 'bg-surface text-primary-600 shadow-sm'
-              : 'text-muted hover:text-fg'
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          <span>Import Data</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('export')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'export'
-              ? 'bg-surface text-primary-600 shadow-sm'
-              : 'text-muted hover:text-fg'
-          }`}
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Data</span>
-        </button>
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-fg/[0.06] p-1 rounded-lg mb-8 w-fit">
+        {([
+          { key: 'import', label: 'Import Data', icon: Upload },
+          { key: 'export', label: 'Export Data', icon: Download },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === t.key ? 'bg-surface text-primary-600 shadow-sm' : 'text-muted hover:text-fg'
+            }`}
+          >
+            <t.icon className="w-4 h-4" />
+            <span>{t.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Import Tab */}
+      {/* Import */}
       {activeTab === 'import' && (
         <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex items-start space-x-4 mb-6">
-              <div className="flex-shrink-0">
-                <Upload className="w-8 h-8 text-primary-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-fg">Import Calculations</h2>
-                <p className="mt-1 text-muted">
-                  Upload a CSV file with your emissions calculation data. The file should include 
-                  category, value, unit, and date information for each calculation.
-                </p>
-              </div>
-            </div>
-
-            <FileUpload
-              onUploadSuccess={handleImportSuccess}
-              onUploadError={handleImportError}
-              accept=".csv"
-              maxSize={10}
-            />
-          </Card>
-
-          {/* Import Guidelines */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-fg mb-4">Import Guidelines</h3>
-            <div className="space-y-4 text-sm text-muted">
-              <div>
-                <h4 className="font-medium text-fg">Required Columns:</h4>
-                <ul className="mt-1 list-disc list-inside space-y-1">
-                  <li><strong>category</strong> - Emission category name (e.g., "Purchased Electricity")</li>
-                  <li><strong>value</strong> - Numeric value for the activity</li>
-                  <li><strong>unit</strong> - Unit of measurement (e.g., "kWh", "km", "L")</li>
-                  <li><strong>period_start</strong> - Start date (YYYY-MM-DD format)</li>
-                  <li><strong>period_end</strong> - End date (YYYY-MM-DD format)</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium text-fg">Optional Columns:</h4>
-                <ul className="mt-1 list-disc list-inside space-y-1">
-                  <li><strong>notes</strong> - Additional notes or context</li>
-                  <li><strong>location</strong> - Geographic location</li>
-                  <li><strong>supplier</strong> - Supplier or vendor name</li>
-                  <li><strong>distance</strong> - Distance for travel calculations</li>
-                  <li><strong>fuel_type</strong> - Type of fuel used</li>
-                </ul>
-              </div>
+          <Card className="p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { n: 1, t: 'Download the template', d: 'A guided Excel workbook with dropdowns, examples and your live factor library.' },
+                { n: 2, t: 'Fill the Activity Data sheet', d: 'One activity per row. Leave Factor Code blank to use the Egyptian-default factor.' },
+                { n: 3, t: 'Validate, then import', d: 'Preview each row’s resolved factor and emissions, then import with one click.' },
+              ].map((s, i) => (
+                <div key={s.n} className="flex gap-3">
+                  <div className="shrink-0 w-7 h-7 rounded-full bg-primary-500/10 text-primary-600 font-semibold flex items-center justify-center">{s.n}</div>
+                  <div>
+                    <p className="font-medium text-fg flex items-center gap-1">{s.t}{i < 2 && <ArrowRight className="w-3.5 h-3.5 text-muted hidden sm:inline" />}</p>
+                    <p className="text-sm text-muted">{s.d}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
+
+          <FileUpload onUploadSuccess={handleImportSuccess} onUploadError={handleImportError} accept=".xlsx,.csv" maxSize={10} />
         </div>
       )}
 
-      {/* Export Tab */}
+      {/* Export */}
       {activeTab === 'export' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Export Options */}
           <div className="lg:col-span-2 space-y-6">
             <Card className="p-6">
-              <div className="flex items-start space-x-4 mb-6">
-                <div className="flex-shrink-0">
-                  <Download className="w-8 h-8 text-primary-600" />
-                </div>
+              <div className="flex items-start gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-primary-500/10"><Download className="w-5 h-5 text-primary-600" /></div>
                 <div>
-                  <h2 className="text-xl font-semibold text-fg">Export Data</h2>
-                  <p className="mt-1 text-muted">
-                    Export your emissions calculation data as CSV for analysis in Excel or other tools
+                  <h2 className="text-xl font-semibold text-fg">Export your data</h2>
+                  <p className="text-sm text-muted">
+                    A complete, audit-ready record. The leading columns match the import template, so you can
+                    edit an export and re-import it.
                   </p>
                 </div>
               </div>
 
-              {/* Date Range */}
+              {/* Format */}
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-fg mb-3">Date Range</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-fg/80 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={exportFilters.startDate}
-                      onChange={(e) => setExportFilters(prev => ({
-                        ...prev,
-                        startDate: e.target.value
-                      }))}
-                      className="w-full px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-fg/80 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={exportFilters.endDate}
-                      onChange={(e) => setExportFilters(prev => ({
-                        ...prev,
-                        endDate: e.target.value
-                      }))}
-                      className="w-full px-3 py-2 border border-line rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Scope Selection */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-fg mb-3">Emission Scopes</h3>
-                <div className="space-y-2">
-                  {[1, 2, 3].map(scope => (
-                    <label key={scope} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={exportFilters.scopes.includes(scope)}
-                        onChange={() => toggleScope(scope)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-line rounded"
-                      />
-                      <span className="ml-2 text-sm text-fg/80">
-                        Scope {scope} - {
-                          scope === 1 ? 'Direct Emissions' :
-                          scope === 2 ? 'Energy Indirect' :
-                          'Other Indirect'
-                        }
-                      </span>
-                    </label>
+                <h3 className="text-sm font-medium text-fg mb-2">Format</h3>
+                <div className="inline-flex rounded-lg border border-line overflow-hidden">
+                  {(['xlsx', 'csv'] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setFormat(f)}
+                      className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 ${
+                        format === f ? 'bg-primary-600 text-white' : 'bg-surface text-muted hover:text-fg'
+                      }`}
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      {f === 'xlsx' ? 'Excel (branded)' : 'CSV'}
+                    </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted mt-2">
-                  Leave empty to include all scopes
-                </p>
               </div>
 
-              <Button
-                onClick={handleExport}
-                loading={exporting}
-                disabled={exporting}
-                className="w-full"
-              >
-                {exporting ? 'Generating...' : 'Export CSV'}
+              {/* Date range */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-fg mb-3">Reporting period</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-fg/80 mb-1">Start date</label>
+                    <input type="date" value={filters.startDate} onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-line rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-fg/80 mb-1">End date</label>
+                    <input type="date" value={filters.endDate} onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-line rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Scopes + status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <h3 className="text-sm font-medium text-fg mb-3">Scopes</h3>
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((scope) => (
+                      <label key={scope} className="flex items-center">
+                        <input type="checkbox" checked={filters.scopes.includes(scope)} onChange={() => toggleScope(scope)}
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-line rounded" />
+                        <span className="ml-2 text-sm text-fg/80">
+                          Scope {scope} — {scope === 1 ? 'Direct' : scope === 2 ? 'Indirect (energy)' : 'Value chain'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted mt-2">Leave empty for all scopes.</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-fg mb-3">Status</h3>
+                  <Select value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
+                    <option value="">All statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="completed">Completed</option>
+                    <option value="verified">Verified</option>
+                    <option value="locked">Locked (published)</option>
+                  </Select>
+                  <p className="text-xs text-muted mt-2">Locked &amp; verified data is included by default.</p>
+                </div>
+              </div>
+
+              <Button onClick={handleExport} loading={exporting} disabled={exporting} className="w-full">
+                {exporting ? 'Generating…' : `Export ${format.toUpperCase()}`}
               </Button>
             </Card>
           </div>
 
-          {/* Export Info */}
+          {/* What's included */}
           <div className="space-y-6">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-fg mb-4">Export Format</h3>
-              <div className="flex items-start space-x-3">
-                <BarChart3 className="w-5 h-5 text-green-500 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-fg">CSV Data</h4>
-                  <p className="text-sm text-muted">
-                    Raw calculation data for analysis in Excel or other tools
-                  </p>
-                </div>
-              </div>
+              <h3 className="text-lg font-semibold text-fg mb-1 flex items-center gap-2">
+                <ListChecks className="w-5 h-5 text-primary-600" /> What's included
+              </h3>
+              <p className="text-sm text-muted mb-3">Every stored data point, one row per entry:</p>
+              <ul className="space-y-1.5 text-sm text-fg/80">
+                {EXPORT_INCLUDES.map((x) => (
+                  <li key={x} className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-green-500 shrink-0" />
+                    {x}
+                  </li>
+                ))}
+              </ul>
             </Card>
-
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold text-fg mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setExportFilters({
-                      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                      endDate: new Date().toISOString().split('T')[0],
-                      scopes: [],
-                    });
-                  }}
-                  className="w-full justify-start"
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Last 30 Days Export
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setExportFilters({
-                      startDate: '',
-                      endDate: '',
-                      scopes: [],
-                    });
-                  }}
-                  className="w-full justify-start"
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  All Data Export
-                </Button>
+            <Card className="p-5 bg-primary-500/[0.04] border-primary-500/20">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 mt-0.5 text-primary-600 shrink-0" />
+                <p className="text-sm text-fg/80">
+                  <span className="font-medium text-fg">Round-trip:</span> export, edit the values, and re-import.
+                  Validation flags anything that already exists so you choose what to bring back in.
+                </p>
               </div>
             </Card>
           </div>
