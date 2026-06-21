@@ -16,8 +16,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-const downloadBlob = (data: BlobPart, filename: string) => {
-  const url = window.URL.createObjectURL(new Blob([data]));
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
@@ -64,8 +64,8 @@ export const ImportExportPage: React.FC = () => {
       if (filters.status) params.append('status', filters.status);
       params.append('format', format);
 
-      const response = await apiService.get(`/csv/export?${params.toString()}`, { responseType: 'blob' });
-      downloadBlob(response.data as BlobPart, `carbonytics_emissions_${Date.now()}.${format}`);
+      const blob = await apiService.getBlob(`/csv/export?${params.toString()}`);
+      downloadBlob(blob, `carbonytics_emissions_${Date.now()}.${format}`);
       setMessage({ type: 'success', text: `Export downloaded as ${format.toUpperCase()}.` });
     } catch (error: any) {
       setMessage({ type: 'error', text: error.response?.data?.message || 'Export failed' });

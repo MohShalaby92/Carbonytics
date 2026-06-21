@@ -107,6 +107,17 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * GET a binary file (XLSX/CSV download). Returns the raw Blob — NOT the
+   * unwrapped JSON body — because for `responseType: 'blob'` axios already puts
+   * the file in `response.data`. (Using `get()` here would return that Blob and
+   * a caller reading `.data` on it would get `undefined`.)
+   */
+  async getBlob(url: string): Promise<Blob> {
+    const response = await this.api.get(url, { responseType: 'blob' });
+    return response.data as Blob;
+  }
+
   async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
     const response = await this.api.post<ApiResponse<T>>(url, data);
     return response.data;

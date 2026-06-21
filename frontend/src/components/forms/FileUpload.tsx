@@ -80,8 +80,8 @@ const WARNING_LABEL: Record<string, string> = {
 const fmtNum = (n?: number) =>
   n === undefined || n === null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-const downloadBlob = (data: BlobPart, filename: string) => {
-  const url = window.URL.createObjectURL(new Blob([data]));
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
@@ -134,8 +134,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const downloadTemplate = async (format: 'xlsx' | 'csv') => {
     setDownloading(true);
     try {
-      const response = await apiService.get(`/csv/template?format=${format}`, { responseType: 'blob' });
-      downloadBlob(response.data as BlobPart, `carbonytics_import_template.${format}`);
+      const blob = await apiService.getBlob(`/csv/template?format=${format}`);
+      downloadBlob(blob, `carbonytics_import_template.${format}`);
     } catch {
       onUploadError?.('Failed to download template');
     } finally {
