@@ -202,31 +202,16 @@ export const getImportTemplate = asyncHandler(async (req: AuthenticatedRequest, 
   }
 
   try {
+    const format = String(req.query.format || 'xlsx').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
     const csvService = new CSVService();
-    const fileName = await csvService.exportTemplate();
-    const filePath = path.join(process.cwd(), 'uploads', fileName);
+    const { buffer, contentType, fileName } = await csvService.buildImportTemplate(
+      req.user.organizationId,
+      format
+    );
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    
-    return res.sendFile(filePath, (err) => {
-      if (err) {
-        console.error('Error sending template file:', err);
-        ApiResponseUtil.error(res, 'Failed to download template', 500);
-      } else {
-        // Clean up file after sending
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (cleanupError) {
-            console.error('Error cleaning up template file:', cleanupError);
-          }
-        }, 5000);
-      }
-    });
-
+    return res.send(buffer);
   } catch (error) {
     console.error('Template generation failed:', error);
     ApiResponseUtil.error(res, 'Template generation failed', 500);

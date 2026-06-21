@@ -5,10 +5,23 @@ import fs from 'fs';
 import path from 'path';
 import { Calculation } from '../models/Calculation';
 import { EmissionCategory } from '../models/EmissionCategory';
+import { EmissionFactor } from '../models/EmissionFactor';
+import { Facility } from '../models/Facility';
 import { calculationEngine } from './calculationEngine';
 import { escapeRegex } from '../utils/security';
 import { logger } from '../utils/logger';
 import { analyzeImportQuality, QualityRow, HistoryPoint, ImportWarning } from './importQuality';
+import { IMPORT_COLUMNS, VALIDATION_LISTS, GROUP_FILL } from './importMapping';
+import {
+  newBrandedWorkbook,
+  addBandTitle,
+  addParagraph,
+  addReferenceSheet,
+  styleHeaderCells,
+  applyInlineList,
+  applyRangeList,
+  workbookToBuffer,
+} from './importExportKit';
 
 interface CSVCalculationRow {
   category: string;
@@ -367,91 +380,216 @@ export class CSVService {
     ).join('\n');
   }
 
-  async exportTemplate(): Promise<string> {
-    try {
-      logger.info('Generating CSV import template');
-
-      const headers = [
-        'category',
-        'value',
-        'unit',
-        'period_start',
-        'period_end',
-        'notes',
-        'location',
-        'supplier',
-        'distance',
-        'fuel_type',
-        'travel_class'
-      ];
-
-      const sampleRows = [
-        headers,
-        [
-          'Purchased Electricity',
-          '1000',
-          'kWh',
-          '2024-01-01',
-          '2024-01-31',
-          'Office electricity consumption',
-          'Cairo, Egypt',
-          'Cairo Electricity Distribution Company',
-          '',
-          '',
-          ''
-        ],
-        [
-          'Business Travel',
-          '500',
-          'km',
-          '2024-01-01',
-          '2024-01-31',
-          'Flight to Alexandria',
-          'Cairo to Alexandria',
-          'EgyptAir',
-          '500',
-          'Jet Fuel',
-          'Economy'
-        ],
-        [
-          'Natural Gas',
-          '100',
-          'm³',
-          '2024-01-01',
-          '2024-01-31',
-          'Office heating',
-          'Cairo, Egypt',
-          'Egyptian Natural Gas Holding Company',
-          '',
-          'Natural Gas',
-          ''
-        ]
-      ];
-
-      const csvContent = sampleRows.map(row =>
-        row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`)
-           .join(',')
-      ).join('\n');
-
-      // Save template file
-      const fileName = `carbonytics_import_template.csv`;
-      const filePath = path.join(process.cwd(), 'uploads', fileName);
-
-      // Ensure uploads directory exists
-      const uploadsDir = path.dirname(filePath);
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      fs.writeFileSync(filePath, UTF8_BOM + csvContent, 'utf8');
-
-      logger.info(`CSV template saved to: ${filePath}`);
-      return fileName;
-
-    } catch (error) {
-      logger.error('CSV template generation failed:', error);
-      throw error;
+  /**
+   * Branded, self-documenting import template generated from the LIVE database
+   * (so it can never drift from the real categories / factors / facilities).
+   * XLSX is the premium default (multi-sheet, dropdowns, worked examples,
+   * reference sheets); CSV is a headers-only fallback for CSV-only workflows.
+   * Returns the file bytes + content metadata for the controller to stream.
+   */
+  async buildImportTemplate(
+    organizationId: string,
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<{ buffer: Buffer; contentType: string; ext: string; fileName: string }> {
+    if (format === 'csv') {
+      return {
+        buffer: this.buildCsvTemplate(),
+        contentType: 'text/csv',
+        ext: 'csv',
+        fileName: 'carbonytics_import_template.csv',
+      };
     }
+
+    // Shared library factors + this org's customs (mirrors the engine's tenant scope).
+    const sharedOrOrg = [
+      { organizationId: { $exists: false } },
+      { organizationId: null },
+      { organizationId },
+    ];
+    const [categories, factors, facilities] = await Promise.all([
+      EmissionCategory.find({ isActive: true }).sort({ scope: 1, category: 1 }).lean(),
+      EmissionFactor.find({ isActive: true, factorCode: { $exists: true, $ne: null }, $or: sharedOrOrg })
+        .populate('categoryId', 'category scope')
+        .sort({ name: 1 })
+        .lean(),
+      Facility.find({ organizationId, isActive: true }).sort({ name: 1 }).lean(),
+    ]);
+
+    const buffer = await this.buildXlsxTemplate(categories as any[], factors as any[], facilities as any[]);
+    return {
+      buffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ext: 'xlsx',
+      fileName: 'carbonytics_import_template.xlsx',
+    };
+  }
+
+  /** Headers-only CSV template (the columns map 1:1 to the XLSX Activity Data sheet). */
+  private buildCsvTemplate(): Buffer {
+    const csv = IMPORT_COLUMNS.map((c) => `"${c.header.replace(/"/g, '""')}"`).join(',') + '\n';
+    return Buffer.from(UTF8_BOM + csv, 'utf8');
+  }
+
+  /** The full branded workbook: Instructions, Activity Data, Examples + references. */
+  private async buildXlsxTemplate(categories: any[], factors: any[], facilities: any[]): Promise<Buffer> {
+    const wb = newBrandedWorkbook();
+
+    // Dynamic dropdown sources.
+    const categoryValues = categories.map((c) => `Scope ${c.scope} — ${c.category}`);
+    const unitSet = new Set<string>();
+    ['kWh', 'MWh', 'GJ', 'TJ', 'MJ', 'mmBtu', 'therm', 'kg', 't', 'short ton', 'lb', 'L', 'm³',
+      'gallon', 'scf', 'km', 'miles', 'EGP', 'USD', 'EUR', 'GBP', 'tkm', 'pkm', 'unit', 'franchise']
+      .forEach((u) => unitSet.add(u));
+    categories.forEach((c) => (c.allowedUnits || []).forEach((u: any) => u?.unit && unitSet.add(u.unit)));
+    const unitValues = [...unitSet];
+    const facilityValues = facilities.map((f) => f.name);
+
+    const N = 200; // number of validated data rows in Activity Data
+    const colNum = (key: string) => IMPORT_COLUMNS.findIndex((c) => c.key === key) + 1;
+
+    // ===== 1. Instructions =====
+    const ins = wb.addWorksheet('Instructions');
+    for (let i = 1; i <= 10; i++) ins.getColumn(i).width = 12;
+    addBandTitle(wb, ins, 'Carbonytics — Data Import Template', 'Fill in the Activity Data sheet, then upload this file on Import & Export.');
+    let r = 4;
+    r = addParagraph(ins, r, 'What this is.', 'A guided workbook for importing emissions activity data. Every entry is recomputed by the same engine the calculator uses, so imported figures are identical to entering them by hand — with full provenance (factor, GWP, data quality, Scope-2 dual, biogenic split).');
+    r = addParagraph(ins, r, 'How to use it.', '1) Skim the Categories and Factor Library sheets. 2) Enter one activity per row on Activity Data (use the dropdowns). 3) Save, then upload on Import & Export — Validate first to preview exactly what each row will produce, then Import.');
+    r = addParagraph(ins, r, 'Required columns.', 'Category, Value, Unit, Period Start, Period End. Everything else is optional.');
+    r = addParagraph(ins, r, 'Pinning a factor.', 'Leave Factor Code blank to use the Egyptian-default factor (the product default). To pin a specific factor, copy its code from the Factor Library sheet.');
+    r = addParagraph(ins, r, 'Grouping.', 'Rows that share a Title + period + facility merge into one calculation (e.g. an electricity line + a gas line under “Q1 Energy”). Leave Title blank to keep a row on its own.');
+    r = addParagraph(ins, r, 'Estimates.', 'Set Is Estimate = Yes for gap-filled values; they are stored flagged (quality low, DQ 5) so they stay distinguishable from measured data.');
+    r = addParagraph(ins, r, 'Round-trip.', 'Exporting your data produces a file with these same columns (plus computed results) — edit it and re-import. The Validate step flags likely duplicates so you decide what to re-import.');
+    r = addParagraph(ins, r, 'Header colours.', 'Green = required · slate = grouping/context · teal = factor · amber = estimate · grey = method-specific (fill only when relevant to the category).');
+
+    // ===== 2. Activity Data (the fill-in sheet) =====
+    const ad = wb.addWorksheet('Activity Data');
+    ad.columns = IMPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width })) as any;
+    styleHeaderCells(ad, IMPORT_COLUMNS.map((c) => GROUP_FILL[c.group]));
+    IMPORT_COLUMNS.forEach((c, i) => { if (c.note) ad.getRow(1).getCell(i + 1).note = c.note; });
+    ad.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: IMPORT_COLUMNS.length } };
+    applyRangeList(ad, colNum('category'), 2, N + 1, `Lists!$A$2:$A$${categoryValues.length + 1}`);
+    applyRangeList(ad, colNum('unit'), 2, N + 1, `Lists!$B$2:$B$${unitValues.length + 1}`);
+    if (facilityValues.length) applyRangeList(ad, colNum('facility'), 2, N + 1, `Lists!$C$2:$C$${facilityValues.length + 1}`);
+    applyInlineList(ad, colNum('isEstimate'), 2, N + 1, VALIDATION_LISTS.YesNo);
+    applyInlineList(ad, colNum('roundTrip'), 2, N + 1, VALIDATION_LISTS.YesNo);
+    applyInlineList(ad, colNum('travelMode'), 2, N + 1, VALIDATION_LISTS.TravelModes);
+    applyInlineList(ad, colNum('travelClass'), 2, N + 1, VALIDATION_LISTS.TravelClasses);
+    applyInlineList(ad, colNum('currency'), 2, N + 1, VALIDATION_LISTS.Currencies);
+
+    // ===== 3. Examples (worked, not imported) =====
+    this.addExamplesSheet(wb, facilityValues[0] || '');
+
+    // ===== 4. Categories reference =====
+    addReferenceSheet(wb, 'Categories',
+      [
+        { header: 'Scope', key: 'scope', width: 8 },
+        { header: 'Category', key: 'category', width: 28 },
+        { header: 'Description', key: 'description', width: 50 },
+        { header: 'Method', key: 'method', width: 16 },
+        { header: 'Base Unit', key: 'baseUnit', width: 12 },
+        { header: 'Allowed Units', key: 'units', width: 36 },
+        { header: 'Required Inputs (* = required)', key: 'reqInputs', width: 40 },
+        { header: 'Egyptian Considerations', key: 'egypt', width: 50 },
+      ],
+      categories.map((c) => ({
+        scope: c.scope,
+        category: c.category,
+        description: c.description || '',
+        method: c.calculationMethod,
+        baseUnit: c.baseUnit,
+        units: (c.allowedUnits || []).map((u: any) => u.unit).join(', '),
+        reqInputs: (c.requiredInputs || []).map((ri: any) => `${ri.field}${ri.required ? '*' : ''}`).join(', '),
+        egypt: c.egyptianContext?.considerations || '',
+      }))
+    );
+
+    // ===== 5. Factor Library reference =====
+    addReferenceSheet(wb, 'Factor Library',
+      [
+        { header: 'Factor Code', key: 'code', width: 38 },
+        { header: 'Name', key: 'name', width: 40 },
+        { header: 'Category', key: 'category', width: 26 },
+        { header: 'Value', key: 'value', width: 14 },
+        { header: 'Unit', key: 'unit', width: 18 },
+        { header: 'Source', key: 'source', width: 26 },
+        { header: 'Year', key: 'year', width: 8 },
+        { header: 'Region', key: 'region', width: 10 },
+        { header: 'Quality', key: 'quality', width: 10 },
+        { header: 'Supplier', key: 'supplier', width: 20 },
+      ],
+      factors.map((f) => ({
+        code: f.factorCode,
+        name: f.name,
+        category: f.categoryId?.category || '',
+        value: f.factor,
+        unit: f.unit,
+        source: f.source,
+        year: f.year,
+        region: f.region,
+        quality: f.qualityRating || '',
+        supplier: f.supplierName || '',
+      }))
+    );
+
+    // ===== 6. Units reference =====
+    addReferenceSheet(wb, 'Units',
+      [
+        { header: 'Dimension', key: 'd', width: 16 },
+        { header: 'Accepted Units', key: 'u', width: 48 },
+        { header: 'Notes', key: 'n', width: 62 },
+      ],
+      [
+        { d: 'Energy', u: 'kWh, MWh, GJ, TJ, MJ, mmBtu, therm, Btu', n: 'Converted to the factor’s energy basis (e.g. EPA fuels are per mmBtu).' },
+        { d: 'Mass', u: 'kg, t (tonne), short ton, lb, g', n: 'Solid fuels / materials / refrigerant masses.' },
+        { d: 'Volume / fuel', u: 'L, m³, gallon, scf, ft³, bbl', n: 'Liquid & gaseous fuels.' },
+        { d: 'Distance', u: 'km, miles, m, nm', n: 'Mobile distance-based & travel.' },
+        { d: 'Spend', u: 'EGP, USD, EUR, GBP', n: 'Spend-based categories; non-EGP is converted to EGP.' },
+        { d: 'Transport', u: 'tkm (tonne-km), pkm (passenger-km)', n: 'Freight & passenger transport.' },
+        { d: '⚠ Note', u: '', n: 'If a unit cannot be converted to the chosen factor’s unit, the row fails with a clear error — never a silent wrong number.' },
+      ]
+    );
+
+    // ===== 7. Lists (hidden dropdown sources) =====
+    const lists = wb.addWorksheet('Lists', { state: 'veryHidden' });
+    lists.getCell('A1').value = 'Categories';
+    lists.getCell('B1').value = 'Units';
+    lists.getCell('C1').value = 'Facilities';
+    categoryValues.forEach((v, i) => (lists.getCell(i + 2, 1).value = v));
+    unitValues.forEach((v, i) => (lists.getCell(i + 2, 2).value = v));
+    facilityValues.forEach((v, i) => (lists.getCell(i + 2, 3).value = v));
+
+    return workbookToBuffer(wb);
+  }
+
+  /** Worked example rows on their own sheet (banner makes clear they are NOT imported). */
+  private addExamplesSheet(wb: import('exceljs').Workbook, facilityName: string): void {
+    const ws = wb.addWorksheet('Examples');
+    IMPORT_COLUMNS.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
+    const lastColLetter = ws.getColumn(IMPORT_COLUMNS.length).letter;
+    ws.mergeCells(`A1:${lastColLetter}1`);
+    const banner = ws.getCell('A1');
+    banner.value = 'Examples — copy the pattern into the “Activity Data” sheet. THIS SHEET IS NOT IMPORTED.';
+    banner.font = { bold: true, color: { argb: 'FF9A6A1F' } };
+    banner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF3E2' } };
+    banner.alignment = { vertical: 'middle' };
+    ws.getRow(1).height = 22;
+    IMPORT_COLUMNS.forEach((c, i) => (ws.getCell(2, i + 1).value = c.header));
+    styleHeaderCells(ws, IMPORT_COLUMNS.map((c) => GROUP_FILL[c.group]), 2);
+
+    const rows: Record<string, any>[] = [
+      { title: 'Q1 Energy', category: 'Scope 2 — Purchased Electricity', value: 1000, unit: 'kWh', periodStart: '2026-01-01', periodEnd: '2026-03-31', facility: facilityName, notes: 'Office electricity (Egyptian-default factor)' },
+      { title: 'Q1 Energy', category: 'Scope 1 — Stationary Combustion', value: 1, unit: 'short ton', factorCode: 'EPA25F_STAT_ANTHRACITE_SHORT_TON', periodStart: '2026-01-01', periodEnd: '2026-03-31', notes: 'Anthracite — pinned factor; same Title groups it with the row above' },
+      { category: 'Scope 1 — Mobile Combustion', value: 100, unit: 'km', factorCode: 'DEFRA24_MOBILE_COMBUSTION__CARS_BY_MARKET_SEGMENT_MINI_DIESEL_KM', periodStart: '2026-01-01', periodEnd: '2026-03-31', notes: 'Distance-based (km factor)' },
+      { category: 'Scope 1 — Fugitive Emissions', value: 0, unit: 'kg', mbPurchases: 100, mbInventoryStart: 20, mbInventoryEnd: 15, mbCharged: 30, mbRecovered: 10, periodStart: '2026-01-01', periodEnd: '2026-03-31', notes: 'Material balance — released mass derived from the MB columns' },
+      { category: 'Scope 3 — Business Travel', value: 1, unit: 'km', origin: 'CAI', destination: 'DXB', distance: 2196, travelMode: 'Flight', travelClass: 'Economy', roundTrip: 'Yes', periodStart: '2026-01-01', periodEnd: '2026-03-31', notes: 'Flight — distance-based, round trip' },
+      { category: 'Scope 2 — Purchased Electricity', value: 1200, unit: 'kWh', isEstimate: 'Yes', estimationMethod: 'prior-year +10%', periodStart: '2026-04-01', periodEnd: '2026-06-30', notes: 'Gap-filled estimate (flagged DQ 5)' },
+    ];
+    rows.forEach((rowObj, ri) =>
+      IMPORT_COLUMNS.forEach((c, ci) => {
+        const v = rowObj[c.key];
+        if (v !== undefined) ws.getCell(3 + ri, ci + 1).value = v;
+      })
+    );
   }
 
   /**
