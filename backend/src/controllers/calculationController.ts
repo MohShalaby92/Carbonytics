@@ -8,7 +8,8 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { calculationEngine } from '../services/calculationEngine';
-import { getCurrentVersion, getVersionByNumber } from '../services/factorVersioning';
+import { getVersionByNumber } from '../services/factorVersioning';
+import { buildEntryFromComputed } from '../services/calculationPersistence';
 import { suggestEstimate } from '../services/estimationService';
 import { computeCompleteness } from '../services/completenessService';
 import { ensureInventory, midpointYear } from '../services/inventoryService';
@@ -213,63 +214,15 @@ export const saveCalculation = asyncHandler(async (req: AuthenticatedRequest, re
       return ApiResponseUtil.error(res, `Could not compute entry for category ${calc.categoryId}: ${reason}`, 400);
     }
 
-    // Pin the immutable factor version in force at save time (§3) so a locked
-    // inventory recomputes deterministically even after the live factor changes.
-    const pinnedVersion = computed.factor.id
-      ? await getCurrentVersion(computed.factor.id)
-      : null;
-
-    // Gap-filled values stay distinguishable: estimates force quality low
-    // and the worst PCAF score; the method used is stored verbatim.
-    const isEstimate = calc.isEstimate === true;
-    const entry = {
+    // Build the persisted entry (provenance + pinned immutable factor version)
+    // via the shared helper that the importer also uses, so calculator-saved and
+    // imported entries are byte-identical.
+    const entry = await buildEntryFromComputed(computed, {
       categoryId: calc.categoryId,
-      value: computed.calculation.value,
-      unit: computed.calculation.unit,
-      factor: computed.factor.value,
-      emissions: computed.calculation.emissions,
-      quality: isEstimate ? ('low' as const) : computed.quality?.rating,
-      dqScore: isEstimate ? 5 : computed.quality?.dqScore,
-      isEstimate,
-      ...(isEstimate && calc.estimationMethod ? { estimationMethod: String(calc.estimationMethod) } : {}),
-      // Provenance: enough to reconstruct how this number was produced.
-      factorId: computed.factor.id,
-      factorName: computed.factor.name,
-      factorSource: computed.factor.source,
-      factorYear: computed.factor.year,
-      ...(pinnedVersion
-        ? { factorVersion: pinnedVersion.version, factorVersionId: pinnedVersion._id }
-        : {}),
-      gwpSet: computed.provenance?.gwpSet,
-      gwpApplied: computed.provenance?.gwpApplied,
-      method: computed.calculation.metadata?.calculationMethod,
-      // Supplier provenance (factor came from a specific supplier)
-      ...(computed.factor.supplierId
-        ? { supplierId: computed.factor.supplierId, supplierName: computed.factor.supplierName }
-        : {}),
-      // Scope 2 dual figures (purchased electricity only)
-      scope2Location: computed.scope2Dual?.locationBased,
-      scope2Market: computed.scope2Dual?.marketBased,
-      scope2MarketMethod: computed.scope2Dual?.marketMethod,
-      // Biogenic CO2 (biomass) — stored separately; never added to the scope total.
-      ...(computed.biogenicCO2 ? { biogenicCO2: computed.biogenicCO2 } : {}),
-      // Per-gas masses (kg) when the per-gas path ran — snapshot for the report
-      // per-gas breakdown (§1.4). CO2e-denominated factors carry none.
-      ...(computed.provenance?.gasBreakdown
-        ? {
-            gasBreakdown: {
-              co2: computed.provenance.gasBreakdown.co2,
-              ch4: computed.provenance.gasBreakdown.ch4,
-              n2o: computed.provenance.gasBreakdown.n2o,
-            },
-          }
-        : {}),
-      // Fugitive material-balance provenance (component masses + released kg).
-      ...(computed.materialBalance
-        ? { materialBalance: { releasedKg: computed.materialBalance.releasedKg, ...computed.materialBalance.components } }
-        : {}),
+      isEstimate: calc.isEstimate,
+      estimationMethod: calc.estimationMethod,
       notes: calc.notes,
-    };
+    });
 
     processedCalculations.push(entry);
 

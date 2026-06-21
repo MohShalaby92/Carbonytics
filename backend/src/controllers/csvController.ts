@@ -77,7 +77,7 @@ export const validateCSVFile = asyncHandler(async (req: AuthenticatedRequest, re
 
   try {
     const csvService = new CSVService();
-    const validation = await csvService.validateCSV(req.file.path, req.user.organizationId);
+    const validation = await csvService.previewImport(req.file.path, req.user.organizationId);
 
     // Clean up uploaded file after validation
     setTimeout(() => {
@@ -121,30 +121,18 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
 
   try {
     const csvService = new CSVService();
-    
-    // First validate the file
-    const validation = await csvService.validateCSV(req.file.path);
-    
-    if (!validation.valid) {
-      // Clean up file
-      try {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (cleanupError) {
-        console.error('Error cleaning up invalid file:', cleanupError);
-      }
-      
-      return ApiResponseUtil.error(res, 'File validation failed', 400, {
-        errors: validation.errors,
-      });
-    }
 
-    // Import the data
+    // The importer resolves + recomputes every row server-side and reports per-row
+    // status, so partial imports are fine — no separate all-or-nothing gate.
+    // `skipDuplicates` (a multipart text field) honours the user's per-import choice
+    // to skip rows flagged as duplicates of existing data.
+    const skipDuplicates = String((req.body && req.body.skipDuplicates) || '').toLowerCase() === 'true';
+
     const importResult = await csvService.importCalculations(
       req.file.path,
       req.user.id,
-      req.user.organizationId
+      req.user.organizationId,
+      { skipDuplicates }
     );
 
     // Clean up uploaded file
@@ -158,9 +146,10 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
       }
     }, 1000);
 
-    const message = importResult.failed > 0
-      ? `Import completed with ${importResult.failed} errors`
-      : 'Import completed successfully';
+    const parts = [`Imported ${importResult.successful} of ${importResult.processed} row(s) into ${importResult.createdCalculations} calculation(s)`];
+    if (importResult.failed > 0) parts.push(`${importResult.failed} failed`);
+    if (importResult.skipped > 0) parts.push(`${importResult.skipped} skipped`);
+    const message = parts.join(', ');
 
     await recordAudit({
       organizationId: req.user.organizationId,
@@ -173,6 +162,8 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
         processed: importResult.processed,
         successful: importResult.successful,
         failed: importResult.failed,
+        skipped: importResult.skipped,
+        createdCalculations: importResult.createdCalculations,
       },
     });
 

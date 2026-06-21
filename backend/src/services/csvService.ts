@@ -8,10 +8,22 @@ import { EmissionCategory } from '../models/EmissionCategory';
 import { EmissionFactor } from '../models/EmissionFactor';
 import { Facility } from '../models/Facility';
 import { calculationEngine } from './calculationEngine';
-import { escapeRegex } from '../utils/security';
+import { ensureInventory, midpointYear } from './inventoryService';
+import { buildEntryFromComputed } from './calculationPersistence';
 import { logger } from '../utils/logger';
 import { analyzeImportQuality, QualityRow, HistoryPoint, ImportWarning } from './importQuality';
-import { IMPORT_COLUMNS, VALIDATION_LISTS, GROUP_FILL } from './importMapping';
+import {
+  IMPORT_COLUMNS,
+  VALIDATION_LISTS,
+  GROUP_FILL,
+  mapRowToCanonical,
+  stripScopePrefix,
+  parseBoolean,
+  parseNumberOrUndefined,
+  buildMetadataFromRow,
+  groupKey,
+  duplicateKey,
+} from './importMapping';
 import {
   newBrandedWorkbook,
   addBandTitle,
@@ -33,10 +45,23 @@ interface CSVCalculationRow {
   [key: string]: any; // For dynamic fields
 }
 
+interface ImportRowResult {
+  rowNumber: number;
+  status: 'imported' | 'failed' | 'skipped';
+  category?: string;
+  emissions?: number;
+  error?: string;
+}
+
 interface ImportResult {
   processed: number;
   successful: number;
   failed: number;
+  skipped: number;
+  createdCalculations: number;
+  calculationIds: string[];
+  rows: ImportRowResult[];
+  // Legacy row-error list (kept for back-compat with existing callers/UI).
   errors: Array<{
     row: number;
     error: string;
@@ -44,46 +69,353 @@ interface ImportResult {
   }>;
 }
 
+/** One row after canonical mapping + category/factor/facility resolution + engine compute. */
+interface ResolvedRow {
+  rowNumber: number;
+  canonical: Record<string, string>;
+  categoryId?: string;
+  categoryName?: string;
+  scope?: number;
+  spendBased?: boolean;
+  factorId?: string;
+  factorName?: string;
+  factorSource?: string;
+  facilityId?: string;
+  facilityName?: string;
+  isEstimate: boolean;
+  estimationMethod?: string;
+  metadata: Record<string, any>;
+  periodStart?: string;
+  periodEnd?: string;
+  value?: number;
+  unit?: string;
+  computed?: any; // CalculationResult
+  emissions?: number;
+  dqScore?: number;
+  duplicate: boolean;
+  errors: string[];
+}
+
+/** Per-row dry-run preview (what each row WILL produce, before importing). */
+interface PreviewRow {
+  rowNumber: number;
+  category?: string;
+  scope?: number;
+  factor?: string;
+  factorSource?: string;
+  facility?: string;
+  value?: number;
+  unit?: string;
+  emissions?: number;
+  dqScore?: number;
+  isEstimate: boolean;
+  duplicate: boolean;
+  errors: string[];
+}
+
+interface PreviewResult {
+  valid: boolean;
+  rowCount: number;
+  errors: string[];
+  warnings: ImportWarning[];
+  duplicateCount: number;
+  rows: PreviewRow[];
+}
+
 // UTF-8 BOM so spreadsheet apps read exported CSVs (e.g. "m³") with the right encoding.
 const UTF8_BOM = '﻿';
 
 export class CSVService {
 
+  /**
+   * Import activity rows into Calculations. Each row is resolved (category /
+   * factor / facility / estimate / metadata) and recomputed by the SAME engine
+   * the calculator uses, then rows are grouped into multi-entry Calculations by
+   * Title + period + facility, linked to their reporting-year inventory (with the
+   * published-year lock honoured) and pinned to the factor version in force.
+   */
   async importCalculations(
     filePath: string,
     userId: string,
-    organizationId: string
+    organizationId: string,
+    opts: { skipDuplicates?: boolean } = {}
   ): Promise<ImportResult> {
+    logger.info(`Starting import from: ${filePath}`);
+    const rawRows = await this.readRows(filePath);
+    const resolved = await this.resolveRows(rawRows, organizationId, userId);
+
     const result: ImportResult = {
-      processed: 0,
+      processed: resolved.length,
       successful: 0,
       failed: 0,
+      skipped: 0,
+      createdCalculations: 0,
+      calculationIds: [],
+      rows: [],
       errors: [],
     };
 
-    logger.info(`Starting import from: ${filePath}`);
-    const rows = await this.readRows(filePath);
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      result.processed++;
-      try {
-        await this.processCalculationRow(row, userId, organizationId, i + 2);
-        result.successful++;
-      } catch (error) {
+    // Partition: failed (errors / no compute), skipped (flagged duplicate when
+    // the caller opted to skip), and importable.
+    const importable: ResolvedRow[] = [];
+    for (const rr of resolved) {
+      if (rr.errors.length || !rr.computed) {
+        const error = rr.errors.join('; ') || 'could not compute';
         result.failed++;
-        result.errors.push({
-          row: i + 2,
-          error: error instanceof Error ? error.message : String(error),
-          data: row,
-        });
+        result.rows.push({ rowNumber: rr.rowNumber, status: 'failed', category: rr.categoryName, error });
+        result.errors.push({ row: rr.rowNumber, error, data: rr.canonical });
+      } else if (opts.skipDuplicates && rr.duplicate) {
+        result.skipped++;
+        result.rows.push({ rowNumber: rr.rowNumber, status: 'skipped', category: rr.categoryName, emissions: rr.emissions, error: 'duplicate of existing data' });
+      } else {
+        importable.push(rr);
       }
     }
 
+    // Group rows (Title + period + facility) into multi-entry calculations.
+    const groups = new Map<string, ResolvedRow[]>();
+    for (const rr of importable) {
+      const key = groupKey(rr.canonical, rr.rowNumber, rr.facilityId);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(rr);
+    }
+
+    for (const rows of groups.values()) {
+      const first = rows[0];
+      const start = new Date(first.periodStart!);
+      const end = new Date(first.periodEnd!);
+      const reportingYear = midpointYear(start, end);
+
+      // Link to the reporting-year inventory; refuse to write into a published year.
+      const inventory = await ensureInventory(organizationId, reportingYear);
+      if (inventory.status === 'published') {
+        const error = `Reporting year ${reportingYear} is published and locked — reopen it (Compliance → Reporting Years) before importing.`;
+        for (const rr of rows) {
+          result.failed++;
+          result.rows.push({ rowNumber: rr.rowNumber, status: 'failed', category: rr.categoryName, error });
+          result.errors.push({ row: rr.rowNumber, error, data: rr.canonical });
+        }
+        continue;
+      }
+
+      const emissions = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
+      const data: any[] = [];
+      for (const rr of rows) {
+        const entry = await buildEntryFromComputed(rr.computed, {
+          categoryId: rr.categoryId!,
+          isEstimate: rr.isEstimate,
+          estimationMethod: rr.estimationMethod,
+          notes: rr.canonical.notes,
+        });
+        data.push(entry);
+        if (rr.scope === 1) emissions.scope1 += entry.emissions;
+        else if (rr.scope === 2) emissions.scope2 += entry.emissions;
+        else if (rr.scope === 3) emissions.scope3 += entry.emissions;
+      }
+      emissions.scope1 = Math.round(emissions.scope1 * 100) / 100;
+      emissions.scope2 = Math.round(emissions.scope2 * 100) / 100;
+      emissions.scope3 = Math.round(emissions.scope3 * 100) / 100;
+      emissions.total = emissions.scope1 + emissions.scope2 + emissions.scope3;
+
+      const title = (first.canonical.title || '').trim() || `Imported — ${first.categoryName} ${reportingYear}`;
+      try {
+        const calc = await Calculation.create({
+          organizationId,
+          userId,
+          ...(first.facilityId ? { facilityId: first.facilityId } : {}),
+          inventoryId: inventory._id,
+          title,
+          description: `Imported ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} on ${new Date().toISOString().slice(0, 10)}`,
+          period: { start, end },
+          emissions,
+          data,
+          status: 'completed',
+        });
+        result.createdCalculations++;
+        result.calculationIds.push(String(calc._id));
+        for (const rr of rows) {
+          result.successful++;
+          result.rows.push({ rowNumber: rr.rowNumber, status: 'imported', category: rr.categoryName, emissions: rr.emissions });
+        }
+      } catch (e) {
+        const error = e instanceof Error ? e.message : 'failed to save calculation';
+        for (const rr of rows) {
+          result.failed++;
+          result.rows.push({ rowNumber: rr.rowNumber, status: 'failed', category: rr.categoryName, error });
+          result.errors.push({ row: rr.rowNumber, error, data: rr.canonical });
+        }
+      }
+    }
+
+    result.rows.sort((a, b) => a.rowNumber - b.rowNumber);
     logger.info(
-      `Import completed. Processed: ${result.processed}, Successful: ${result.successful}, Failed: ${result.failed}`
+      `Import completed. Processed ${result.processed}, imported ${result.successful} (${result.createdCalculations} calcs), failed ${result.failed}, skipped ${result.skipped}`
     );
     return result;
+  }
+
+  /**
+   * Resolve raw rows to canonical keys, look up category / factor / facility,
+   * run the authoritative engine compute, and flag rows that duplicate existing
+   * data. Shared by the dry-run preview and the import so the preview shows
+   * EXACTLY what the import will produce. Never writes anything.
+   */
+  private async resolveRows(
+    rawRows: CSVCalculationRow[],
+    organizationId: string,
+    userId?: string
+  ): Promise<ResolvedRow[]> {
+    const canonicals = rawRows.map((r) => mapRowToCanonical(r));
+
+    // Preload reference data once.
+    const categories = await EmissionCategory.find().lean();
+    const catByName = new Map<string, any>();
+    const catById = new Map<string, any>();
+    for (const c of categories as any[]) {
+      catByName.set(String(c.category).trim().toLowerCase(), c);
+      catById.set(String(c._id), c);
+    }
+
+    const anyCode = canonicals.some((c) => c.factorCode);
+    const factorList = anyCode
+      ? await EmissionFactor.find({ factorCode: { $exists: true, $ne: null } })
+          .select('factorCode name source categoryId organizationId')
+          .lean()
+      : [];
+    const factorByCode = new Map<string, any>();
+    for (const f of factorList as any[]) {
+      if (f.factorCode) factorByCode.set(String(f.factorCode).trim().toLowerCase(), f);
+    }
+
+    const facilities = await Facility.find({ organizationId, isActive: true }).lean();
+    const facByName = new Map<string, any>();
+    const facById = new Map<string, any>();
+    for (const f of facilities as any[]) {
+      facByName.set(String(f.name).trim().toLowerCase(), f);
+      facById.set(String(f._id), f);
+    }
+
+    // Existing data → duplicate-detection keys.
+    const existing = await Calculation.find({ organizationId })
+      .select('period facilityId data.categoryId data.value')
+      .lean();
+    const dupeSet = new Set<string>();
+    for (const c of existing as any[]) {
+      const ps = c.period?.start ? new Date(c.period.start).toISOString().slice(0, 10) : '';
+      const pe = c.period?.end ? new Date(c.period.end).toISOString().slice(0, 10) : '';
+      const fid = c.facilityId ? String(c.facilityId) : '';
+      for (const e of c.data || []) {
+        if (!e.categoryId) continue;
+        dupeSet.add(duplicateKey({ categoryId: String(e.categoryId), periodStart: ps, periodEnd: pe, facilityId: fid, value: e.value }));
+      }
+    }
+
+    const out: ResolvedRow[] = [];
+    for (let i = 0; i < canonicals.length; i++) {
+      const canonical = canonicals[i];
+      const rr: ResolvedRow = {
+        rowNumber: i + 2,
+        canonical,
+        isEstimate: parseBoolean(canonical.isEstimate),
+        estimationMethod: canonical.estimationMethod,
+        metadata: {},
+        periodStart: canonical.periodStart,
+        periodEnd: canonical.periodEnd,
+        unit: canonical.unit,
+        duplicate: false,
+        errors: [],
+      };
+
+      // Required fields.
+      if (!canonical.category) rr.errors.push('Missing Category');
+      const value = parseNumberOrUndefined(canonical.value);
+      if (value === undefined || value < 0) rr.errors.push('Missing or invalid Value');
+      else rr.value = value;
+      if (!canonical.unit) rr.errors.push('Missing Unit');
+      if (!canonical.periodStart) rr.errors.push('Missing Period Start');
+      if (!canonical.periodEnd) rr.errors.push('Missing Period End');
+
+      // Category (name with optional "Scope N — " prefix, or id).
+      let category: any;
+      if (canonical.category) {
+        category = catByName.get(stripScopePrefix(canonical.category).toLowerCase());
+        if (!category && mongoose.isValidObjectId(canonical.category)) category = catById.get(canonical.category);
+        if (!category) rr.errors.push(`Category not found: ${canonical.category}`);
+        else {
+          rr.categoryId = String(category._id);
+          rr.categoryName = category.category;
+          rr.scope = category.scope;
+          rr.spendBased = category.calculationMethod === 'spend_based';
+        }
+      }
+
+      // Factor (by code or id) — must belong to the same category + org/shared scope.
+      if (canonical.factorCode && rr.categoryId) {
+        let f: any = factorByCode.get(canonical.factorCode.trim().toLowerCase());
+        if (!f && mongoose.isValidObjectId(canonical.factorCode)) {
+          f = await EmissionFactor.findById(canonical.factorCode).select('factorCode name source categoryId organizationId').lean();
+        }
+        if (!f) rr.errors.push(`Factor Code not found: ${canonical.factorCode}`);
+        else if (f.organizationId && String(f.organizationId) !== organizationId) rr.errors.push(`Factor not available to your organization: ${canonical.factorCode}`);
+        else if (String(f.categoryId) !== rr.categoryId) rr.errors.push(`Factor ${canonical.factorCode} belongs to a different category`);
+        else {
+          rr.factorId = String(f._id);
+          rr.factorName = f.name;
+          rr.factorSource = f.source;
+        }
+      }
+
+      // Facility (by name or id), validated against the organization.
+      if (canonical.facility) {
+        let fac: any = facByName.get(canonical.facility.trim().toLowerCase());
+        if (!fac && mongoose.isValidObjectId(canonical.facility)) fac = facById.get(canonical.facility);
+        if (!fac) rr.errors.push(`Facility not found: ${canonical.facility}`);
+        else {
+          rr.facilityId = String(fac._id);
+          rr.facilityName = fac.name;
+        }
+      }
+
+      rr.metadata = buildMetadataFromRow(canonical);
+
+      // Authoritative server-side compute — only when the row is otherwise valid.
+      if (rr.errors.length === 0 && rr.categoryId && rr.value !== undefined) {
+        try {
+          const computed = await calculationEngine.calculate({
+            categoryId: rr.categoryId,
+            value: rr.value,
+            unit: canonical.unit,
+            factorId: rr.factorId,
+            metadata: rr.metadata,
+            userId,
+            organizationId,
+            activityYear: canonical.periodStart ? new Date(canonical.periodStart).getFullYear() : undefined,
+          });
+          rr.computed = computed;
+          rr.emissions = computed.calculation.emissions;
+          rr.dqScore = rr.isEstimate ? 5 : computed.quality?.dqScore;
+          if (!rr.factorName) {
+            rr.factorName = computed.factor.name;
+            rr.factorSource = computed.factor.source;
+          }
+          rr.duplicate = dupeSet.has(
+            duplicateKey({
+              categoryId: rr.categoryId,
+              periodStart: rr.periodStart || '',
+              periodEnd: rr.periodEnd || '',
+              facilityId: rr.facilityId || '',
+              value: computed.calculation.value,
+            })
+          );
+        } catch (e) {
+          rr.errors.push(e instanceof Error ? e.message : 'calculation failed');
+        }
+      }
+
+      out.push(rr);
+    }
+
+    return out;
   }
 
   /** Read tabular rows from a CSV or Excel (.xlsx/.xls) file into plain row objects. */
@@ -112,7 +444,11 @@ export class CSVService {
   private async readRowsFromExcel(filePath: string): Promise<CSVCalculationRow[]> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
-    const sheet = workbook.worksheets[0];
+    // Prefer the template's / export's "Activity Data" sheet by name; fall back
+    // to the first sheet for a plain single-sheet upload.
+    const sheet =
+      workbook.worksheets.find((w) => w.name.trim().toLowerCase() === 'activity data') ||
+      workbook.worksheets[0];
     if (!sheet) return [];
 
     const headers: string[] = [];
@@ -152,125 +488,95 @@ export class CSVService {
     return rows;
   }
 
-  private async processCalculationRow(
-    row: CSVCalculationRow,
-    userId: string,
-    organizationId: string,
-    rowNumber: number
-  ): Promise<void> {
+  /**
+   * Dry-run preview: resolve every row exactly as the import would and report,
+   * per row, the resolved category/factor, computed emissions, DQ score,
+   * duplicate flag and any errors — plus advisory file-level data-quality
+   * warnings. Writes nothing; this is what the user reviews before importing.
+   */
+  async previewImport(filePath: string, organizationId: string): Promise<PreviewResult> {
+    const rawRows = await this.readRows(filePath);
+    const resolved = await this.resolveRows(rawRows, organizationId);
 
-    // Validate required fields
-    if (!row.category) {
-      throw new Error('Category is required');
+    const errors: string[] = [];
+    for (const rr of resolved) for (const e of rr.errors) errors.push(`Row ${rr.rowNumber}: ${e}`);
+
+    let warnings: ImportWarning[] = [];
+    try {
+      warnings = await this.qualityWarnings(resolved, organizationId);
+    } catch (e) {
+      // Quality screening is advisory — never fail a preview on it.
+      logger.warn('Import quality screening failed (non-blocking):', e);
     }
 
-    if (!row.value || isNaN(parseFloat(row.value))) {
-      throw new Error('Valid numeric value is required');
-    }
+    const rows: PreviewRow[] = resolved.map((rr) => ({
+      rowNumber: rr.rowNumber,
+      category: rr.categoryName,
+      scope: rr.scope,
+      factor: rr.factorName,
+      factorSource: rr.factorSource,
+      facility: rr.facilityName,
+      value: rr.value,
+      unit: rr.unit,
+      emissions: rr.emissions,
+      dqScore: rr.dqScore,
+      isEstimate: rr.isEstimate,
+      duplicate: rr.duplicate,
+      errors: rr.errors,
+    }));
 
-    if (!row.unit) {
-      throw new Error('Unit is required');
-    }
-
-    // Find category by name (case-insensitive exact match), or by id if a valid
-    // ObjectId was supplied. The id branch is guarded so a plain name never gets
-    // cast to ObjectId (which previously threw and failed every import row).
-    const term = String(row.category).trim();
-    const orConditions: any[] = [
-      { category: { $regex: new RegExp(`^${escapeRegex(term)}$`, 'i') } },
-    ];
-    if (mongoose.isValidObjectId(term)) {
-      orConditions.push({ _id: term });
-    }
-    const category = await EmissionCategory.findOne({ $or: orConditions });
-
-    if (!category) {
-      throw new Error(`Category not found: ${row.category}`);
-    }
-
-    // Prepare calculation input
-    const calculationInput = {
-      categoryId: category._id.toString(),
-      value: parseFloat(row.value),
-      unit: row.unit,
-      metadata: this.extractMetadata(row, category),
-      userId,
-      organizationId,
-      activityYear: row.period_start ? new Date(row.period_start).getFullYear() : undefined,
+    return {
+      valid: resolved.length > 0 && resolved.every((r) => r.errors.length === 0),
+      rowCount: resolved.length,
+      errors,
+      warnings,
+      duplicateCount: rows.filter((r) => r.duplicate).length,
+      rows,
     };
-
-    // Perform calculation (server-side, authoritative)
-    const calculationResult = await calculationEngine.calculate(calculationInput);
-
-    // Create calculation record
-    const calculationData = {
-      organizationId,
-      userId,
-      title: `Imported - ${category.category}`,
-      description: row.notes || `Imported from file on ${new Date().toISOString()}`,
-      period: {
-        start: row.period_start ? new Date(row.period_start) : new Date(),
-        end: row.period_end ? new Date(row.period_end) : new Date(),
-      },
-      data: [{
-        categoryId: category._id,
-        value: calculationResult.calculation.value,
-        unit: calculationResult.calculation.unit,
-        factor: calculationResult.factor?.value,
-        emissions: calculationResult.calculation.emissions,
-        quality: calculationResult.quality?.rating,
-        dqScore: calculationResult.quality?.dqScore,
-        factorId: calculationResult.factor?.id,
-        factorName: calculationResult.factor?.name,
-        factorSource: calculationResult.factor?.source,
-        factorYear: calculationResult.factor?.year,
-        gwpSet: calculationResult.provenance?.gwpSet,
-        gwpApplied: calculationResult.provenance?.gwpApplied,
-        method: calculationResult.calculation.metadata?.calculationMethod,
-        scope2Location: calculationResult.scope2Dual?.locationBased,
-        scope2Market: calculationResult.scope2Dual?.marketBased,
-        scope2MarketMethod: calculationResult.scope2Dual?.marketMethod,
-        notes: row.notes,
-      }],
-      emissions: {
-        scope1: category.scope === 1 ? calculationResult.calculation.emissions : 0,
-        scope2: category.scope === 2 ? calculationResult.calculation.emissions : 0,
-        scope3: category.scope === 3 ? calculationResult.calculation.emissions : 0,
-        total: calculationResult.calculation.emissions,
-      },
-      status: 'completed',
-    };
-
-    await Calculation.create(calculationData);
   }
 
-  private extractMetadata(row: CSVCalculationRow, category: any): Record<string, any> {
-    const metadata: Record<string, any> = {};
-
-    // Extract dynamic fields based on category requirements
-    if (category.requiredInputs) {
-      category.requiredInputs.forEach((input: any) => {
-        const fieldValue = row[input.field] || row[input.field.toLowerCase()];
-        if (fieldValue) {
-          metadata[input.field] = input.type === 'number' ? parseFloat(fieldValue) : fieldValue;
-        }
+  /**
+   * Advisory data-quality warnings (duplicate-within-file / outlier vs prior
+   * period / spend double-count) computed from the resolved rows + org history.
+   */
+  private async qualityWarnings(resolved: ResolvedRow[], organizationId: string): Promise<ImportWarning[]> {
+    const qualityRows: QualityRow[] = [];
+    for (const rr of resolved) {
+      if (!rr.categoryName || rr.value === undefined || !rr.unit) continue;
+      qualityRows.push({
+        rowNumber: rr.rowNumber,
+        categoryKey: rr.categoryName.trim().toLowerCase(),
+        categoryName: rr.categoryName,
+        scope: rr.scope!,
+        spendBased: !!rr.spendBased,
+        value: rr.value,
+        unit: rr.unit,
+        periodStart: rr.periodStart || undefined,
+        periodEnd: rr.periodEnd || undefined,
       });
     }
+    if (qualityRows.length === 0) return [];
 
-    // Extract common metadata fields
-    const metadataFields = [
-      'location', 'supplier', 'source', 'method', 'quality',
-      'distance', 'weight', 'passengers', 'fuel_type',
-      'vehicle_type', 'accommodation_type', 'travel_class'
-    ];
+    const categories = await EmissionCategory.find().select('category scope').lean();
+    const byId = new Map<string, any>();
+    for (const c of categories as any[]) byId.set(String(c._id), c);
 
-    metadataFields.forEach(field => {
-      if (row[field]) {
-        metadata[field] = row[field];
+    const calcs = await Calculation.find({ organizationId }).select('period data.categoryId data.value').lean();
+    const history: HistoryPoint[] = [];
+    for (const c of calcs as any[]) {
+      for (const e of c.data || []) {
+        const cat = e.categoryId ? byId.get(String(e.categoryId)) : undefined;
+        if (!cat) continue;
+        history.push({
+          categoryKey: String(cat.category).trim().toLowerCase(),
+          scope: cat.scope,
+          value: e.value,
+          periodStart: c.period?.start ? new Date(c.period.start).toISOString() : undefined,
+          periodEnd: c.period?.end ? new Date(c.period.end).toISOString() : undefined,
+        });
       }
-    });
-
-    return metadata;
+    }
+    return analyzeImportQuality(qualityRows, history);
   }
 
   async exportCalculations(
@@ -592,105 +898,4 @@ export class CSVService {
     );
   }
 
-  /**
-   * Validate an uploaded CSV or Excel file (shared row reader). When an
-   * organizationId is supplied, also runs advisory data-quality screening (§4.3)
-   * — duplicate / outlier / spend-double-count warnings that never block import.
-   */
-  async validateCSV(filePath: string, organizationId?: string): Promise<{
-    valid: boolean;
-    rowCount: number;
-    errors: string[];
-    warnings: ImportWarning[];
-    preview: any[];
-  }> {
-    const errors: string[] = [];
-    const rows = await this.readRows(filePath);
-
-    rows.forEach((row, idx) => {
-      const n = idx + 2; // account for header row
-      if (!row.category) errors.push(`Row ${n}: Missing category`);
-      if (!row.value || isNaN(parseFloat(row.value))) errors.push(`Row ${n}: Invalid or missing value`);
-      if (!row.unit) errors.push(`Row ${n}: Missing unit`);
-    });
-
-    let warnings: ImportWarning[] = [];
-    if (organizationId) {
-      try {
-        warnings = await this.computeImportWarnings(rows, organizationId);
-      } catch (e) {
-        // Quality screening is advisory — never fail a validation on it.
-        logger.warn('Import quality screening failed (non-blocking):', e);
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      rowCount: rows.length,
-      errors,
-      warnings,
-      preview: rows.slice(0, 5),
-    };
-  }
-
-  /**
-   * Resolve categories + the organization's historical activity, then run the
-   * pure import-quality checks (§4.3). Category identity is the lowercased name.
-   */
-  private async computeImportWarnings(
-    rows: CSVCalculationRow[],
-    organizationId: string
-  ): Promise<ImportWarning[]> {
-    const categories = await EmissionCategory.find()
-      .select('category scope calculationMethod')
-      .lean();
-    const byName = new Map<string, any>();
-    const byId = new Map<string, any>();
-    for (const c of categories as any[]) {
-      byName.set(String(c.category).trim().toLowerCase(), c);
-      byId.set(c._id.toString(), c);
-    }
-
-    // Parsed file rows (skip ones that fail the basic required-field checks).
-    const qualityRows: QualityRow[] = [];
-    rows.forEach((row, idx) => {
-      const value = parseFloat(row.value);
-      const name = String(row.category || '').trim().toLowerCase();
-      const cat = byName.get(name);
-      if (!row.category || !cat || isNaN(value) || !row.unit) return;
-      qualityRows.push({
-        rowNumber: idx + 2,
-        categoryKey: name,
-        categoryName: cat.category,
-        scope: cat.scope,
-        spendBased: cat.calculationMethod === 'spend_based',
-        value,
-        unit: row.unit,
-        periodStart: row.period_start || undefined,
-        periodEnd: row.period_end || undefined,
-      });
-    });
-    if (qualityRows.length === 0) return [];
-
-    // History: the org's existing activity entries (category + period + value).
-    const calcs = await Calculation.find({ organizationId })
-      .select('period data.categoryId data.value')
-      .lean();
-    const history: HistoryPoint[] = [];
-    for (const c of calcs as any[]) {
-      for (const e of c.data || []) {
-        const cat = e.categoryId ? byId.get(e.categoryId.toString()) : undefined;
-        if (!cat) continue;
-        history.push({
-          categoryKey: String(cat.category).trim().toLowerCase(),
-          scope: cat.scope,
-          value: e.value,
-          periodStart: c.period?.start ? new Date(c.period.start).toISOString() : undefined,
-          periodEnd: c.period?.end ? new Date(c.period.end).toISOString() : undefined,
-        });
-      }
-    }
-
-    return analyzeImportQuality(qualityRows, history);
-  }
 }
