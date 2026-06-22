@@ -114,8 +114,23 @@ class ApiService {
    * a caller reading `.data` on it would get `undefined`.)
    */
   async getBlob(url: string): Promise<Blob> {
-    const response = await this.api.get(url, { responseType: 'blob' });
-    return response.data as Blob;
+    try {
+      const response = await this.api.get(url, { responseType: 'blob' });
+      return response.data as Blob;
+    } catch (error: any) {
+      // With responseType:'blob' axios also delivers ERROR bodies as a Blob, so
+      // error.response.data.message would be undefined. Parse the JSON error back
+      // out so callers' `error.response?.data?.message` shows the real reason.
+      const data = error?.response?.data;
+      if (data instanceof Blob) {
+        try {
+          error.response.data = JSON.parse(await data.text());
+        } catch {
+          /* not JSON — leave the Blob in place */
+        }
+      }
+      throw error;
+    }
   }
 
   async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {

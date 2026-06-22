@@ -24,7 +24,9 @@ const downloadBlob = (blob: Blob, filename: string) => {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.URL.revokeObjectURL(url);
+  // Defer revoke: revoking the object URL in the same tick as click() can cancel
+  // the download in some browsers (older Safari/Firefox, larger blobs).
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
 const EXPORT_INCLUDES = [
@@ -139,7 +141,7 @@ export const ImportExportPage: React.FC = () => {
             </div>
           </Card>
 
-          <FileUpload onUploadSuccess={handleImportSuccess} onUploadError={handleImportError} accept=".xlsx,.csv" maxSize={10} />
+          <FileUpload onUploadSuccess={handleImportSuccess} onUploadError={handleImportError} accept=".xlsx,.xls,.csv" maxSize={10} />
         </div>
       )}
 

@@ -81,6 +81,20 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
     chargedIntoEquipment: { type: Number },
     recovered: { type: Number },
   },
+  // Round-trippable method-specific activity inputs, captured so an export of
+  // this entry re-imports to the same number. Fugitive material-balance inputs
+  // live in `materialBalance` above.
+  activityInput: {
+    fuelType: { type: String, trim: true },
+    vehicleType: { type: String, trim: true },
+    origin: { type: String, trim: true },
+    destination: { type: String, trim: true },
+    distance: { type: Number },
+    travelMode: { type: String, trim: true },
+    travelClass: { type: String, trim: true },
+    roundTrip: { type: Boolean },
+    currency: { type: String, trim: true },
+  },
   // Estimation flags: gap-filled values are never silently mixed with
   // measured data (estimates carry the method and force low quality / DQ 5).
   isEstimate: { type: Boolean, default: false },

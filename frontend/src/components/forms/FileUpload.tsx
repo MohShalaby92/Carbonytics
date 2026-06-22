@@ -88,13 +88,15 @@ const downloadBlob = (blob: Blob, filename: string) => {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.URL.revokeObjectURL(url);
+  // Defer revoke: revoking the object URL in the same tick as click() can cancel
+  // the download in some browsers (older Safari/Firefox, larger blobs).
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
 export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadSuccess,
   onUploadError,
-  accept = '.xlsx,.csv',
+  accept = '.xlsx,.xls,.csv',
   maxSize = 10,
   className = '',
 }) => {
@@ -266,6 +268,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             Exactly what each row will produce — resolved factor and computed emissions — before anything is saved.
           </p>
 
+          {/* Empty file — explain rather than show a dead-end empty preview */}
+          {validation.rowCount === 0 && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800 dark:text-amber-300">
+              No data rows were found in this file. Put your activity on the <strong>Activity Data</strong> sheet
+              (data starts at row 2, just below the headers), then validate again.
+            </div>
+          )}
+
           {/* Summary chips */}
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-green-500/10 text-green-700 dark:text-green-300">
@@ -309,6 +319,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           )}
 
           {/* Per-row preview table */}
+          {validation.rowCount > 0 && (
           <div className="overflow-x-auto border border-line rounded-lg mb-4">
             <table className="min-w-full text-sm">
               <thead className="bg-fg/[0.04] text-muted">
@@ -356,6 +367,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               </tbody>
             </table>
           </div>
+          )}
 
           {/* Duplicate decision */}
           {validation.duplicateCount > 0 && (

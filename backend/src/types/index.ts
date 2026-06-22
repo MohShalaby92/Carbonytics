@@ -397,6 +397,21 @@ export interface ICalculationEntry {
     chargedIntoEquipment?: number;
     recovered?: number;
   };
+  // Round-trippable method-specific activity inputs, captured so an export of
+  // this entry re-imports to the SAME number (business-travel route/distance/
+  // class, combustion fuel, mobile vehicle, spend currency). Fugitive
+  // material-balance inputs live in `materialBalance` above.
+  activityInput?: {
+    fuelType?: string;
+    vehicleType?: string;
+    origin?: string;
+    destination?: string;
+    distance?: number;
+    travelMode?: string;
+    travelClass?: string;
+    roundTrip?: boolean;
+    currency?: string;
+  };
   // Gap-filling / estimation flags (estimates must be distinguishable)
   isEstimate?: boolean;
   estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'

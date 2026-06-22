@@ -155,3 +155,58 @@ describe('importMapping — column model integrity', () => {
     ['category', 'value', 'unit', 'periodStart', 'periodEnd'].forEach((k) => expect(keys).toContain(k));
   });
 });
+
+describe('importMapping — export ⇄ import round-trip (method-specific inputs)', () => {
+  // The export now emits EVERY import column (its input block is derived from
+  // IMPORT_COLUMNS), so a row written under the friendly EXPORT headers must
+  // re-map to canonical keys and rebuild the SAME engine metadata it was built
+  // from. This locks in the fix for the lossy round-trip (travel/spend/fugitive
+  // re-imported to a wrong number when these columns were output-only).
+
+  it('round-trips business-travel inputs via the friendly export headers', () => {
+    // Headers exactly as the export writes them (== IMPORT_COLUMNS headers).
+    const exportedRow = {
+      'Category': 'Scope 3 — Business Travel',
+      'Value': '1',
+      'Unit': 'km',
+      'Origin': 'CAI',
+      'Destination': 'DXB',
+      'Distance (km)': '2196',
+      'Travel Mode': 'Flight',
+      'Travel Class': 'Economy',
+      'Round Trip': 'Yes',
+    };
+    const c = mapRowToCanonical(exportedRow);
+    const md = buildMetadataFromRow(c);
+    expect(md).toMatchObject({
+      origin: 'CAI',
+      destination: 'DXB',
+      distance: 2196,
+      travelMode: 'Flight',
+      travelClass: 'Economy',
+      roundTrip: true,
+    });
+  });
+
+  it('round-trips spend currency and fugitive material-balance via export headers', () => {
+    const spend = buildMetadataFromRow(mapRowToCanonical({ 'Currency': 'USD' }));
+    expect(spend.currency).toBe('USD');
+
+    const fug = buildMetadataFromRow(
+      mapRowToCanonical({
+        'MB Purchased (kg)': '100',
+        'MB Inventory Start (kg)': '20',
+        'MB Inventory End (kg)': '15',
+        'MB Charged Into Equipment (kg)': '30',
+        'MB Recovered (kg)': '10',
+      })
+    );
+    expect(fug.materialBalance).toEqual({
+      purchases: 100,
+      inventoryStart: 20,
+      inventoryEnd: 15,
+      chargedIntoEquipment: 30,
+      recovered: 10,
+    });
+  });
+});

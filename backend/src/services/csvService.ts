@@ -136,22 +136,21 @@ interface ExportColumn {
 }
 
 /**
- * Export columns: the leading block mirrors the import template headers exactly
- * (so an export re-imports cleanly), followed by the computed/provenance columns
- * the importer ignores. This is the round-trip contract.
+ * Export columns: the leading block mirrors the import template headers EXACTLY
+ * (so an export re-imports cleanly) and is DERIVED from IMPORT_COLUMNS so the two
+ * can never drift — every method-specific input (travel route/distance/class,
+ * combustion fuel, mobile vehicle, spend currency, fugitive material balance) is
+ * round-tripped, not just the simple activity columns. The computed/provenance
+ * columns the importer ignores follow. This is the round-trip contract.
  */
-const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: 'category', header: 'Category', input: true, width: 28 },
-  { key: 'value', header: 'Value', input: true, width: 12 },
-  { key: 'unit', header: 'Unit', input: true, width: 12 },
-  { key: 'periodStart', header: 'Period Start', input: true, width: 14 },
-  { key: 'periodEnd', header: 'Period End', input: true, width: 14 },
-  { key: 'title', header: 'Title (groups rows)', input: true, width: 22 },
-  { key: 'facility', header: 'Facility', input: true, width: 18 },
-  { key: 'notes', header: 'Notes', input: true, width: 24 },
-  { key: 'factorCode', header: 'Factor Code', input: true, width: 30 },
-  { key: 'isEstimate', header: 'Is Estimate', input: true, width: 11 },
-  { key: 'estimationMethod', header: 'Estimation Method', input: true, width: 20 },
+const EXPORT_INPUT_COLUMNS: ExportColumn[] = IMPORT_COLUMNS.map((c) => ({
+  key: c.key,
+  header: c.header,
+  input: true,
+  width: c.width,
+}));
+
+const EXPORT_OUTPUT_COLUMNS: ExportColumn[] = [
   { key: 'scope', header: 'Scope', input: false, width: 7 },
   { key: 'status', header: 'Status', input: false, width: 11 },
   { key: 'verified', header: 'Verified', input: false, width: 9 },
@@ -179,6 +178,9 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'calculationId', header: 'Calculation ID', input: false, width: 26 },
   { key: 'entryIndex', header: 'Entry Index', input: false, width: 10 },
 ];
+
+// Round-trip input columns first (derived from the import model), then computed.
+const EXPORT_COLUMNS: ExportColumn[] = [...EXPORT_INPUT_COLUMNS, ...EXPORT_OUTPUT_COLUMNS];
 
 export class CSVService {
 
@@ -318,7 +320,8 @@ export class CSVService {
   private async resolveRows(
     rawRows: CSVCalculationRow[],
     organizationId: string,
-    userId?: string
+    userId?: string,
+    existingCalcs?: any[]
   ): Promise<ResolvedRow[]> {
     const canonicals = rawRows.map((r) => mapRowToCanonical(r));
 
@@ -350,10 +353,13 @@ export class CSVService {
       facById.set(String(f._id), f);
     }
 
-    // Existing data → duplicate-detection keys.
-    const existing = await Calculation.find({ organizationId })
-      .select('period facilityId data.categoryId data.value')
-      .lean();
+    // Existing data → duplicate-detection keys. The preview shares its single
+    // org-calculations scan with the quality screening (see previewImport).
+    const existing =
+      existingCalcs ??
+      (await Calculation.find({ organizationId })
+        .select('period facilityId data.categoryId data.value')
+        .lean());
     const dupeSet = new Set<string>();
     for (const c of existing as any[]) {
       const ps = c.period?.start ? new Date(c.period.start).toISOString().slice(0, 10) : '';
@@ -369,7 +375,9 @@ export class CSVService {
     for (let i = 0; i < canonicals.length; i++) {
       const canonical = canonicals[i];
       const rr: ResolvedRow = {
-        rowNumber: i + 2,
+        // Real sheet/file row when the reader recorded one (Excel), else the
+        // header-offset index as a fallback (header is row 1, data starts at 2).
+        rowNumber: (rawRows[i] as any)?.__rowNumber ?? i + 2,
         canonical,
         isEstimate: parseBoolean(canonical.isEstimate),
         estimationMethod: canonical.estimationMethod,
@@ -536,6 +544,9 @@ export class CSVService {
       }
       // Skip fully empty rows
       if (Object.values(obj).some((v) => v !== '')) {
+        // Record the REAL sheet row so error messages line up even when blank
+        // rows in the middle are skipped (rowNumber would otherwise drift).
+        (obj as any).__rowNumber = rowNumber;
         rows.push(obj as CSVCalculationRow);
       }
     });
@@ -551,14 +562,22 @@ export class CSVService {
    */
   async previewImport(filePath: string, organizationId: string): Promise<PreviewResult> {
     const rawRows = await this.readRows(filePath);
-    const resolved = await this.resolveRows(rawRows, organizationId);
+
+    // One org-calculations scan shared by duplicate detection (resolveRows) and
+    // the advisory quality screening (qualityWarnings) — they used to query the
+    // whole collection independently on every preview.
+    const existingCalcs = await Calculation.find({ organizationId })
+      .select('period facilityId data.categoryId data.value')
+      .lean();
+
+    const resolved = await this.resolveRows(rawRows, organizationId, undefined, existingCalcs);
 
     const errors: string[] = [];
     for (const rr of resolved) for (const e of rr.errors) errors.push(`Row ${rr.rowNumber}: ${e}`);
 
     let warnings: ImportWarning[] = [];
     try {
-      warnings = await this.qualityWarnings(resolved, organizationId);
+      warnings = await this.qualityWarnings(resolved, organizationId, existingCalcs);
     } catch (e) {
       // Quality screening is advisory — never fail a preview on it.
       logger.warn('Import quality screening failed (non-blocking):', e);
@@ -594,7 +613,7 @@ export class CSVService {
    * Advisory data-quality warnings (duplicate-within-file / outlier vs prior
    * period / spend double-count) computed from the resolved rows + org history.
    */
-  private async qualityWarnings(resolved: ResolvedRow[], organizationId: string): Promise<ImportWarning[]> {
+  private async qualityWarnings(resolved: ResolvedRow[], organizationId: string, preloadedCalcs?: any[]): Promise<ImportWarning[]> {
     const qualityRows: QualityRow[] = [];
     for (const rr of resolved) {
       if (!rr.categoryName || rr.value === undefined || !rr.unit) continue;
@@ -616,7 +635,9 @@ export class CSVService {
     const byId = new Map<string, any>();
     for (const c of categories as any[]) byId.set(String(c._id), c);
 
-    const calcs = await Calculation.find({ organizationId }).select('period data.categoryId data.value').lean();
+    const calcs =
+      preloadedCalcs ??
+      (await Calculation.find({ organizationId }).select('period data.categoryId data.value').lean());
     const history: HistoryPoint[] = [];
     for (const c of calcs as any[]) {
       for (const e of c.data || []) {
@@ -719,9 +740,29 @@ export class CSVService {
           title: c.title || '',
           facility: facilityName,
           notes: e.notes || '',
-          factorCode: e.factorId ? codeById.get(String(e.factorId)) || '' : '',
+          // Pin the same factor on re-import: prefer the human factor code, but
+          // fall back to the raw id (the importer also resolves a factor by id)
+          // so factors without a code still round-trip instead of silently
+          // reverting to the category default.
+          factorCode: e.factorId ? codeById.get(String(e.factorId)) || String(e.factorId) : '',
           isEstimate: e.isEstimate ? 'Yes' : 'No',
           estimationMethod: e.estimationMethod || '',
+          // Method-specific activity inputs (so travel / spend / combustion /
+          // mobile round-trip), then fugitive material-balance components.
+          fuelType: e.activityInput?.fuelType || '',
+          vehicleType: e.activityInput?.vehicleType || '',
+          origin: e.activityInput?.origin || '',
+          destination: e.activityInput?.destination || '',
+          distance: e.activityInput?.distance ?? '',
+          travelMode: e.activityInput?.travelMode || '',
+          travelClass: e.activityInput?.travelClass || '',
+          roundTrip: e.activityInput?.roundTrip === true ? 'Yes' : e.activityInput?.roundTrip === false ? 'No' : '',
+          currency: e.activityInput?.currency || '',
+          mbPurchases: e.materialBalance?.purchases ?? '',
+          mbInventoryStart: e.materialBalance?.inventoryStart ?? '',
+          mbInventoryEnd: e.materialBalance?.inventoryEnd ?? '',
+          mbCharged: e.materialBalance?.chargedIntoEquipment ?? '',
+          mbRecovered: e.materialBalance?.recovered ?? '',
           scope,
           status: c.status,
           verified: c.verification?.verified ? 'Yes' : 'No',
@@ -770,7 +811,15 @@ export class CSVService {
   }
 
   private exportToCsv(rows: Record<string, any>[]): Buffer {
-    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Neutralize spreadsheet formula injection: a field beginning with = + - @
+    // (or a leading control char Excel/Sheets treat as a formula lead) is
+    // prefixed with a single quote so it renders as text, never an executable
+    // formula, when a user opens the export in Excel/Google Sheets.
+    const sanitize = (v: any) => {
+      const s = String(v ?? '');
+      return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+    };
+    const esc = (v: any) => `"${sanitize(v).replace(/"/g, '""')}"`;
     const header = EXPORT_COLUMNS.map((c) => esc(c.header)).join(',');
     const body = rows.map((r) => EXPORT_COLUMNS.map((c) => esc(r[c.key])).join(',')).join('\n');
     return Buffer.from(UTF8_BOM + header + '\n' + body, 'utf8');

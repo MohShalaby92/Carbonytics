@@ -31,6 +31,21 @@ export async function buildEntryFromComputed(
   // worst PCAF score; the method used is stored verbatim.
   const isEstimate = flags.isEstimate === true;
 
+  // Round-trip provenance: snapshot the method-specific activity inputs (carried
+  // on the engine result's metadata) so an export of this entry re-imports to the
+  // exact same number. Fugitive material-balance inputs are stored separately.
+  const md: any = computed.calculation.metadata || {};
+  const activityInput: Record<string, any> = {};
+  if (md.fuelType) activityInput.fuelType = String(md.fuelType);
+  if (md.vehicleType) activityInput.vehicleType = String(md.vehicleType);
+  if (md.origin) activityInput.origin = String(md.origin);
+  if (md.destination) activityInput.destination = String(md.destination);
+  if (typeof md.distance === 'number') activityInput.distance = md.distance;
+  if (md.travelMode) activityInput.travelMode = String(md.travelMode);
+  if (md.travelClass) activityInput.travelClass = String(md.travelClass);
+  if (md.roundTrip !== undefined) activityInput.roundTrip = !!md.roundTrip;
+  if (md.currency) activityInput.currency = String(md.currency);
+
   return {
     categoryId: flags.categoryId,
     value: computed.calculation.value,
@@ -78,6 +93,8 @@ export async function buildEntryFromComputed(
     ...(computed.materialBalance
       ? { materialBalance: { releasedKg: computed.materialBalance.releasedKg, ...computed.materialBalance.components } }
       : {}),
+    // Method-specific activity inputs for a clean export → re-import round-trip.
+    ...(Object.keys(activityInput).length ? { activityInput } : {}),
     notes: flags.notes,
   };
 }
