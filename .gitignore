@@ -120,6 +120,7 @@ package-lock.json
 !backend/package-lock.json
 !frontend/package-lock.json
 .env.production
+.env.monitoring
 
 # TLS certificates / private keys — NEVER commit. Generated locally by
 # scripts/gen-self-signed-cert.sh or provisioned (Let's Encrypt) at deploy time.

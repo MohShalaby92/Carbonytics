@@ -36,4 +36,30 @@ if (appDb.getUser("${MONGO_APP_USERNAME}")) {
 }
 EOJS
 
+# Monitoring user for the Prometheus mongodb_exporter: clusterMonitor on admin
+# (serverStatus/replSetGetStatus/etc.) plus read on the app db. Created only when
+# MONGO_EXPORTER_USERNAME/PASSWORD are supplied, so monitoring stays optional.
+if [ -n "${MONGO_EXPORTER_USERNAME:-}" ] && [ -n "${MONGO_EXPORTER_PASSWORD:-}" ]; then
+  echo "[init] ensuring monitoring user '${MONGO_EXPORTER_USERNAME}'"
+  mongosh --quiet \
+    -u "${MONGO_INITDB_ROOT_USERNAME}" \
+    -p "${MONGO_INITDB_ROOT_PASSWORD}" \
+    --authenticationDatabase admin <<EOJS
+const admin = db.getSiblingDB("admin");
+if (admin.getUser("${MONGO_EXPORTER_USERNAME}")) {
+  print("[init] monitoring user already exists; leaving as-is");
+} else {
+  admin.createUser({
+    user: "${MONGO_EXPORTER_USERNAME}",
+    pwd: "${MONGO_EXPORTER_PASSWORD}",
+    roles: [
+      { role: "clusterMonitor", db: "admin" },
+      { role: "read", db: "${MONGO_APP_DB}" },
+    ],
+  });
+  print("[init] monitoring user created (clusterMonitor + read)");
+}
+EOJS
+fi
+
 echo "[init] done"

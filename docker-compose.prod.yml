@@ -198,6 +198,54 @@ services:
     networks:
       - carbonytics
 
+  # ---- Exporters (Prometheus scrape targets) ----
+  # Credentials come from .env.monitoring (a monitoring-only secrets file), kept
+  # separate from .env.production so no app/JWT secrets reach the exporters. The
+  # mongo monitoring user (clusterMonitor) is created by mongo/init/01-app-user.sh.
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.43.1
+    container_name: carbonytics-mongodb-exporter
+    command:
+      - '--collect-all'
+      - '--compatible-mode'
+    env_file:
+      - .env.monitoring
+    expose:
+      - '9216'
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: carbonytics-redis-exporter
+    env_file:
+      - .env.monitoring
+    expose:
+      - '9121'
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.3.0
+    container_name: carbonytics-nginx-exporter
+    command:
+      - '--nginx.scrape-uri=http://nginx:8080/stub_status'
+    expose:
+      - '9113'
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
 volumes:
   mongo_data:
   redis_data:

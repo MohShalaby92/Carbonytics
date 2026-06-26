@@ -9,6 +9,7 @@ import Database from './config/database';
 import { config } from './config/config';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
+import { metricsMiddleware, metricsHandler } from './middleware/metrics';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -39,6 +40,10 @@ class Server {
     // Trust the first proxy hop so rate limiting and secure cookies see the real
     // client IP / protocol. Must be set BEFORE the rate limiter is registered.
     this.app.set('trust proxy', 1);
+
+    // Prometheus request instrumentation — first, so it times the full request
+    // lifecycle (including the middleware below).
+    this.app.use(metricsMiddleware);
 
     // Security headers
     this.app.use(
@@ -113,6 +118,10 @@ class Server {
         environment: config.NODE_ENV,
       });
     });
+
+    // Prometheus metrics (no auth / no rate limit). Reachable only on the
+    // private network -- the edge proxy does not route /metrics publicly.
+    this.app.get('/metrics', metricsHandler);
 
     // API routes (each mounted exactly once)
     this.app.use('/api/auth', authLimiter, authRoutes);
