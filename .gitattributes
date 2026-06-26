@@ -1,0 +1,11 @@
+# Files consumed/executed inside Linux containers MUST keep LF endings even on
+# Windows checkouts (core.autocrlf=true here). A CRLF shell script bind-mounted
+# into a container fails with "bad interpreter", and CRLF can trip config
+# parsers. Pin LF for the deploy-relevant file types (surgical -- no global
+# `* text=auto`, to avoid renormalizing the whole repo).
+*.sh         text eol=lf
+*.conf       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+Dockerfile   text eol=lf
+.env.*       text eol=lf

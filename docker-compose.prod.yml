@@ -110,12 +110,14 @@ services:
       timeout: 5s
       retries: 5
 
-  # ---- MongoDB (authentication enabled in SI-2 via root + app-user init) ----
+  # ---- MongoDB (authenticated) ----
   mongo:
     image: mongo:7.0
     container_name: carbonytics-mongo
-    # MONGO_INITDB_ROOT_USERNAME/PASSWORD (env_file) enable auth on first boot;
-    # the SI-2 init script then creates a least-privilege app user.
+    # MONGO_INITDB_ROOT_USERNAME/PASSWORD (from env_file) make the official image
+    # enable authentication on first boot and create the root user. The init
+    # script then creates a least-privilege readWrite app user that the backend
+    # connects as (see mongo/init/01-app-user.sh).
     environment:
       - MONGO_INITDB_DATABASE=carbonytics_prod
     env_file:
@@ -123,6 +125,7 @@ services:
     volumes:
       - mongo_data:/data/db
       - ./backups/mongo:/backup
+      - ./mongo/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     networks:
       - carbonytics
@@ -133,18 +136,27 @@ services:
       timeout: 5s
       retries: 10
 
-  # ---- Redis (password + command hardening land in SI-2) ----
+  # ---- Redis (password-protected, destructive commands disabled) ----
   redis:
     image: redis:7.2-alpine
     container_name: carbonytics-redis
-    command: redis-server --appendonly yes
+    # redis.conf carries the non-secret hardening (renamed FLUSHALL/FLUSHDB/DEBUG,
+    # maxmemory, persistence). The password can't live in the conf (no ${ENV}
+    # expansion there), so it is appended at runtime from the container env via a
+    # shell, which reads REDIS_PASSWORD supplied by env_file.
+    # $$ escapes compose interpolation so the literal $REDIS_PASSWORD reaches the
+    # in-container shell, which expands it from the env_file-provided environment.
+    command: ['sh', '-c', 'exec redis-server /etc/redis/redis.conf --requirepass "$$REDIS_PASSWORD" --appendonly yes']
+    env_file:
+      - .env.production
     volumes:
       - redis_data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
     restart: unless-stopped
     networks:
       - carbonytics
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 10
