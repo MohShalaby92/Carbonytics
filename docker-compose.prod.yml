@@ -124,7 +124,7 @@ services:
       - .env.production
     volumes:
       - mongo_data:/data/db
-      - ./backups/mongo:/backup
+      - ./backups:/backup
       - ./mongo/init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     networks:
@@ -242,6 +242,27 @@ services:
       - '9113'
     depends_on:
       - nginx
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+  # ---- Automated MongoDB backups (scheduled mongodump sidecar) ----
+  # Stock mongo image (bundles mongodump matching the server). Dumps once on
+  # start, then every BACKUP_INTERVAL seconds, to the ./backups volume with
+  # BACKUP_RETENTION_DAYS retention. Uses the root credentials from env_file
+  # (it needs to read the whole app db). Restore via scripts/restore-data.sh.
+  backup:
+    image: mongo:7.0
+    container_name: carbonytics-backup
+    command: ['bash', '/backup.sh']
+    env_file:
+      - .env.production
+    volumes:
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backups:/backup
+    depends_on:
+      mongo:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - carbonytics
