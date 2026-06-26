@@ -128,3 +128,7 @@ nginx/ssl/
 *.pem
 *.key
 *.crt
+
+# Runtime output of the prod stack (bind mounts) — never commit DB dumps or logs.
+/backups/
+/logs/

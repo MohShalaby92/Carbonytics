@@ -63,7 +63,9 @@ services:
     networks:
       - carbonytics
     healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost/']
+      # 127.0.0.1 (not localhost): the SPA nginx listens on IPv4 only, while
+      # localhost resolves to ::1 (IPv6) first in the container -> false unhealthy.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/']
       interval: 30s
       timeout: 5s
       retries: 5
