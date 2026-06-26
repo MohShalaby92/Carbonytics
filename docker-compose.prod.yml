@@ -1,154 +1,198 @@
-version: '3.8'
+# Production stack for Carbonytics.
+#
+# Topology (single public origin, TLS terminated at the edge):
+#
+#   internet --443--> nginx (edge, TLS) ──/───────────> frontend:80   (static Vite SPA)
+#                                        └──/api,/health──> backend:5000
+#                     backend ──> mongo (auth) + redis (auth)
+#
+# Secrets are NEVER committed. Copy .env.production.example -> .env.production,
+# fill in strong values (`openssl rand -base64 48`), and keep it out of git
+# (.env.production is gitignored). Compose injects it via `env_file:`.
+#
+# IMPORTANT: this file deliberately avoids ${VAR} interpolation for secrets.
+# Compose interpolates ${VAR} from the shell / a project `.env`, NOT from the
+# `env_file:` below — so secrets flow into containers through env_file instead,
+# and `docker compose -f docker-compose.prod.yml config` is clean with no
+# project .env present. Where a secret must reach a `command:` (redis), a
+# `sh -c` shell reads it from the container environment (provided by env_file).
+#
+# First boot:
+#   1) cp .env.production.example .env.production    # then edit in real secrets
+#   2) ./scripts/gen-self-signed-cert.sh            # or drop real certs in nginx/ssl/
+#   3) docker compose -f docker-compose.prod.yml up -d --build
+#
+# Verify locally WITHOUT touching the dev stack — use an isolated project name
+# (separate volumes/network) and tear it down with `down -v` afterwards:
+#   docker compose -p carbonytics-prod -f docker-compose.prod.yml up -d --build
 
 services:
-  # Reverse Proxy with SSL
+  # ---- Edge reverse proxy: terminates TLS, single public origin ----
+  # TLS config + 80->443 redirect land in SI-3 (nginx/nginx.conf rewrite).
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: carbonytics-proxy
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./logs/nginx:/var/log/nginx
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
 
-  # Frontend Production
+  # ---- Frontend: static Vite SPA served by its own nginx on :80 ----
+  # Built at image-build time; relative "/api" is proxied (no runtime env).
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: carbonytics-frontend
     expose:
-      - "3000"
-    environment:
-      - NODE_ENV=production
-      - REACT_APP_API_URL=/api
-      - REACT_APP_APP_NAME=Carbonytics
-      - REACT_APP_VERSION=1.0.0
+      - '80'
     depends_on:
       - backend
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost/']
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
-  # Backend Production
+  # ---- Backend: Node/Express API on :5000 (internal only) ----
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: carbonytics-backend
     expose:
-      - "5000"
+      - '5000'
+    # Non-secret, static configuration. Secrets (MONGODB_URI, REDIS_URL,
+    # JWT_SECRET, JWT_REFRESH_SECRET, CLIENT_URL, COOKIE_DOMAIN) come from
+    # env_file so they are never baked into the image or this file.
     environment:
       - NODE_ENV=production
       - PORT=5000
-      - MONGODB_URI=mongodb://mongo:27017/carbonytics_prod
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - JWT_EXPIRE=7d
-      - REFRESH_TOKEN_EXPIRE=30d
-      - CLIENT_URL=https://carbonytics.com
-      - MAX_FILE_SIZE=10485760
+      - JWT_ACCESS_EXPIRE=15m
+      - JWT_REFRESH_EXPIRE=7d
+      - COOKIE_SECURE=true
       - RATE_LIMIT_WINDOW=900000
       - RATE_LIMIT_MAX=100
+      - AUTH_RATE_LIMIT_MAX=10
+      - MAX_FILE_SIZE=10485760
       - CACHE_TTL=3600
-      - LOG_LEVEL=info
-      - ENABLE_METRICS=true
+      - UPLOAD_PATH=/app/uploads
     env_file:
       - .env.production
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
     volumes:
       - uploads:/app/uploads
-      - logs:/app/logs
+      - ./logs/backend:/app/logs
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
-  # MongoDB Production - FIXED: Removed problematic config file mount
+  # ---- MongoDB (authentication enabled in SI-2 via root + app-user init) ----
   mongo:
     image: mongo:7.0
     container_name: carbonytics-mongo
+    # MONGO_INITDB_ROOT_USERNAME/PASSWORD (env_file) enable auth on first boot;
+    # the SI-2 init script then creates a least-privilege app user.
     environment:
       - MONGO_INITDB_DATABASE=carbonytics_prod
-  #    - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
-  #    - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
-    volumes:
-      - mongo_data:/data/db
-      - ./backups/mongo:/backup
-      # REMOVED: - ./mongo/mongod.conf:/etc/mongod.conf
-    # REMOVED: command: ["mongod", "--config", "/etc/mongod.conf"]
-    restart: unless-stopped
-    networks:
-      - carbonytics-network
-
-  # Redis Production
-  redis:
-    image: redis:7.2-alpine
-    container_name: carbonytics-redis
-    command: redis-server --appendonly yes # --requirepass ${REDIS_PASSWORD}
     env_file:
       - .env.production
     volumes:
-      - redis_data:/data
-      - ./redis/redis.conf:/etc/redis/redis.conf
+      - mongo_data:/data/db
+      - ./backups/mongo:/backup
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
+    healthcheck:
+      # `ping` needs no auth, so this works before and after auth is enabled.
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # Monitoring with Prometheus
+  # ---- Redis (password + command hardening land in SI-2) ----
+  redis:
+    image: redis:7.2-alpine
+    container_name: carbonytics-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - carbonytics
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- Monitoring (real /metrics + exporters wired in SI-4) ----
   prometheus:
     image: prom/prometheus:latest
     container_name: carbonytics-prometheus
-    ports:
-      - "9090:9090"
+    expose:
+      - '9090'
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
 
-  # Grafana for Monitoring Dashboard
   grafana:
     image: grafana/grafana:latest
     container_name: carbonytics-grafana
     ports:
-      - "3001:3000"
+      - '3001:3000'
+    # GF_SECURITY_ADMIN_USER / GF_SECURITY_ADMIN_PASSWORD come from env_file.
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    env_file:
+      - .env.production
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
     restart: unless-stopped
     networks:
-      - carbonytics-network
+      - carbonytics
 
 volumes:
   mongo_data:
   redis_data:
   uploads:
-  logs:
   prometheus_data:
   grafana_data:
 
 networks:
-  carbonytics-network:
+  carbonytics:
     driver: bridge
