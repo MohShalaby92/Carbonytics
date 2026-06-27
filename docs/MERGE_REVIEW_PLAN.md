@@ -1,6 +1,8 @@
 # Carbonytics — Pre-Merge Code Review Plan (`remediation` → `master`)
 
-**Created:** 2026-06-27 · **Reviewer:** Claude Code (Opus 4.8) with MohShalaby92 · **Status:** IN PROGRESS
+**Created:** 2026-06-27 · **Reviewer:** Claude Code (Opus 4.8) with MohShalaby92 · **Status:** ✅ **COMPLETE — MERGE-READY**
+
+> **Final verdict (2026-06-27):** All 11 increments complete; the full 208-file diff reviewed (line-by-line for logic, plus live + adversarial verification). **3 real issues found and fixed during the review** — `tokenStore` fail-open revocation (S2), `/csv/import` missing RBAC (S2), 500-error message leakage (S3) — each verified and committed. A regression test was added (jest 128→**133**). **No open S1/S2.** Remaining findings are S4/defense-in-depth (accepted, listed below). Final gates: both tsc green, jest 133/133, §8 smoke 16/16 (demo 2026 = 9,193.02 intact), and the isolated prod stack boots 11 services healthy with TLS/secure-cookie/private-metrics/Prometheus all green. **Recommendation: approved to merge `remediation` → `master`.**
 
 > This is the **source of truth and live tracker** for the comprehensive review of the
 > `remediation` branch before it merges to `master`. Update the checkboxes and the
@@ -194,7 +196,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 ### INC-9 · Docs (2)
 - [x] docs/HANDOFF.md [x] docs/ENTERPRISE_GAP_ANALYSIS.md *(10+ claims verified true vs live; accurate as historical snapshots — jest moved 128→133 this review, tracked here; HANDOFF "review complete" addendum → INC-10)*
 
-**Partition check (run at INC-10):** `INC-1(27)+INC-2(14)+INC-3(9)+INC-4(29)+INC-5(76)+INC-6(42)+INC-8(8)+INC-9(2) = 207` = total changed files. ✅ when every box above is ticked.
+**Partition check (run at INC-10): ✅ PASSED.** `INC-1(27)+INC-2(14)+INC-3(9)+INC-4(29)+INC-5(76)+INC-6(42)+INC-8(8)+INC-9(2) = 207` = the original changed-file count, every box ticked. During the review **1 file was added** (`backend/tests/tokenStore.test.ts`, F-006 regression — ticked under INC-8) → branch now shows **208** non-plan changed files, all reviewed; plus `docs/MERGE_REVIEW_PLAN.md` (this artifact). **No changed line is unreviewed.**
 
 ---
 
@@ -264,10 +266,10 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | INC-7 Security pass | Claude | — | ✅ done — cross-tenant battery (10 probes, all 404/empty, no leak); NoSQL 400, upload bad-type 400, cookie HttpOnly+SameSite=Strict, alg:none 401; /security-review run → only the already-fixed F-006/F-009/F-010, no new HIGH/MEDIUM. 1 S4 (F-012 snapshots 200-empty). `/metrics`-not-public deferred to INC-6 prod stack. |
 | INC-8 Tests | Claude | 8+1 | ✅ done — new-logic suites value-assertion-heavy + adversarial; **added tokenStore F-006 regression** (jest 128→**133**); stable 133/133 ×3 (incl. --runInBand, no flakiness); multi-scenario regression green (2026/2022-equity/2030 per-gas/org2-isolated/Egyptian default). 1 S4 coverage note (F-013: no integration-test harness). |
 | INC-9 Coherence & docs | Claude | 2 | ✅ done — error envelope 100% uniform (ApiResponseUtil, zero raw res.json); audit on all 8 mutating controllers; **no TODO/FIXME/console.log** in services/controllers; FE↔BE parity (in-browser 0 errors); 10+ doc claims verified true. No findings. |
-| INC-10 Final regression & sign-off | Claude | — | ⬜ pending |
-| Ultrareview findings addressed | User+Claude | — | ⬜ pending |
+| INC-10 Final regression & sign-off | Claude | — | ✅ done — both tsc green; **jest 133/133**; **§8 smoke 16/16** (9193.02 intact); **prod stack: 11 services healthy** (rebuilt w/ the 3 fixes), HTTPS 200 / HTTP→301 / `HttpOnly;Secure;SameSite=Strict` cookie / `/metrics` not public / Prometheus 5/5; partition check passed; dev stack untouched. |
+| Ultrareview findings addressed | User | — | ⏭️ SKIPPED by user (2026-06-27); relied on this manual plan + `/security-review` skill (INC-7). |
 
-**Merge gate:** all rows ✅ + Findings Log has no open S1/S2 + Coverage Matrix 100% + partition check passes.
+**Merge gate:** ✅ **ALL ROWS GREEN.** Findings Log has **no open S1/S2** (the 2 S2 + 1 S3 were fixed; remaining are S4/accepted). Coverage Matrix 100% ticked. Partition check passed. → **MERGE-READY** (user runs the final `git merge`; the review is complete).
 
 ---
 
