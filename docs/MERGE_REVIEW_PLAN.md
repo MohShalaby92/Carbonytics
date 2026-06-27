@@ -176,16 +176,16 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 - Test (1): [x] utils/utils.test.ts
 
 ### INC-6 · Deploy, infra, build & secrets (42)
-- Compose (2): [ ] docker-compose.yml [ ] docker-compose.prod.yml
-- Web servers (2): [ ] nginx/nginx.conf [ ] frontend/nginx.conf
-- DB/cache (4): [ ] mongo/mongod.conf [ ] mongo/init/01-app-user.sh [ ] redis/redis.conf [ ] *(redis auth wiring)*
-- Backup/monitoring (5): [ ] backup/backup.sh [ ] scripts/backup-production.sh [ ] scripts/restore-data.sh [ ] scripts/gen-self-signed-cert.sh [ ] monitoring/prometheus.yml
-- Docker build (4): [ ] backend/Dockerfile [ ] backend/.dockerignore [ ] frontend/Dockerfile [ ] frontend/.dockerignore
-- Env examples (3): [ ] .env.example [ ] .env.production.example [ ] .env.monitoring.example
-- Repo config (3): [ ] .gitignore [ ] .gitattributes [ ] .claude/launch.json
-- Frontend build (8): [ ] vite.config.ts [ ] tsconfig.json [ ] tsconfig.node.json [ ] tailwind.config.js [ ] postcss.config.js [ ] frontend/index.html [ ] frontend/package.json [ ] frontend/package-lock.json *(audit-only)*
-- Backend build (2): [ ] backend/package.json [ ] backend/package-lock.json *(audit-only)*
-- Public assets (10): [ ] android-chrome-192 [ ] android-chrome-512 [ ] apple-touch-icon [ ] favicon-16 [ ] favicon-32 [ ] favicon.ico [ ] icon.png [ ] public/index.html [ ] site.webmanifest [ ] theme-init.js
+- Compose (2): [x] docker-compose.yml [x] docker-compose.prod.yml *(validates; secrets via env_file not interpolated; mongo/redis internal-only; only nginx+grafana publish ports)*
+- Web servers (2): [x] nginx/nginx.conf *(TLS1.2/3, HSTS, 80→301, /metrics not public, internal stub_status allow 127.0.0.1)* [x] frontend/nginx.conf
+- DB/cache (4): [x] mongo/mongod.conf [x] mongo/init/01-app-user.sh *(app user readWrite-only, not root)* [x] redis/redis.conf *(requirepass via compose; FLUSHALL/FLUSHDB/DEBUG disabled)* [x] *(redis auth wiring)*
+- Backup/monitoring (5): [x] backup/backup.sh [x] scripts/backup-production.sh [x] scripts/restore-data.sh [x] scripts/gen-self-signed-cert.sh [x] monitoring/prometheus.yml *(all set -euo pipefail; internal scrape targets)*
+- Docker build (4): [x] backend/Dockerfile *(multi-stage, USER nodejs non-root, NODE_ENV=production)* [x] backend/.dockerignore *(excludes .env*/node_modules/.git)* [x] frontend/Dockerfile [x] frontend/.dockerignore
+- Env examples (3): [x] .env.example [x] .env.production.example [x] .env.monitoring.example *(placeholders only; real secrets gitignored)*
+- Repo config (3): [x] .gitignore *(covers .env.production/.env.monitoring/nginx-ssl/*.pem/backups)* [x] .gitattributes [x] .claude/launch.json
+- Frontend build (8): [x] vite.config.ts [x] tsconfig.json [x] tsconfig.node.json [x] tailwind.config.js [x] postcss.config.js [x] frontend/index.html [x] frontend/package.json [x] frontend/package-lock.json *(audit-only)*
+- Backend build (2): [x] backend/package.json [x] backend/package-lock.json *(audit-only)*
+- Public assets (10): [x] android-chrome-192 [x] android-chrome-512 [x] apple-touch-icon [x] favicon-16 [x] favicon-32 [x] favicon.ico [x] icon.png [x] public/index.html [x] site.webmanifest [x] theme-init.js *(localStorage theme read only — safe)*
 
 ### INC-8 · Tests (8, owned here; reviewed for adequacy)
 - [ ] dataQuality.test [ ] engineSession.test [ ] factorRecompute.test [ ] factorVersioning.test [ ] importMapping.test [ ] importQuality.test [ ] lineage.test [ ] pedigree.test
@@ -258,7 +258,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | INC-3 Reports & export | Claude | 9 | ✅ done — 6 reports × pdf/docx/xlsx all 200 + valid magic bytes; pdfSafe covers all dynamic PDF text (no raw drawText in renderers); CSV formula-injection guard present; export 2026 = 14 rows reconcile to 9193.02, zero fabricated sources, xlsx PK. 1 S4 (F-008 unsupported-format→JSON). |
 | INC-4 API surface | Claude | 29 | ✅ done — auth middleware solid; tenant scoping verified across all controllers (factor edit/versions 403/404, evidence download org-scoped, inventory all org-scoped, **cache key org-namespaced**); server.ts helmet/CORS-single-origin/rate-limit/body-limit; adversarial unauth-401/NoSQL-400/forged-401. **F-005/F-007 resolved.** Findings: **F-009 S2 (csv import no role gate)**, F-010 S3 (500 message leak), F-011 S4 (jwt alg pin). |
 | INC-5 Frontend | Claude | 76 | ✅ done — **no XSS sinks** (zero dangerouslySetInnerHTML/innerHTML/eval); access token **in-memory only** + refresh httpOnly cookie + single-flight refresh; all shape gotchas handled (14/8/42/25, getBlob/postForm); in-browser: 13 compliance tabs + dashboard(data) + import/export + glossary all render, **0 console errors**. No findings. |
-| INC-6 Deploy/infra | Claude | 42 | ⬜ pending |
+| INC-6 Deploy/infra | Claude | 42 | ✅ done — **no real secrets tracked** (gitignore covers all; .example only); prod compose validates, secrets via env_file (not interpolated), mongo/redis internal-only; nginx TLS/HSTS/301/metrics-private; redis requirepass+disabled-cmds; mongo least-priv; Dockerfile non-root; scripts set -euo pipefail. **No findings.** Live 11-service boot → INC-10 (§52 recipe; already all-green in §52). |
 | INC-7 Security pass | Claude | — | ✅ done — cross-tenant battery (10 probes, all 404/empty, no leak); NoSQL 400, upload bad-type 400, cookie HttpOnly+SameSite=Strict, alg:none 401; /security-review run → only the already-fixed F-006/F-009/F-010, no new HIGH/MEDIUM. 1 S4 (F-012 snapshots 200-empty). `/metrics`-not-public deferred to INC-6 prod stack. |
 | INC-8 Tests | Claude | 8 | ⬜ pending |
 | INC-9 Coherence & docs | Claude | 2 | ⬜ pending |
