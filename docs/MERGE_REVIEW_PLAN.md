@@ -192,7 +192,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 - [x] **tokenStore.test (NEW)** — F-006 fail-closed regression guard (5 cases)
 
 ### INC-9 · Docs (2)
-- [ ] docs/HANDOFF.md [ ] docs/ENTERPRISE_GAP_ANALYSIS.md
+- [x] docs/HANDOFF.md [x] docs/ENTERPRISE_GAP_ANALYSIS.md *(10+ claims verified true vs live; accurate as historical snapshots — jest moved 128→133 this review, tracked here; HANDOFF "review complete" addendum → INC-10)*
 
 **Partition check (run at INC-10):** `INC-1(27)+INC-2(14)+INC-3(9)+INC-4(29)+INC-5(76)+INC-6(42)+INC-8(8)+INC-9(2) = 207` = total changed files. ✅ when every box above is ticked.
 
@@ -263,7 +263,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | INC-6 Deploy/infra | Claude | 42 | ✅ done — **no real secrets tracked** (gitignore covers all; .example only); prod compose validates, secrets via env_file (not interpolated), mongo/redis internal-only; nginx TLS/HSTS/301/metrics-private; redis requirepass+disabled-cmds; mongo least-priv; Dockerfile non-root; scripts set -euo pipefail. **No findings.** Live 11-service boot → INC-10 (§52 recipe; already all-green in §52). |
 | INC-7 Security pass | Claude | — | ✅ done — cross-tenant battery (10 probes, all 404/empty, no leak); NoSQL 400, upload bad-type 400, cookie HttpOnly+SameSite=Strict, alg:none 401; /security-review run → only the already-fixed F-006/F-009/F-010, no new HIGH/MEDIUM. 1 S4 (F-012 snapshots 200-empty). `/metrics`-not-public deferred to INC-6 prod stack. |
 | INC-8 Tests | Claude | 8+1 | ✅ done — new-logic suites value-assertion-heavy + adversarial; **added tokenStore F-006 regression** (jest 128→**133**); stable 133/133 ×3 (incl. --runInBand, no flakiness); multi-scenario regression green (2026/2022-equity/2030 per-gas/org2-isolated/Egyptian default). 1 S4 coverage note (F-013: no integration-test harness). |
-| INC-9 Coherence & docs | Claude | 2 | ⬜ pending |
+| INC-9 Coherence & docs | Claude | 2 | ✅ done — error envelope 100% uniform (ApiResponseUtil, zero raw res.json); audit on all 8 mutating controllers; **no TODO/FIXME/console.log** in services/controllers; FE↔BE parity (in-browser 0 errors); 10+ doc claims verified true. No findings. |
 | INC-10 Final regression & sign-off | Claude | — | ⬜ pending |
 | Ultrareview findings addressed | User+Claude | — | ⬜ pending |
 
