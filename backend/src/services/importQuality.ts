@@ -35,7 +35,7 @@ export interface HistoryPoint {
 }
 
 export interface ImportWarning {
-  type: 'duplicate' | 'outlier' | 'spend-double-count';
+  type: 'duplicate' | 'outlier' | 'spend-double-count' | 'duplicate-header';
   rows: number[];
   message: string;
 }

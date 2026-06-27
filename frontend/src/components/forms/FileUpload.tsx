@@ -75,6 +75,7 @@ const WARNING_LABEL: Record<string, string> = {
   duplicate: 'Possible duplicate (within file)',
   outlier: 'Outlier vs prior period',
   'spend-double-count': 'Spend double-counting risk',
+  'duplicate-header': 'Duplicate column',
 };
 
 const fmtNum = (n?: number) =>

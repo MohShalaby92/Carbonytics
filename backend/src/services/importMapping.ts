@@ -128,6 +128,47 @@ export function resolveHeaderKey(header: any): string | null {
   return KEY_BY_NORMALIZED.get(normalizeHeader(header)) ?? null;
 }
 
+/** Friendly template header for a canonical key (for messages). */
+const HEADER_BY_KEY: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const c of IMPORT_COLUMNS) m.set(c.key, c.header);
+  return m;
+})();
+
+/** A set of uploaded headers that all collapse onto the same canonical key. */
+export interface HeaderCollision {
+  /** Canonical key the headers all resolve to. */
+  key: string;
+  /** Friendly template header for that key (for display). */
+  field: string;
+  /** The colliding original headers, in column order. */
+  headers: string[];
+}
+
+/**
+ * Detect uploaded headers that resolve to the SAME canonical key (e.g. a column
+ * "Distance (km)" alongside its alias "km", or "Category" + "Category Name").
+ * `mapRowToCanonical` keeps only the LAST such column (silent last-wins), so the
+ * earlier column's data is dropped without notice — this surfaces it as an
+ * advisory warning. Headers are taken in column order; the last in each group is
+ * the one that wins. Unrecognized headers are ignored. Pure (no DB/IO).
+ */
+export function findDuplicateHeaders(headers: string[]): HeaderCollision[] {
+  const byKey = new Map<string, string[]>();
+  for (const h of headers) {
+    const key = resolveHeaderKey(h);
+    if (!key) continue;
+    const g = byKey.get(key) || [];
+    g.push(String(h));
+    byKey.set(key, g);
+  }
+  const out: HeaderCollision[] = [];
+  for (const [key, hs] of byKey) {
+    if (hs.length > 1) out.push({ key, field: HEADER_BY_KEY.get(key) || key, headers: hs });
+  }
+  return out;
+}
+
 /**
  * Map a raw row (header → cell string) to canonical keys. Unknown headers are
  * ignored; recognized output-only export columns simply don't map to an input.

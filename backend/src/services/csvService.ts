@@ -17,6 +17,7 @@ import {
   VALIDATION_LISTS,
   GROUP_FILL,
   mapRowToCanonical,
+  findDuplicateHeaders,
   stripScopePrefix,
   parseBoolean,
   parseNumberOrUndefined,
@@ -576,8 +577,13 @@ export class CSVService {
     for (const rr of resolved) for (const e of rr.errors) errors.push(`Row ${rr.rowNumber}: ${e}`);
 
     let warnings: ImportWarning[] = [];
+    // Header-level advisory: two uploaded columns that resolve to the same field
+    // collapse to one (silent last-wins in mapRowToCanonical) — flag it so the
+    // user knows a column's data was dropped. Listed first (it is more
+    // fundamental than the per-row quality checks).
+    warnings.push(...this.duplicateHeaderWarnings(rawRows));
     try {
-      warnings = await this.qualityWarnings(resolved, organizationId, existingCalcs);
+      warnings.push(...(await this.qualityWarnings(resolved, organizationId, existingCalcs)));
     } catch (e) {
       // Quality screening is advisory — never fail a preview on it.
       logger.warn('Import quality screening failed (non-blocking):', e);
@@ -653,6 +659,34 @@ export class CSVService {
       }
     }
     return analyzeImportQuality(qualityRows, history);
+  }
+
+  /**
+   * Advisory warnings for uploaded columns that map to the same field. The file's
+   * header set is the union of the raw rows' keys (in column order), minus the
+   * Excel reader's internal `__rowNumber`. Each collision becomes one warning;
+   * `mapRowToCanonical` keeps only the LAST colliding column, so the message
+   * names the kept column and tells the user the others were ignored.
+   */
+  private duplicateHeaderWarnings(rawRows: CSVCalculationRow[]): ImportWarning[] {
+    const seen = new Set<string>();
+    const headers: string[] = [];
+    for (const row of rawRows) {
+      for (const k of Object.keys(row)) {
+        if (k === '__rowNumber' || seen.has(k)) continue;
+        seen.add(k);
+        headers.push(k);
+      }
+    }
+    return findDuplicateHeaders(headers).map((c) => {
+      const kept = c.headers[c.headers.length - 1];
+      const quoted = c.headers.map((h) => `"${h}"`).join(', ');
+      return {
+        type: 'duplicate-header' as const,
+        rows: [],
+        message: `Columns ${quoted} all map to the same field (${c.field}). Only the last one (${`"${kept}"`}) is imported; the other column(s) are ignored. Remove or rename the extra column(s) so the right data is imported.`,
+      };
+    });
   }
 
   /**

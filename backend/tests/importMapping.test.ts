@@ -2,6 +2,7 @@ import {
   normalizeHeader,
   resolveHeaderKey,
   mapRowToCanonical,
+  findDuplicateHeaders,
   stripScopePrefix,
   parseBoolean,
   parseNumberOrUndefined,
@@ -45,6 +46,36 @@ describe('importMapping — header resolution', () => {
     expect(c.factorCode).toBeUndefined(); // blank dropped
     expect((c as any).emissions).toBeUndefined(); // not an input column
     expect((c as any).whatever).toBeUndefined();
+  });
+});
+
+describe('importMapping — duplicate header detection', () => {
+  it('flags two distinct headers that resolve to the same canonical key', () => {
+    // "Distance (km)" is the friendly header; "km" is an alias of `distance`.
+    const cols = findDuplicateHeaders(['Category', 'Value', 'Distance (km)', 'km']);
+    expect(cols).toHaveLength(1);
+    expect(cols[0]).toMatchObject({ key: 'distance', field: 'Distance (km)' });
+    expect(cols[0].headers).toEqual(['Distance (km)', 'km']); // column order preserved (last wins)
+  });
+
+  it('flags the friendly header colliding with a synonym alias', () => {
+    const cols = findDuplicateHeaders(['Category', 'category name', 'Unit']);
+    expect(cols.map((c) => c.key)).toEqual(['category']);
+    expect(cols[0].headers).toEqual(['Category', 'category name']);
+  });
+
+  it('returns nothing when every header maps to a distinct key', () => {
+    expect(findDuplicateHeaders(['Category', 'Value', 'Unit', 'Period Start', 'Period End'])).toEqual([]);
+  });
+
+  it('ignores unrecognized headers (they cannot collide)', () => {
+    expect(findDuplicateHeaders(['Mystery', 'Another Mystery', 'Whatever'])).toEqual([]);
+  });
+
+  it('detects multiple independent collisions at once', () => {
+    const cols = findDuplicateHeaders(['Value', 'amount', 'Notes', 'comment', 'Unit']);
+    const keys = cols.map((c) => c.key).sort();
+    expect(keys).toEqual(['notes', 'value']);
   });
 });
 
