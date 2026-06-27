@@ -1,0 +1,263 @@
+# Carbonytics — Pre-Merge Code Review Plan (`remediation` → `master`)
+
+**Created:** 2026-06-27 · **Reviewer:** Claude Code (Opus 4.8) with MohShalaby92 · **Status:** IN PROGRESS
+
+> This is the **source of truth and live tracker** for the comprehensive review of the
+> `remediation` branch before it merges to `master`. Update the checkboxes and the
+> Findings Log as the review proceeds. The review is **not done** until every box in
+> the Coverage Matrix is ticked, every Finding is Resolved or Accepted, and the
+> Sign-off table is all-green.
+
+---
+
+## 0. Branch facts (the thing under review)
+
+| Fact | Value |
+|---|---|
+| Merge-base (fork point) | `f214b51` |
+| Commits on `remediation` since `master` | **136** |
+| Files changed | **207** |
+| Lines | **+38,549 / −3,117** |
+| Nature | The branch lands the **entire enterprise build (§1–§53)** on top of an MVP `master` — engine, methodology services, reports/exports, multi-tenant RBAC, inventory/lifecycle, import/export, full frontend, and production deploy/infra. |
+| Baseline invariant | Demo org 2026 = **9,193.02 kg CO₂e**; jest **128/128**; both TS gates clean. |
+| Merge constraint | **Do NOT push/merge** until this plan is all-green AND the user's `/code-review ultra` (ultrareview) is run and its findings addressed (§7 action item / handoff). |
+
+**Diff command of record** (every line under review is the output of this):
+```
+git diff master...remediation        # three-dot: everything remediation introduces since the fork point
+```
+
+---
+
+## 1. Goals (definition of done)
+
+A merge is approved only when ALL of the following are demonstrably true:
+
+1. **Correctness** — every changed line of logic does what it claims; numbers are reproduced by hand or by an independent computation, not just "looks right". No silent wrong answers.
+2. **Functionality** — every new endpoint/screen/flow works end-to-end (API + in-browser), including empty/error/edge inputs.
+3. **Coherence** — front-end and back-end contracts agree (types, shapes, status codes); naming/idioms are consistent; no dead or orphaned code; docs match reality.
+4. **Test proof** — new logic has tests; tests are meaningful (assert values + HTTP status, not just truthiness); the suite passes **repeatedly** and the §8 regression holds across **multiple scenarios** (periods, personas, tenants, GWP sets).
+5. **Security** — authn/authz and **multi-tenant isolation** are enforced on every route; inputs are validated; no injection (NoSQL / spreadsheet-formula / path); file uploads are bounded; **no secrets or cross-tenant data leak** in code, logs, exports, or error bodies; rate limiting and cookie/JWT hardening are intact.
+6. **Traceability** — every changed file is assigned to exactly one review increment (Coverage Matrix); every finding is logged, classified, and tracked to closure.
+7. **Completeness** — **not a single changed line is left unreviewed.** The union of the file-owning increments equals the full 207-file diff (verified by the partition check in §10).
+
+**Non-negotiable policies that the review must confirm are NOT regressed** (handoff §1): Egyptian-default factor tiering; never fabricate factor values; no GWP double-application; estimates stay distinguishable; locked calcs immutable; consolidation is report-time only; biogenic CO₂ is a memo item.
+
+---
+
+## 2. Method & tooling (use all of these)
+
+- **Read every diff hunk** per file with `git diff master...remediation -- <file>` (not just the final file — the *delta* is what's being merged). For files that are 100% new, read the whole file.
+- **Static gates:** `tsc --noEmit` (both packages), `jest`, production `docker build`, `npm audit`, dependency/lockfile diff, secret-pattern scan over the diff.
+- **Dynamic API checks:** PowerShell/`curl.exe` against the live dev stack on `:8080` with **hand-computed expected values** and **asserted HTTP status** (gotcha 45).
+- **In-browser checks:** the `.claude/launch.json` `carbonytics-frontend` dev preview (gotcha 39: re-login after a stack restart).
+- **Adversarial checks:** craft hostile inputs (cross-tenant ids, malformed bodies, oversize/200-type files, formula payloads, NoSQL operators, path traversal, weak secrets) and assert they fail closed.
+- **Prod-stack checks:** boot the isolated `-p carbonytics-prod` stack (gotchas 57/58) for the deploy/infra increment.
+- **Independent multi-agent pass:** the user runs **`/code-review ultra`** (ultrareview) — its findings feed the Findings Log here. The local **`/security-review`** skill is run for INC-7.
+- **Re-test discipline:** each correctness/security scenario is run **at least twice** and, where state matters, under **different scenarios** (e.g. a different period/tenant/persona) to catch order- and cache-dependence (Redis cache, rolling dashboard window — gotcha 47).
+
+**Per-increment workflow loop** (repeat until the increment's exit criteria are met):
+```
+pick increment → read every assigned diff hunk → note questions/risks
+   → design checks (incl. ≥1 adversarial + ≥1 repeat-under-different-scenario)
+   → run checks (static + dynamic + in-browser as applicable)
+   → log findings (Sev 1–4) → fix Sev-1/2 (or file as blocker) → re-verify
+   → tick the Coverage Matrix boxes → mark the increment task done
+```
+
+**Finding severity:** **S1 blocker** (correctness/security/data-leak — must fix before merge) · **S2 major** (wrong behavior on a real path — fix before merge) · **S3 minor** (edge/cosmetic — fix or explicitly accept) · **S4 nit** (style/docs — optional).
+
+---
+
+## 3. Increments (goals, scope, exit criteria)
+
+Increments **INC-1…INC-6, INC-8(tests), INC-9(docs)** are *file-owning* and together partition all 207 files (the completeness guarantee). **INC-0, INC-7, INC-10** are *cross-cutting* passes that own no files but gate the merge.
+
+### INC-0 — Baseline & automated gates
+- **Goal:** establish a green, reproducible baseline and run every cheap automated signal before manual review.
+- **Checks:** both `tsc --noEmit`; `jest` ×2 (stability); `git diff --numstat` partition sanity; `npm audit` (backend + frontend); lockfile/dependency-change review; secret-pattern scan over the diff (`git diff master...remediation` grepped for keys/tokens/passwords); production `docker compose build` (dev) + note prod build deferred to INC-6; capture the §8 baseline (9,193.02 / scopes / jest 128).
+- **Exit:** all gates green or every red item logged as a Finding; baseline numbers recorded.
+
+### INC-1 — Data layer (models, types, scripts, config, seed/data)  — **27 files**
+- **Goal:** schemas are sound (indexes, required/enums, immutability guards, tenant scoping fields); migrations/importers are idempotent + non-destructive (gotcha 11) and never fabricate factor values (policy #2); back-end types match the models.
+- **Scope:** `backend/src/models/*` (15), `backend/src/types/*` (1), `backend/src/scripts/*` (9), `backend/src/config/*` (1), `backend/src/data/*` (1).
+- **Key risks:** immutability guards (Calculation/EmissionFactorVersion update/delete throws); `timestamps` $set/$setOnInsert in guards (gotcha 2); importer GWP handling (policy #3) + unit normalization (gotcha 35); `seedBasicData` destructive (gotcha 11); index duplication warnings.
+- **Exit:** every model + script hunk read; importers re-run idempotency reasoned/spot-checked; no fabricated-value path.
+
+### INC-2 — Core domain & methodology services  — **14 files**
+- **Goal:** the calculation engine + all pure methodology services are mathematically correct, fail loud on bad inputs, and never double-apply GWP / never silently fill gaps.
+- **Scope:** `calculationEngine`, `calculationPersistence`, `completenessService`, `consolidationService`, `dataQuality`, `estimationService`, `evidenceStorage`, `factorVersioning`, `importMapping`, `importQuality`, `inventoryService`, `lineage`, `pedigree`, `tokenStore`.
+- **Key risks:** per-gas×GWP vs embedded path (policy #3); factor-tier selection (policy #1); km/L fail-loud (gotcha 35); material-balance recompute-from-metadata (gotcha 36); consolidation is report-time, never mutates stored emissions (gotcha 32); estimation rung order (gotcha 18); pedigree additive + conservative unknown=5 (gotcha 49); tokenStore (refresh-token revocation, rotation).
+- **Exit:** each service's core function re-derived against ≥2 hand-computed scenarios incl. one adversarial (spoofed value, wrong unit, cross-tenant factor).
+
+### INC-3 — Reports, renderers & import/export I/O  — **9 files**
+- **Goal:** every report reconciles to the canonical totals across all formats; exports are round-trippable and injection-safe; the report controller's `exports` map (gotcha 55) is consistent.
+- **Scope:** `reportController`, services `reportKit`, `reportRenderers`, `frameworkRenderers`, `assuranceRenderers`, `importExportKit`, `csvService`, assets `brandIcon.ts`/`brandIconWhite.ts`.
+- **Key risks:** byCategory/dataSources/pedigree reconciliation; PDF `pdfSafe` WinAnsi (gotcha 29); CSV formula injection (§51); export⇄import round-trip lossiness (§51); XLSX cell-setter 0/1-based trap (gotcha 56); format/Content-Type/Content-Disposition correctness + HTTP status.
+- **Exit:** all 6 reports × pdf/docx/xlsx re-parsed (magic bytes + a known value); export.csv reconciles; a hostile `notes`/`title` field exports neutralized; round-trip reproduces the number.
+
+### INC-4 — API surface (controllers, routes, middleware, utils, server)  — **29 files**
+- **Goal:** every route enforces authn + correct role authz + **tenant scoping**; inputs validated; errors mapped to correct status (no 500-for-400, gotchas 43/45); audit trail written on mutations; rate limiting + security middleware intact.
+- **Scope:** `controllers/*` (10, excl. reportController→INC-3), `routes/*` (11), `middleware/*` (4: auth, cache, errorHandler, metrics), `utils/*` (3: audit, jwt, security), `server.ts`.
+- **Key risks:** cross-tenant read/write (every `find` must scope `organizationId`); role gate present AND ordered (vehicles validate-before-authorize nit, gotcha 61); immutability/published-year guards on write paths; metrics cardinality (no raw ObjectIds in labels); cache keys are tenant-scoped; JWT secret strength refusal; cookie flags.
+- **Exit:** for every mutating route, a verifier→403 and a cross-tenant→404 check; for every list route, a tenant-isolation check; error-path status codes asserted.
+
+### INC-5 — Frontend (pages, components, services, hooks, types, assets)  — **76 files**
+- **Goal:** screens render and function; API calls read the right response shapes (gotchas 8/14/25); no console errors; auth/persona gating correct; no client-trust security gaps (server is authoritative).
+- **Scope:** `frontend/src/pages/*` (36), `components/*` (17), `services/*` (4), `hooks/*` (3), `constants/*` (2), `types/*` (2), `utils.test.ts` (1), `assets/*` (1), top-level singletons (10: App.tsx, main.tsx, index.*, setupTests, reportWebVitals, *-env.d.ts, App.test/App.css).
+- **Key risks:** `.lean()` `_id` vs `id` (gotcha 8/42); paginated shape (gotcha 25); `data.categories` (gotcha 14); blob download bytes (gotcha §50 follow-up); multipart `postForm` (gotcha 43); persona is presentation-only (gotcha 48); XSS via any `dangerouslySetInnerHTML`; token never logged/persisted insecurely.
+- **Exit:** every Compliance tab + dashboard + calculator + import/export + settings exercised in-browser (0 console errors); each FE service method's shape cross-checked to its BE controller.
+
+### INC-6 — Deploy, infra, build & secrets  — **42 files**
+- **Goal:** the dev + prod compose stacks, web server configs, DB/cache hardening, backup/restore, monitoring, Dockerfiles, build configs and committed example envs are correct and **leak no secrets**.
+- **Scope:** `docker-compose.yml`, `docker-compose.prod.yml`, `nginx/nginx.conf`, `frontend/nginx.conf`, `mongo/mongod.conf`, `mongo/init/01-app-user.sh`, `redis/redis.conf`, `backup/backup.sh`, `monitoring/prometheus.yml`, `scripts/*.sh` (3), `backend/Dockerfile`+`.dockerignore`, `frontend/Dockerfile`+`.dockerignore`, `.env.example`/`.env.production.example`/`.env.monitoring.example`, `.gitignore`, `.gitattributes`, `.claude/launch.json`, frontend build configs (`vite.config.ts`, `tsconfig*.json`, `tailwind/postcss.config`, `index.html`, `package.json`), `frontend/public/*` (10), backend `package.json`, both `package-lock.json` (audit-only, not line-by-line).
+- **Key risks:** **no real secret committed** (only `.example`); least-priv Mongo user + Redis auth; TLS/HSTS; healthcheck IPv4 (gotcha 61); `/metrics` not publicly routed; backup auth-aware + retention; `.dockerignore` excludes secrets/node_modules; image base pinning.
+- **Exit:** isolated prod stack boots all services healthy (gotcha 57); secret-scan over committed env/config files is clean; prod `docker build` succeeds; tear down `down -v`.
+
+### INC-7 — Security threat-model & adversarial pass (cross-cutting)
+- **Goal:** an explicit, structured attack pass over the whole surface (not just per-file).
+- **Checks (each fails closed, tested ≥2×):** (a) **AuthN** — no route reachable without a valid token; expired/forged/none. (b) **AuthZ/RBAC** — viewer/verifier cannot mutate; admin-only settings gated. (c) **Multi-tenant isolation** — org A cannot read/write/export/trace org B's calcs, factors, evidence, inventories, suppliers, vehicles, audit. (d) **Injection** — NoSQL operator injection in query params/bodies; spreadsheet-formula in CSV export; path traversal in any file path / factor-id / evidence id. (e) **File upload** — type/size limits → 400 not 500; malicious xlsx/csv. (f) **Secrets/leak** — no token/secret/PII in logs, error bodies, or exports; stack traces not leaked in prod. (g) **JWT/cookie** — secret-strength refusal; HttpOnly/Secure/SameSite; refresh rotation + revocation (Redis). (h) **DoS/limits** — rate limiter; large-body guard. Run the **`/security-review`** skill and fold its output in.
+- **Exit:** every category has a passing adversarial test recorded in the Findings Log; any gap is S1/S2 fixed.
+
+### INC-8 — Test adequacy & multi-scenario re-runs  — owns **8 test files**
+- **Goal:** the test suite genuinely protects the new logic and is stable.
+- **Scope:** `backend/tests/*` (8). Plus: identify untested critical paths and add adversarial/regression tests where a S1/S2 gap is found.
+- **Checks:** read each test file (assertions meaningful?); map tests→services (coverage gaps); run `jest` **3×** (flaky/order check); run the §8 smoke under **≥3 scenarios** (2026 + a per-gas year + a consolidation year; enterprise + SME persona; demo + a second tenant).
+- **Exit:** suite green 3× running; every S1/S2 logic path has a test; scenario matrix recorded.
+
+### INC-9 — Coherence, contracts, dead-code & docs  — owns **2 docs files**
+- **Goal:** end-to-end consistency and accurate documentation.
+- **Scope (files owned):** `docs/HANDOFF.md`, `docs/ENTERPRISE_GAP_ANALYSIS.md`. **Cross-cutting checks:** FE↔BE type/contract parity; consistent error envelope (`success`/`error`); audit-log coverage on all mutations; no orphaned exports / unused code introduced; handoff & gap-analysis claims match the actual code (spot-verify ≥10 specific claims).
+- **Exit:** contract mismatches = 0 (or logged); ≥10 doc claims verified true against code.
+
+### INC-10 — Final regression & sign-off (cross-cutting)
+- **Goal:** prove nothing regressed and close the review.
+- **Checks:** full §8 smoke (dev) all-green; jest 128; both TS gates; prod-stack §52 recipe green; Coverage Matrix 100% ticked; Findings Log has no open S1/S2; partition check (§10) passes; ultrareview findings all addressed.
+- **Exit:** Sign-off table all-green → **merge-ready**.
+
+---
+
+## 4. Coverage Matrix (every changed file → owning increment)
+
+Tick a box when **every diff hunk** of that file has been reviewed and its checks recorded. `(new)` = file is 100% new (read whole file); otherwise review the delta.
+
+### INC-1 · Data layer (27)
+- Models (15): [ ] AuditLog [ ] Calculation [ ] CalculationSnapshot [ ] EmissionCategory [ ] EmissionFactor [ ] EmissionFactorVersion [ ] Evidence [ ] Facility [ ] IndustryBenchmark [ ] Inventory [ ] InventorySnapshot [ ] Organization [ ] Supplier [ ] User [ ] Vehicle
+- Types (1): [ ] backend/src/types/index.ts
+- Scripts (9): [ ] backfillFactorVersions [ ] createDemoUser [ ] importEfdbGhgp [ ] importEpaFuels [ ] importEpaHub [ ] importFactorLibrary [ ] migrateInventories [ ] seed [ ] seedBasicData
+- Config/data (2): [ ] backend/src/config/* [ ] backend/src/data/*
+
+### INC-2 · Core domain & methodology services (14)
+- [ ] calculationEngine [ ] calculationPersistence [ ] completenessService [ ] consolidationService [ ] dataQuality [ ] estimationService [ ] evidenceStorage [ ] factorVersioning [ ] importMapping [ ] importQuality [ ] inventoryService [ ] lineage [ ] pedigree [ ] tokenStore
+
+### INC-3 · Reports, renderers & import/export I/O (9)
+- [ ] reportController [ ] reportKit [ ] reportRenderers [ ] frameworkRenderers [ ] assuranceRenderers [ ] importExportKit [ ] csvService [ ] assets/brandIcon.ts [ ] assets/brandIconWhite.ts
+
+### INC-4 · API surface (29)
+- Controllers (10): [ ] authController [ ] calculationController [ ] csvController [ ] emissionCategoryController [ ] emissionFactorController [ ] evidenceController [ ] inventoryController [ ] organizationController [ ] supplierController [ ] vehicleController
+- Routes (11): [ ] auth [ ] calculations [ ] csv [ ] emissionCategories [ ] emissionFactors [ ] evidence [ ] inventories [ ] organizations [ ] reports [ ] suppliers [ ] vehicles
+- Middleware (4): [ ] auth [ ] cache [ ] errorHandler [ ] metrics
+- Utils (3): [ ] audit [ ] jwt [ ] security
+- [ ] server.ts
+
+### INC-5 · Frontend (76)
+- Pages — top (2): [ ] GlossaryPage [ ] ImportExportPage
+- Pages — calculations (3): [ ] CalculationPage [ ] CalculationSummary [ ] CategorySelector
+- Pages — compliance (14): [ ] AuditLogTab [ ] CompletenessTab [ ] CompliancePage [ ] DataQualityTab [ ] DenominatorsTab [ ] EvidenceTab [ ] ExclusionsTab [ ] FacilitiesTab [ ] FleetTab [ ] InventoriesTab [ ] LineageTab [ ] ReportsTab [ ] SnapshotsTab [ ] SuppliersTab
+- Pages — dashboard (13): [ ] CategoryAnalysis [ ] CompletenessCard [ ] DashboardPage [ ] EmissionOverview [ ] EntityBreakdown [ ] ParetoAnalysis [ ] QualityIndicators [ ] QuickCalculator [ ] RecentCalculations [ ] ScopeBreakdown [ ] TargetsModal [ ] TargetsProgress
+- Pages — settings (4): [ ] GeneralSettings [ ] OrganizationSettingsTab [ ] ProfileSettings [ ] SettingsPage [ ] UserManagement *(5 — settings dir)*
+- Components (17): [ ] auth/LoginPage [ ] dashboard/EmptyState [ ] forms/EmissionCalculationForm [ ] forms/FileUpload [ ] layout/Navbar [ ] onboarding/OnboardingGate [ ] onboarding/OnboardingWizard [ ] ui/Alert [ ] ui/Badge [ ] ui/Button [ ] ui/Card [ ] ui/ChartContainer [ ] ui/Input [ ] ui/LoadingSpinner [ ] ui/Modal [ ] ui/Select [ ] ui/Textarea
+- Services (4): [ ] api [ ] calculationService [ ] complianceService [ ] organizationService
+- Hooks (3): [ ] useAuth [ ] usePersona [ ] useTheme
+- Constants (2): [ ] constants/index [ ] constants/sourcingGuidance
+- Types (2): [ ] types/index [ ] types/calculations
+- Singletons (10): [ ] App.tsx [ ] App.css [ ] App.test.tsx [ ] main.tsx [ ] index.tsx [ ] index.css [ ] setupTests.ts [ ] reportWebVitals.ts [ ] vite-env.d.ts [ ] react-app-env.d.ts
+- Assets (1): [ ] assets/brand/carbonytics-icon.png *(binary — visual check)*
+- Test (1): [ ] utils/utils.test.ts
+
+### INC-6 · Deploy, infra, build & secrets (42)
+- Compose (2): [ ] docker-compose.yml [ ] docker-compose.prod.yml
+- Web servers (2): [ ] nginx/nginx.conf [ ] frontend/nginx.conf
+- DB/cache (4): [ ] mongo/mongod.conf [ ] mongo/init/01-app-user.sh [ ] redis/redis.conf [ ] *(redis auth wiring)*
+- Backup/monitoring (5): [ ] backup/backup.sh [ ] scripts/backup-production.sh [ ] scripts/restore-data.sh [ ] scripts/gen-self-signed-cert.sh [ ] monitoring/prometheus.yml
+- Docker build (4): [ ] backend/Dockerfile [ ] backend/.dockerignore [ ] frontend/Dockerfile [ ] frontend/.dockerignore
+- Env examples (3): [ ] .env.example [ ] .env.production.example [ ] .env.monitoring.example
+- Repo config (3): [ ] .gitignore [ ] .gitattributes [ ] .claude/launch.json
+- Frontend build (8): [ ] vite.config.ts [ ] tsconfig.json [ ] tsconfig.node.json [ ] tailwind.config.js [ ] postcss.config.js [ ] frontend/index.html [ ] frontend/package.json [ ] frontend/package-lock.json *(audit-only)*
+- Backend build (2): [ ] backend/package.json [ ] backend/package-lock.json *(audit-only)*
+- Public assets (10): [ ] android-chrome-192 [ ] android-chrome-512 [ ] apple-touch-icon [ ] favicon-16 [ ] favicon-32 [ ] favicon.ico [ ] icon.png [ ] public/index.html [ ] site.webmanifest [ ] theme-init.js
+
+### INC-8 · Tests (8, owned here; reviewed for adequacy)
+- [ ] dataQuality.test [ ] engineSession.test [ ] factorRecompute.test [ ] factorVersioning.test [ ] importMapping.test [ ] importQuality.test [ ] lineage.test [ ] pedigree.test
+
+### INC-9 · Docs (2)
+- [ ] docs/HANDOFF.md [ ] docs/ENTERPRISE_GAP_ANALYSIS.md
+
+**Partition check (run at INC-10):** `INC-1(27)+INC-2(14)+INC-3(9)+INC-4(29)+INC-5(76)+INC-6(42)+INC-8(8)+INC-9(2) = 207` = total changed files. ✅ when every box above is ticked.
+
+---
+
+## 5. Security checklist (INC-7, cross-cutting — keep all ticked at sign-off)
+
+- [ ] No route reachable without authentication (expired/forged/missing token → 401).
+- [ ] RBAC: viewer/verifier cannot mutate; admin-only settings/users gated; tested per mutating route.
+- [ ] Multi-tenant isolation on **read, write, export, trace, download** for: calculations, factors, evidence, inventories, suppliers, vehicles, audit-log, reports, lineage.
+- [ ] NoSQL operator injection rejected (e.g. `{$ne:null}` / `$where` in params/bodies).
+- [ ] Spreadsheet-formula injection neutralized in CSV export (and XLSX reasoned).
+- [ ] Path traversal impossible in evidence/file/factor-id handling.
+- [ ] File upload: bad type/oversize → 400 (not 500); buffer/size bounded.
+- [ ] No secret/token/PII in logs, error responses, or report/exports.
+- [ ] JWT: weak-secret refusal; access/refresh split; refresh rotation + Redis revocation.
+- [ ] Cookies: HttpOnly + Secure (prod) + SameSite; CORS single-origin.
+- [ ] Rate limiting active; large-body guard; `/metrics` not publicly routed (prod).
+- [ ] `/security-review` skill run; findings folded into the log.
+
+---
+
+## 6. Multi-scenario re-test matrix (run each ≥2×)
+
+| Scenario axis | Values to exercise |
+|---|---|
+| Reporting period | 2026 (9,193.02) · 2030 (per-gas 3,346.49) · 2031 (fugitive 135,720) · 2022 (equity 167.4) |
+| Persona | enterprise (13 tabs) · SME (4 tabs) · consultant |
+| Tenant | demo · qa.org2 (isolation) · qa.viewer (verifier RBAC) |
+| GWP set | AR6 (default) · AR5 · AR4 (biogenic mass GWP-independent) |
+| Format | json · pdf · docx · xlsx · csv (round-trip) |
+| Input class | valid · empty · malformed · adversarial (cross-tenant / injection / oversize) |
+
+---
+
+## 7. Findings Log
+
+| ID | Inc | Sev | File:line | Description | Status |
+|---|---|---|---|---|---|
+| — | — | — | — | _(none yet — review not started)_ | — |
+
+> Status: OPEN → FIXED (`<commit>`) / ACCEPTED (rationale) / WONTFIX (rationale).
+
+---
+
+## 8. Sign-off tracker
+
+| Increment | Owner | Files | Status |
+|---|---|---|---|
+| INC-0 Baseline & gates | Claude | — | ⬜ pending |
+| INC-1 Data layer | Claude | 27 | ⬜ pending |
+| INC-2 Core services | Claude | 14 | ⬜ pending |
+| INC-3 Reports & export | Claude | 9 | ⬜ pending |
+| INC-4 API surface | Claude | 29 | ⬜ pending |
+| INC-5 Frontend | Claude | 76 | ⬜ pending |
+| INC-6 Deploy/infra | Claude | 42 | ⬜ pending |
+| INC-7 Security pass | Claude | — | ⬜ pending |
+| INC-8 Tests | Claude | 8 | ⬜ pending |
+| INC-9 Coherence & docs | Claude | 2 | ⬜ pending |
+| INC-10 Final regression & sign-off | Claude | — | ⬜ pending |
+| Ultrareview findings addressed | User+Claude | — | ⬜ pending |
+
+**Merge gate:** all rows ✅ + Findings Log has no open S1/S2 + Coverage Matrix 100% + partition check passes.
+
+---
+
+## 9. Order of execution
+
+INC-0 → INC-1 → INC-2 → INC-3 → INC-4 → INC-7 (security, after the API surface is mapped) → INC-5 → INC-6 → INC-8 → INC-9 → INC-10. Cross-cutting passes (7/9) may surface findings that re-open a file-owning increment; that's expected — re-tick only after the fix is verified.
