@@ -17,9 +17,13 @@ export const errorHandler = (
   let message = error.message || 'Internal Server Error';
   let errors: Record<string, string[]> = {};
 
-  // Log error in development
+  // Always log server-side errors (5xx) so the real cause is never lost — even in
+  // production, where it is NOT returned to the client (see below). In development
+  // log everything with the stack for debugging.
   if (process.env.NODE_ENV === 'development') {
     console.error('Error Stack:', error.stack);
+  } else if (statusCode >= 500) {
+    console.error(`[${statusCode}] ${req.method} ${req.originalUrl}:`, error.message);
   }
 
   // Mongoose validation error
@@ -71,9 +75,16 @@ export const errorHandler = (
     }, {} as Record<string, string[]>);
   }
 
+  // Never leak raw internal error text on an unexpected 5xx in production — those
+  // messages can expose internals (DB/driver strings, programming errors). Send a
+  // generic message; the real one was logged above. Controlled 4xx errors (set via
+  // ApiResponseUtil/explicit statusCode) keep their user-facing message.
+  const clientMessage =
+    statusCode >= 500 && process.env.NODE_ENV === 'production' ? 'Internal Server Error' : message;
+
   res.status(statusCode).json({
     success: false,
-    message,
+    message: clientMessage,
     ...(Object.keys(errors).length > 0 && { errors }),
     ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
   });
