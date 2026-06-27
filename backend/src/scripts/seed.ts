@@ -18,9 +18,19 @@ async function seedDatabase() {
     logger.info('📊 Seeding emission categories...');
     await seedBasicData();
 
-    // 2. Import emission factors from Excel
-    logger.info('📈 Importing emission factors...');
-    await importService.importEmissionFactors();
+    // 2. Import emission factors from Excel (OPTIONAL enrichment).
+    // Basic factors are already seeded above; the spreadsheet import is extra.
+    // If the data file isn't present, warn and continue rather than failing the seed.
+    try {
+      logger.info('📈 Importing emission factors from spreadsheet (optional)...');
+      await importService.importEmissionFactors();
+    } catch (importError) {
+      logger.warn(
+        '⚠️  Skipping spreadsheet factor import (data file missing or unreadable). ' +
+          'Basic factors from seedBasicData are still in place.',
+        importError
+      );
+    }
 
     logger.info('✅ Database seeding completed successfully!');
     

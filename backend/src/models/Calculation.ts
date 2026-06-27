@@ -27,6 +27,80 @@ const calculationEntrySchema = new Schema<ICalculationEntry>({
     required: [true, 'Emissions is required'],
     min: [0, 'Emissions cannot be negative'],
   },
+  // Data-quality rating computed by the calculation engine when the entry was saved
+  // (factor quality, regional specificity, recency).
+  quality: {
+    type: String,
+    enum: ['high', 'medium', 'low'],
+  },
+  // ---- Calculation provenance (audit lineage) ----
+  factorId: { type: Schema.Types.ObjectId, ref: 'EmissionFactor' },
+  factorName: { type: String, trim: true },
+  factorSource: { type: String, trim: true },
+  factorYear: { type: Number },
+  // Pinned immutable factor version (§3). Lets a locked inventory recompute
+  // deterministically against the exact factor values in force at save time,
+  // even after the live factor is edited or a new annual set is imported over it.
+  factorVersion: { type: Number },
+  factorVersionId: { type: Schema.Types.ObjectId, ref: 'EmissionFactorVersion' },
+  // GWP set in force when computed, and whether GWPs were applied per gas or
+  // were already embedded in a CO2e-denominated factor (never both).
+  gwpSet: { type: String },
+  gwpApplied: { type: String, enum: ['per-gas', 'embedded'] },
+  method: { type: String, trim: true },
+  // Supplier provenance: set when the entry was computed with a factor that
+  // came from a specific supplier (supplier-specific method, DQ 1).
+  supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+  supplierName: { type: String, trim: true },
+  // Scope 2 dual reporting (populated for purchased-electricity entries):
+  // both figures are stored per the GHG Protocol Scope 2 Guidance.
+  scope2Location: { type: Number },
+  scope2Market: { type: Number },
+  scope2MarketMethod: { type: String, trim: true },
+  // Biogenic CO2 (kg) from biomass combustion — reported separately as a memo
+  // item, EXCLUDED from `emissions` (the scope total) per the GHG Protocol.
+  // Biomass CH4/N2O remain counted in the scope.
+  biogenicCO2: { type: Number },
+  // Per-gas masses (kg) for entries computed via the per-gas path (factor
+  // carries co2/ch4/n2o). Snapshot at save time so the report can break the
+  // inventory down by gas. co2 here is the IN-SCOPE CO2 (0 for biogenic, whose
+  // CO2 lives in biogenicCO2). CO2e-denominated (embedded) factors have none.
+  gasBreakdown: {
+    co2: { type: Number },
+    ch4: { type: Number },
+    n2o: { type: Number },
+  },
+  // Fugitive material-balance provenance: the component masses (kg) and the
+  // derived released mass that became this entry's activity quantity. Stored so
+  // the assurance register can show how the refrigerant emission was derived.
+  materialBalance: {
+    releasedKg: { type: Number },
+    purchases: { type: Number },
+    inventoryStart: { type: Number },
+    inventoryEnd: { type: Number },
+    chargedIntoEquipment: { type: Number },
+    recovered: { type: Number },
+  },
+  // Round-trippable method-specific activity inputs, captured so an export of
+  // this entry re-imports to the same number. Fugitive material-balance inputs
+  // live in `materialBalance` above.
+  activityInput: {
+    fuelType: { type: String, trim: true },
+    vehicleType: { type: String, trim: true },
+    origin: { type: String, trim: true },
+    destination: { type: String, trim: true },
+    distance: { type: Number },
+    travelMode: { type: String, trim: true },
+    travelClass: { type: String, trim: true },
+    roundTrip: { type: Boolean },
+    currency: { type: String, trim: true },
+  },
+  // Estimation flags: gap-filled values are never silently mixed with
+  // measured data (estimates carry the method and force low quality / DQ 5).
+  isEstimate: { type: Boolean, default: false },
+  estimationMethod: { type: String, trim: true },
+  // PCAF-style data-quality score (1 best … 5 worst).
+  dqScore: { type: Number, min: 1, max: 5 },
   notes: {
     type: String,
     trim: true,
@@ -43,6 +117,20 @@ const calculationSchema = new Schema<ICalculation>({
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User is required'],
+  },
+  // Optional facility/site tag (organizational boundary dimension).
+  facilityId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Facility',
+    index: true,
+  },
+  // Reporting-year inventory this calculation belongs to (one per org+year).
+  // Set on save and back-filled by the inventory migration; publishing the
+  // inventory locks every member calculation.
+  inventoryId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Inventory',
+    index: true,
   },
   title: {
     type: String,
@@ -96,13 +184,24 @@ const calculationSchema = new Schema<ICalculation>({
   data: [calculationEntrySchema],
   status: {
     type: String,
-    enum: ['draft', 'completed', 'verified'],
+    // 'locked' = published/immutable; corrections require an explicit unlock
+    // (admin/manager), which is itself an audited event.
+    enum: ['draft', 'completed', 'verified', 'locked'],
     default: 'draft',
+  },
+  // Independent verification (verifier role): a locked inventory can be marked
+  // verified. Cleared automatically on unlock (a restatement invalidates prior
+  // verification). Kept separate from `status` so it never weakens the lock.
+  verification: {
+    verified: { type: Boolean, default: false },
+    verifiedBy: { type: String, trim: true },
+    verifiedAt: { type: Date },
+    comment: { type: String, trim: true },
   },
 }, {
   timestamps: true,
   toJSON: {
-    transform: function(doc, ret) {
+    transform: function(doc, ret: any) {
       ret.id = ret._id;
       delete ret._id;
       delete ret.__v;
@@ -118,19 +217,87 @@ calculationSchema.index({ status: 1 });
 calculationSchema.index({ 'period.start': 1, 'period.end': 1 });
 calculationSchema.index({ createdAt: -1 });
 
-// Pre-save middleware to calculate totals
-calculationSchema.pre('save', function(next) {
-  const scope1Total = this.data
-    .filter(entry => {
-      // We'll need to populate categoryId to check scope
-      // For now, assume we have scope information
-      return true; // Placeholder
-    })
-    .reduce((sum, entry) => sum + entry.emissions, 0);
+// ---- Immutability guards (assurance requirement) ----
+// A locked calculation cannot be modified or deleted. Lock/unlock transitions
+// themselves go through status-only updates (see lock/unlock controller), which
+// are the single allowed mutation; everything else is rejected at the model
+// layer so no future code path can silently restate published results.
 
-  // Similar for scope2 and scope3
+const LOCKED_MESSAGE =
+  'Calculation is locked (published) and cannot be modified or deleted. An admin/manager must unlock it first.';
+
+function isStatusOnlyUpdate(update: any): boolean {
+  if (!update || typeof update !== 'object') return false;
+  // Mongoose's `timestamps` option injects `$set.updatedAt` AND
+  // `$setOnInsert.createdAt` into every update (even without upsert), so a
+  // pure status transition legitimately carries those alongside `status`.
+  //
+  // The only mutations allowed on a locked calculation are controlled
+  // lifecycle transitions that never touch emissions data: the status itself
+  // (lock/unlock) and the verification annotation (verifier role). Both are
+  // audited at the controller layer.
+  const allowed = (k: string) =>
+    k === 'status' || k === 'updatedAt' || k === 'verification' || k.startsWith('verification.');
+  const timestampOnly = (k: string) => k === 'createdAt' || k === 'updatedAt';
+  for (const op of Object.keys(update)) {
+    if (op === '$set') {
+      if (!Object.keys(update.$set).every(allowed)) return false;
+    } else if (op === '$setOnInsert') {
+      if (!Object.keys(update.$setOnInsert).every(timestampOnly)) return false;
+    } else if (op.startsWith('$')) {
+      return false;
+    } else if (!allowed(op)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+calculationSchema.pre('save', async function (next) {
+  if (!this.isNew) {
+    const prior = await (this.constructor as any)
+      .findById(this._id)
+      .select('status')
+      .lean();
+    if (prior?.status === 'locked') {
+      return next(new Error(LOCKED_MESSAGE));
+    }
+  }
+  // Keep stored totals consistent with the entries.
   this.emissions.total = this.data.reduce((sum, entry) => sum + entry.emissions, 0);
-  
+  next();
+});
+
+calculationSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate();
+  if (isStatusOnlyUpdate(update)) return next(); // lock/unlock transition
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('updateOne', async function (next) {
+  if (isStatusOnlyUpdate(this.getUpdate())) return next();
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('findOneAndDelete', async function (next) {
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('deleteOne', { document: false, query: true }, async function (next) {
+  const doc = await this.model.findOne(this.getQuery()).select('status').lean();
+  if ((doc as any)?.status === 'locked') return next(new Error(LOCKED_MESSAGE));
+  next();
+});
+
+calculationSchema.pre('deleteMany', async function (next) {
+  const locked = await this.model.exists({ ...this.getQuery(), status: 'locked' });
+  if (locked) return next(new Error(LOCKED_MESSAGE));
   next();
 });
 

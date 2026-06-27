@@ -36,6 +36,13 @@ const organizationSchema = new Schema<IOrganization>({
     enum: ['micro', 'small', 'medium', 'large'],
     required: [true, 'Organization size is required'],
   },
+  // GHG Protocol organizational boundary: the consolidation approach is chosen
+  // once, recorded, and applied consistently across reporting periods.
+  consolidationApproach: {
+    type: String,
+    enum: ['equity_share', 'financial_control', 'operational_control'],
+    default: 'operational_control',
+  },
   settings: {
     currency: {
       type: String,
@@ -50,6 +57,93 @@ const organizationSchema = new Schema<IOrganization>({
       default: 'en',
       enum: ['en', 'ar'],
     },
+    // GWP-100 value set applied to per-gas factors (see data/gwpSets.ts).
+    // Selectable because different reporting regimes mandate different sets.
+    gwpSet: {
+      type: String,
+      enum: ['AR4', 'AR5', 'AR6'],
+      default: 'AR6',
+    },
+    // Persona mode (§10): tailors the UI to the three target users — enterprise
+    // sustainability teams (full toolset), consultants (full + export emphasis),
+    // and SMEs (a streamlined essentials view). A presentation-layer preference
+    // only; it never changes stored data or which calculations/factors exist.
+    persona: {
+      type: String,
+      enum: ['enterprise', 'consultant', 'sme'],
+      default: 'enterprise',
+    },
+  },
+  // Documented exclusions register (GHG Protocol completeness/transparency):
+  // every excluded source/category needs a justification and a materiality
+  // estimate — auditors request this list first.
+  exclusions: [
+    new Schema(
+      {
+        source: { type: String, required: true, trim: true },
+        scope: { type: Number, enum: [1, 2, 3], required: false },
+        // Optional explicit link to a category — when set, the completeness
+        // screen treats that category as a documented omission (not a gap).
+        categoryId: { type: Schema.Types.ObjectId, ref: 'EmissionCategory' },
+        justification: { type: String, required: true, trim: true },
+        // Rough annual materiality estimate in kg CO2e (optional but encouraged).
+        estimatedEmissions: { type: Number, min: 0 },
+        createdAt: { type: Date, default: Date.now },
+      },
+      { _id: false }
+    ),
+  ],
+  // Relevance screening (GHG Protocol completeness): the categories the
+  // organization has judged relevant to its inventory. Completeness is measured
+  // against this set — a relevant category with neither data nor a documented
+  // exclusion is an undocumented gap. Empty = not yet screened.
+  relevantCategories: [{ type: Schema.Types.ObjectId, ref: 'EmissionCategory' }],
+  // Denominator series for intensity metrics (tCO2e per unit of activity):
+  // one value per (year, metric). Physical production denominators are
+  // preferred for intensity tracking; revenue/FTE/floor-area are common
+  // fallbacks. Also powers the estimation engine's intensity-proxy rung.
+  denominators: [
+    new Schema(
+      {
+        year: { type: Number, required: true, min: 2000, max: 2100 },
+        metric: {
+          type: String,
+          required: true,
+          enum: ['production', 'revenue', 'employees', 'floor_area', 'custom'],
+        },
+        // Human label, mainly for metric=custom (e.g. "tonnes of cement").
+        label: { type: String, trim: true },
+        value: { type: Number, required: true, min: 0 },
+        unit: { type: String, required: true, trim: true },
+      },
+      { _id: false }
+    ),
+  ],
+  // Emission reduction targets shown on the dashboard.
+  targets: [
+    new Schema(
+      {
+        name: { type: String, required: true, trim: true },
+        description: { type: String, trim: true },
+        baselineYear: { type: Number, required: true, min: 2000 },
+        // Baseline annual emissions in kg CO2e for the baseline year.
+        baselineEmissions: { type: Number, required: true, min: 0 },
+        targetYear: { type: Number, required: true, min: 2000 },
+        // Reduction goal vs baseline, in percent (100 = net zero).
+        targetReduction: { type: Number, required: true, min: 1, max: 100 },
+      },
+      { _id: false }
+    ),
+  ],
+  // Guided onboarding state (§10). New organizations default to not-completed
+  // so the wizard runs on first login; organizations created before the wizard
+  // existed have no subdoc and are treated as already onboarded (see
+  // getOnboarding, which reads .lean() and falls back to completed=true).
+  onboarding: {
+    completed: { type: Boolean, default: false },
+    completedAt: { type: Date },
+    skipped: { type: Boolean, default: false },
+    currentStep: { type: Number, default: 0 },
   },
   isActive: {
     type: Boolean,
@@ -58,7 +152,7 @@ const organizationSchema = new Schema<IOrganization>({
 }, {
   timestamps: true,
   toJSON: {
-    transform: function(doc, ret) {
+    transform: function(doc, ret: any) {
       ret.id = ret._id;
       delete ret._id;
       delete ret.__v;

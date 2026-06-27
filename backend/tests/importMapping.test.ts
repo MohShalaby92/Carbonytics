@@ -1,0 +1,243 @@
+import {
+  normalizeHeader,
+  resolveHeaderKey,
+  mapRowToCanonical,
+  findDuplicateHeaders,
+  stripScopePrefix,
+  parseBoolean,
+  parseNumberOrUndefined,
+  buildMetadataFromRow,
+  groupKey,
+  duplicateKey,
+  IMPORT_COLUMNS,
+} from '../src/services/importMapping';
+
+describe('importMapping — header resolution', () => {
+  it('normalizes headers to lowercase alphanumerics', () => {
+    expect(normalizeHeader('Period Start')).toBe('periodstart');
+    expect(normalizeHeader('  MB Charged Into Equipment (kg) ')).toBe('mbchargedintoequipmentkg');
+    expect(normalizeHeader(undefined)).toBe('');
+  });
+
+  it('resolves friendly headers, machine keys and aliases to canonical keys', () => {
+    expect(resolveHeaderKey('Period Start')).toBe('periodStart');
+    expect(resolveHeaderKey('period_start')).toBe('periodStart');
+    expect(resolveHeaderKey('From')).toBe('periodStart'); // alias
+    expect(resolveHeaderKey('Factor Code')).toBe('factorCode');
+    expect(resolveHeaderKey('Title (groups rows)')).toBe('title');
+    expect(resolveHeaderKey('totally unknown column')).toBeNull();
+  });
+
+  it('maps a raw row to canonical keys, dropping blanks and unknown columns', () => {
+    const raw = {
+      Category: 'Scope 2 — Purchased Electricity',
+      Value: '1000',
+      Unit: 'kWh',
+      'Period Start': '2026-01-01',
+      'Period End': '2026-03-31',
+      'Factor Code': '',
+      'Emissions (kg CO2e)': '458', // output-only export column — must be ignored
+      Whatever: 'x',
+    };
+    const c = mapRowToCanonical(raw);
+    expect(c.category).toBe('Scope 2 — Purchased Electricity');
+    expect(c.value).toBe('1000');
+    expect(c.periodStart).toBe('2026-01-01');
+    expect(c.factorCode).toBeUndefined(); // blank dropped
+    expect((c as any).emissions).toBeUndefined(); // not an input column
+    expect((c as any).whatever).toBeUndefined();
+  });
+});
+
+describe('importMapping — duplicate header detection', () => {
+  it('flags two distinct headers that resolve to the same canonical key', () => {
+    // "Distance (km)" is the friendly header; "km" is an alias of `distance`.
+    const cols = findDuplicateHeaders(['Category', 'Value', 'Distance (km)', 'km']);
+    expect(cols).toHaveLength(1);
+    expect(cols[0]).toMatchObject({ key: 'distance', field: 'Distance (km)' });
+    expect(cols[0].headers).toEqual(['Distance (km)', 'km']); // column order preserved (last wins)
+  });
+
+  it('flags the friendly header colliding with a synonym alias', () => {
+    const cols = findDuplicateHeaders(['Category', 'category name', 'Unit']);
+    expect(cols.map((c) => c.key)).toEqual(['category']);
+    expect(cols[0].headers).toEqual(['Category', 'category name']);
+  });
+
+  it('returns nothing when every header maps to a distinct key', () => {
+    expect(findDuplicateHeaders(['Category', 'Value', 'Unit', 'Period Start', 'Period End'])).toEqual([]);
+  });
+
+  it('ignores unrecognized headers (they cannot collide)', () => {
+    expect(findDuplicateHeaders(['Mystery', 'Another Mystery', 'Whatever'])).toEqual([]);
+  });
+
+  it('detects multiple independent collisions at once', () => {
+    const cols = findDuplicateHeaders(['Value', 'amount', 'Notes', 'comment', 'Unit']);
+    const keys = cols.map((c) => c.key).sort();
+    expect(keys).toEqual(['notes', 'value']);
+  });
+});
+
+describe('importMapping — value parsing', () => {
+  it('strips the "Scope N — " prefix from a category name', () => {
+    expect(stripScopePrefix('Scope 2 — Purchased Electricity')).toBe('Purchased Electricity');
+    expect(stripScopePrefix('Scope 1 - Stationary Combustion')).toBe('Stationary Combustion');
+    expect(stripScopePrefix('Mobile Combustion')).toBe('Mobile Combustion');
+  });
+
+  it('parses booleans from yes/true/1/y', () => {
+    ['Yes', 'yes', 'TRUE', '1', 'y'].forEach((v) => expect(parseBoolean(v)).toBe(true));
+    ['No', 'false', '0', '', undefined].forEach((v) => expect(parseBoolean(v)).toBe(false));
+  });
+
+  it('parses numbers (with thousands separators) or undefined', () => {
+    expect(parseNumberOrUndefined('1000')).toBe(1000);
+    expect(parseNumberOrUndefined('1,200.5')).toBe(1200.5);
+    expect(parseNumberOrUndefined('')).toBeUndefined();
+    expect(parseNumberOrUndefined('abc')).toBeUndefined();
+    expect(parseNumberOrUndefined('0')).toBe(0);
+  });
+});
+
+describe('importMapping — metadata assembly', () => {
+  it('collects travel / fuel / currency metadata only when present', () => {
+    const md = buildMetadataFromRow({
+      fuelType: 'Diesel',
+      origin: 'CAI',
+      destination: 'DXB',
+      distance: '2196',
+      travelMode: 'Flight',
+      roundTrip: 'Yes',
+      currency: 'USD',
+    });
+    expect(md).toMatchObject({
+      fuelType: 'Diesel',
+      origin: 'CAI',
+      destination: 'DXB',
+      distance: 2196,
+      travelMode: 'Flight',
+      roundTrip: true,
+      currency: 'USD',
+    });
+    expect(md.materialBalance).toBeUndefined();
+  });
+
+  it('assembles materialBalance only when at least one MB component is given', () => {
+    expect(buildMetadataFromRow({ unit: 'kg' }).materialBalance).toBeUndefined();
+    const md = buildMetadataFromRow({
+      mbPurchases: '100',
+      mbInventoryStart: '20',
+      mbInventoryEnd: '15',
+      mbCharged: '30',
+      mbRecovered: '10',
+    });
+    expect(md.materialBalance).toEqual({
+      purchases: 100,
+      inventoryStart: 20,
+      inventoryEnd: 15,
+      chargedIntoEquipment: 30,
+      recovered: 10,
+    });
+  });
+
+  it('defaults missing MB components to 0 when some are present', () => {
+    const md = buildMetadataFromRow({ mbPurchases: '50' });
+    expect(md.materialBalance).toEqual({
+      purchases: 50,
+      inventoryStart: 0,
+      inventoryEnd: 0,
+      chargedIntoEquipment: 0,
+      recovered: 0,
+    });
+  });
+});
+
+describe('importMapping — grouping & duplicate keys', () => {
+  it('keeps blank-title rows in their own group, merges shared Title+period+facility', () => {
+    const a = groupKey({ title: '', periodStart: '2026-01-01', periodEnd: '2026-03-31' }, 5, 'fac1');
+    const b = groupKey({ title: '', periodStart: '2026-01-01', periodEnd: '2026-03-31' }, 6, 'fac1');
+    expect(a).toBe('__row_5');
+    expect(b).toBe('__row_6');
+    expect(a).not.toBe(b);
+
+    const g1 = groupKey({ title: 'Q1 Energy', periodStart: '2026-01-01', periodEnd: '2026-03-31' }, 2, 'fac1');
+    const g2 = groupKey({ title: 'Q1 Energy', periodStart: '2026-01-01', periodEnd: '2026-03-31' }, 3, 'fac1');
+    expect(g1).toBe(g2); // same group → one multi-entry calculation
+
+    const g3 = groupKey({ title: 'Q1 Energy', periodStart: '2026-01-01', periodEnd: '2026-03-31' }, 4, 'fac2');
+    expect(g3).not.toBe(g1); // different facility → different group
+  });
+
+  it('builds a stable duplicate key (value rounded to 4dp, dates sliced to 10 chars)', () => {
+    const k1 = duplicateKey({ categoryId: 'c1', periodStart: '2026-01-01', periodEnd: '2026-03-31', facilityId: 'f1', value: 1000 });
+    const k2 = duplicateKey({ categoryId: 'c1', periodStart: '2026-01-01T00:00:00.000Z', periodEnd: '2026-03-31T00:00:00.000Z', facilityId: 'f1', value: 1000.00004 });
+    expect(k1).toBe(k2);
+    const k3 = duplicateKey({ categoryId: 'c1', periodStart: '2026-01-01', periodEnd: '2026-03-31', facilityId: 'f1', value: 1001 });
+    expect(k3).not.toBe(k1);
+  });
+});
+
+describe('importMapping — column model integrity', () => {
+  it('exposes the 25 activity columns with unique keys', () => {
+    const keys = IMPORT_COLUMNS.map((c) => c.key);
+    expect(keys.length).toBe(25);
+    expect(new Set(keys).size).toBe(25); // no duplicate keys
+    ['category', 'value', 'unit', 'periodStart', 'periodEnd'].forEach((k) => expect(keys).toContain(k));
+  });
+});
+
+describe('importMapping — export ⇄ import round-trip (method-specific inputs)', () => {
+  // The export now emits EVERY import column (its input block is derived from
+  // IMPORT_COLUMNS), so a row written under the friendly EXPORT headers must
+  // re-map to canonical keys and rebuild the SAME engine metadata it was built
+  // from. This locks in the fix for the lossy round-trip (travel/spend/fugitive
+  // re-imported to a wrong number when these columns were output-only).
+
+  it('round-trips business-travel inputs via the friendly export headers', () => {
+    // Headers exactly as the export writes them (== IMPORT_COLUMNS headers).
+    const exportedRow = {
+      'Category': 'Scope 3 — Business Travel',
+      'Value': '1',
+      'Unit': 'km',
+      'Origin': 'CAI',
+      'Destination': 'DXB',
+      'Distance (km)': '2196',
+      'Travel Mode': 'Flight',
+      'Travel Class': 'Economy',
+      'Round Trip': 'Yes',
+    };
+    const c = mapRowToCanonical(exportedRow);
+    const md = buildMetadataFromRow(c);
+    expect(md).toMatchObject({
+      origin: 'CAI',
+      destination: 'DXB',
+      distance: 2196,
+      travelMode: 'Flight',
+      travelClass: 'Economy',
+      roundTrip: true,
+    });
+  });
+
+  it('round-trips spend currency and fugitive material-balance via export headers', () => {
+    const spend = buildMetadataFromRow(mapRowToCanonical({ 'Currency': 'USD' }));
+    expect(spend.currency).toBe('USD');
+
+    const fug = buildMetadataFromRow(
+      mapRowToCanonical({
+        'MB Purchased (kg)': '100',
+        'MB Inventory Start (kg)': '20',
+        'MB Inventory End (kg)': '15',
+        'MB Charged Into Equipment (kg)': '30',
+        'MB Recovered (kg)': '10',
+      })
+    );
+    expect(fug.materialBalance).toEqual({
+      purchases: 100,
+      inventoryStart: 20,
+      inventoryEnd: 15,
+      chargedIntoEquipment: 30,
+      recovered: 10,
+    });
+  });
+});

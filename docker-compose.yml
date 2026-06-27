@@ -1,57 +1,81 @@
-version: '3.8'
+# Local, production-like stack for Carbonytics.
+# Single origin: the frontend's nginx serves the SPA and proxies /api -> backend,
+# so the httpOnly auth cookie works without any cross-site complications.
+#
+# Open the app at:  http://localhost:8080
+#
+# NOTE: the secrets below are for LOCAL USE ONLY. Replace them for any real deploy.
 
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - mongo_data:/data/db
     environment:
-      - REACT_APP_API_URL=http://localhost:5000/api
-    depends_on:
-      - backend
+      - MONGO_INITDB_DATABASE=carbonytics
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
+    # Exposed for direct debugging; the app itself reaches it via nginx /api.
     ports:
-      - "5000:5000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-    env_file:
-      - .env
+      - '5000:5000'
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - PORT=5000
       - MONGODB_URI=mongodb://mongo:27017/carbonytics
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=development-secret-key
-      - CLIENT_URL=http://localhost:3000
+      # Local-only secrets (>= 32 chars, distinct). DO NOT use in production.
+      - JWT_SECRET=local_dev_access_secret_change_me_0123456789abcd
+      - JWT_REFRESH_SECRET=local_dev_refresh_secret_change_me_9876543210zyxw
+      - JWT_ACCESS_EXPIRE=15m
+      - JWT_REFRESH_EXPIRE=7d
+      # Served over http://localhost locally, so cookies must NOT be Secure-only.
+      - COOKIE_SECURE=false
+      - CLIENT_URL=http://localhost:8080
+      # The default global limit (100 req / 15 min / IP) is too tight for an
+      # interactive SPA (the dashboard alone makes several calls per load).
+      - RATE_LIMIT_MAX=1000
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
-  mongo:
-    image: mongo:7.0
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    environment:
-      - MONGO_INITDB_DATABASE=carbonytics
-
-  redis:
-    image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+      - '8080:80'
+    depends_on:
+      - backend
 
 volumes:
   mongo_data:

@@ -1,12 +1,16 @@
 import { apiService } from './api';
 import { API_ENDPOINTS } from '../constants';
-import { User, Organization } from '../types';
+import { User, Organization, OnboardingState } from '../types';
 
 
 export interface OrganizationSettings {
   currency: string;
   timezone: string;
   language: string;
+  // GWP-100 value set applied to per-gas factors (methodology setting).
+  gwpSet?: 'AR4' | 'AR5' | 'AR6';
+  // Persona mode (§10): tailors the UI (enterprise/consultant/SME).
+  persona?: 'enterprise' | 'consultant' | 'sme';
 }
 
 export interface OrganizationUser extends User {
@@ -31,11 +35,18 @@ export const organizationService = {
     if (params?.role) queryParams.append('role', params.role);
     if (params?.search) queryParams.append('search', params.search);
 
-    const response = await apiService.get<{
-      users: OrganizationUser[];
-      pagination: { page: number; pages: number; total: number };
-    }>(`${API_ENDPOINTS.ORGANIZATIONS.USERS}?${queryParams.toString()}`);
-    return response.data!;
+    // The paginated endpoint returns the users array in `data` and paging in
+    // `pagination` (ApiResponseUtil.paginated). Reshape to the { users,
+    // pagination } contract the UserManagement page consumes — reading
+    // `data.users` off the bare array left `users` undefined and crashed the
+    // component on `.map`.
+    const response = await apiService.get<OrganizationUser[]>(
+      `${API_ENDPOINTS.ORGANIZATIONS.USERS}?${queryParams.toString()}`
+    );
+    return {
+      users: response.data || [],
+      pagination: response.pagination || { page: 1, pages: 1, total: (response.data || []).length },
+    };
   },
 
   inviteUser: async (data: { email: string; name: string; role: string }) => {
@@ -61,5 +72,19 @@ export const organizationService = {
   updateSettings: async (settings: Partial<OrganizationSettings>): Promise<OrganizationSettings> => {
     const response = await apiService.put<OrganizationSettings>(API_ENDPOINTS.ORGANIZATIONS.SETTINGS, settings);
     return response.data!;
+  },
+
+  // ---- Guided onboarding (§10) ----
+  getOnboarding: async (): Promise<OnboardingState> => {
+    const response = await apiService.get<OnboardingState>('/organizations/onboarding');
+    return response.data!;
+  },
+
+  updateOnboarding: async (patch: {
+    currentStep?: number;
+    completed?: boolean;
+    skipped?: boolean;
+  }): Promise<void> => {
+    await apiService.patch('/organizations/onboarding', patch);
   },
 };

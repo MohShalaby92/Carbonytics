@@ -38,6 +38,7 @@ export class CalculationService {
     status?: string;
     startDate?: string;
     endDate?: string;
+    facilityId?: string;
     page?: number;
     limit?: number;
   }) {

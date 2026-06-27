@@ -30,7 +30,10 @@ const userSchema = new Schema<IUser>({
   },
   role: {
     type: String,
-    enum: ['admin', 'manager', 'user'],
+    // admin/manager/user are the operational roles; viewer is read-only;
+    // verifier is read-only plus the ability to mark locked inventories
+    // verified (independent assurance role).
+    enum: ['admin', 'manager', 'user', 'viewer', 'verifier'],
     default: 'user',
   },
   isActive: {
@@ -43,7 +46,7 @@ const userSchema = new Schema<IUser>({
 }, {
   timestamps: true,
   toJSON: {
-    transform: function(doc, ret) {
+    transform: function(doc, ret: any) {
       ret.id = ret._id;
       delete ret._id;
       delete ret.__v;

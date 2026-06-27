@@ -13,7 +13,10 @@ export const cache = (ttl: number = config.CACHE_TTL) => {
         return;
       }
 
-      const key = `cache:${req.method}:${req.originalUrl}`;
+      // Namespace the cache key by tenant. Without this, a response that varies by
+      // organization could be served to a different organization (cross-tenant leak).
+      const scope = (req as any).user?.organizationId || 'public';
+      const key = `cache:${scope}:${req.method}:${req.originalUrl}`;
       const cached = await database.redis.get(key);
 
       if (cached) {

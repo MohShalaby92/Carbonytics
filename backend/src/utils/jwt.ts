@@ -1,41 +1,57 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { config } from '../config/config';
 
-export interface JwtPayload {
+export interface AccessTokenPayload {
   id: string;
   email: string;
   role: string;
-  organizationId?: string;
+  organizationId: string;
 }
 
-export const generateTokens = (payload: JwtPayload) => {
-  const accessToken = jwt.sign(
-    payload, 
-    config.JWT_SECRET as string, 
-    { 
-      expiresIn: config.JWT_EXPIRE || '7d' 
-    } as jwt.SignOptions
-  );
+interface AccessClaims extends AccessTokenPayload {
+  type: 'access';
+}
 
-  const refreshToken = jwt.sign(
-    payload, 
-    config.JWT_SECRET as string, 
-    { 
-      expiresIn: config.REFRESH_TOKEN_EXPIRE || '30d' 
-    } as jwt.SignOptions
-  );
+interface RefreshClaims {
+  id: string;
+  jti: string;
+  type: 'refresh';
+}
 
-  return { accessToken, refreshToken };
+export const generateAccessToken = (payload: AccessTokenPayload): string => {
+  const claims: AccessClaims = { ...payload, type: 'access' };
+  return jwt.sign(claims, config.JWT_ACCESS_SECRET, {
+    expiresIn: config.JWT_ACCESS_EXPIRE,
+  } as jwt.SignOptions);
 };
 
-export const verifyToken = (token: string): JwtPayload => {
-  return jwt.verify(token, config.JWT_SECRET as string) as JwtPayload;
+export interface GeneratedRefreshToken {
+  token: string;
+  jti: string;
+}
+
+export const generateRefreshToken = (userId: string): GeneratedRefreshToken => {
+  const jti = crypto.randomUUID();
+  const claims: RefreshClaims = { id: userId, jti, type: 'refresh' };
+  const token = jwt.sign(claims, config.JWT_REFRESH_SECRET, {
+    expiresIn: config.JWT_REFRESH_EXPIRE,
+  } as jwt.SignOptions);
+  return { token, jti };
 };
 
-export const decodeToken = (token: string): JwtPayload | null => {
-  try {
-    return jwt.decode(token) as JwtPayload;
-  } catch (error) {
-    return null;
+export const verifyAccessToken = (token: string): AccessClaims => {
+  const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET) as AccessClaims;
+  if (decoded.type !== 'access') {
+    throw new jwt.JsonWebTokenError('Invalid token type');
   }
+  return decoded;
+};
+
+export const verifyRefreshToken = (token: string): RefreshClaims => {
+  const decoded = jwt.verify(token, config.JWT_REFRESH_SECRET) as RefreshClaims;
+  if (decoded.type !== 'refresh') {
+    throw new jwt.JsonWebTokenError('Invalid token type');
+  }
+  return decoded;
 };

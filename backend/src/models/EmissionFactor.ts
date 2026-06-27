@@ -44,17 +44,9 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     type: String,
     required: [true, 'Source is required'],
     trim: true,
-    enum: [
-      'DEFRA 2024',
-      'IPCC 2006',
-      'IPCC 2019',
-      'EPA 2024',
-      'IEA Egypt',
-      'EEHC Egypt',
-      'CAPMAS Egypt',
-      'Custom',
-      'Other',
-    ],
+    // Provenance is free-text: seed/import data legitimately uses sources beyond a
+    // fixed list (e.g. 'IEA Egypt/EEHC', 'DEFRA equivalent', 'Local factors').
+    // Standardize against the real source spreadsheets in a later accuracy pass.
   },
   sourceUrl: String,
   sourceDocument: String,
@@ -102,6 +94,25 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     adjustmentFactor: Number, // Adjustment for local conditions
     notes: String,
   },
+  // Set when an organization defines its own custom factor; unset for the
+  // shared/global factor library.
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true,
+  },
+  // Set when the factor came from a specific supplier (supplier engagement
+  // module). Only meaningful on org custom factors; entries computed with a
+  // supplier-linked factor record the supplier-specific method (DQ 1).
+  supplierId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Supplier',
+    index: true,
+  },
+  supplierName: {
+    type: String,
+    trim: true,
+  },
   // Status and versioning
   isActive: {
     type: Boolean,
@@ -115,6 +126,18 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
     type: String,
     default: '1.0',
   },
+  // License / terms of use of the underlying factor source (§3 versioned
+  // reference data — required field of an audit-grade factor record).
+  license: {
+    type: String,
+    trim: true,
+  },
+  // Pointer to the latest immutable EmissionFactorVersion number (§3). Bumped by
+  // the factorVersioning choke point whenever the factor's content changes.
+  currentVersion: {
+    type: Number,
+    min: 1,
+  },
   // Additional metadata
   metadata: {
     type: Schema.Types.Mixed,
@@ -123,7 +146,7 @@ const emissionFactorSchema = new Schema<IEmissionFactor>({
 }, {
   timestamps: true,
   toJSON: {
-    transform: function(doc, ret) {
+    transform: function(doc, ret: any) {
       ret.id = ret._id;
       delete ret._id;
       delete ret.__v;

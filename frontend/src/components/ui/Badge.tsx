@@ -8,37 +8,21 @@ interface BadgeProps {
   className?: string;
 }
 
-export const Badge: React.FC<BadgeProps> = ({ 
-  variant = 'default', 
-  size = 'md', 
-  children, 
-  className 
-}) => {
-  const baseClasses = 'inline-flex items-center font-medium rounded-full';
-  
+export const Badge: React.FC<BadgeProps> = ({ variant = 'default', size = 'md', children, className }) => {
+  const baseClasses = 'inline-flex items-center font-semibold rounded-full border';
+
   const variants = {
-    default: 'bg-gray-100 text-gray-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    error: 'bg-red-100 text-red-800',
-    info: 'bg-blue-100 text-blue-800',
+    default: 'bg-fg/[0.06] text-fg/70 border-line',
+    success: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 dark:text-emerald-300 border-emerald-500/20',
+    warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 dark:text-amber-300 border-amber-500/20',
+    error: 'bg-red-500/15 text-red-700 dark:text-red-300 dark:text-red-300 border-red-500/20',
+    info: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 dark:text-sky-300 border-sky-500/20',
   };
 
   const sizes = {
-    sm: 'px-2 py-1 text-xs',
-    md: 'px-2.5 py-1.5 text-sm',
+    sm: 'px-2 py-0.5 text-xs',
+    md: 'px-2.5 py-1 text-sm',
   };
 
-  return (
-    <span
-      className={cn(
-        baseClasses,
-        variants[variant],
-        sizes[size],
-        className
-      )}
-    >
-      {children}
-    </span>
-  );
+  return <span className={cn(baseClasses, variants[variant], sizes[size], className)}>{children}</span>;
 };

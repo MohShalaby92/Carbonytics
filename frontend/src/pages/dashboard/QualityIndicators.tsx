@@ -1,89 +1,186 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../../components/ui/Card';
-import { CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Info, HelpCircle } from 'lucide-react';
 
 interface QualityIndicatorsProps {
   calculations: any[];
 }
 
+/**
+ * Data-quality summary derived from the quality rating the calculation engine
+ * stored on each entry when it was saved (factor quality, regional specificity,
+ * data recency). Entries saved before quality tracking existed count as Unrated.
+ */
 export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculations }) => {
-  if (!calculations || calculations.length === 0) {
+  const [showHelp, setShowHelp] = useState(false);
+
+  const entries = (calculations || []).flatMap((calc) =>
+    Array.isArray(calc.data) ? calc.data : []
+  );
+
+  const counts = { high: 0, medium: 0, low: 0, unrated: 0 };
+  entries.forEach((entry: any) => {
+    if (entry.quality === 'high') counts.high++;
+    else if (entry.quality === 'medium') counts.medium++;
+    else if (entry.quality === 'low') counts.low++;
+    else counts.unrated++;
+  });
+
+  const total = entries.length;
+  const rated = counts.high + counts.medium + counts.low;
+  const averageQuality =
+    rated > 0 ? ((counts.high * 3 + counts.medium * 2 + counts.low * 1) / rated / 3) * 100 : 0;
+
+  // Emissions-weighted PCAF-style DQ score (1 best … 5 worst), matching the
+  // GHG inventory report's weightedDqScore: big emitters dominate the score.
+  let dqWeightedSum = 0;
+  let dqEmissionsSum = 0;
+  let estimateCount = 0;
+  let estimateEmissions = 0;
+  let allEmissions = 0;
+  entries.forEach((entry: any) => {
+    const emissions = entry.emissions || 0;
+    allEmissions += emissions;
+    if (typeof entry.dqScore === 'number') {
+      dqWeightedSum += entry.dqScore * emissions;
+      dqEmissionsSum += emissions;
+    }
+    if (entry.isEstimate) {
+      estimateCount++;
+      estimateEmissions += emissions;
+    }
+  });
+  const weightedDqScore = dqEmissionsSum > 0 ? dqWeightedSum / dqEmissionsSum : null;
+  const estimateShare = allEmissions > 0 ? (estimateEmissions / allEmissions) * 100 : 0;
+
+  const helpPanel = showHelp && (
+    <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
+      <p className="font-medium">How quality is assessed</p>
+      <p>
+        Every saved entry gets a rating from the calculation engine based on the emission
+        factor it used:
+      </p>
+      <ul className="list-disc ml-4 space-y-1">
+        <li><strong>High</strong> — region-specific (e.g. Egyptian) factor from an authoritative source, recent year.</li>
+        <li><strong>Medium</strong> — global factor or minor uncertainty (e.g. unit conversion involved).</li>
+        <li><strong>Low</strong> — estimated/baseline factor with high uncertainty (validate before reporting).</li>
+        <li><strong>Unrated</strong> — saved before quality tracking was enabled.</li>
+      </ul>
+      <p>Improve your score by choosing Egyptian-specific factors and recent factor years.</p>
+    </div>
+  );
+
+  if (total === 0) {
     return (
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-fg">Data Quality</h3>
+          <button
+            onClick={() => setShowHelp((v) => !v)}
+            className="text-muted hover:text-fg transition-colors"
+            aria-label="What does data quality mean?"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </div>
+        {helpPanel}
         <div className="text-center py-4">
-          <Info className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">No calculations to assess</p>
+          <Info className="w-8 h-8 text-muted mx-auto mb-2" />
+          <p className="text-sm text-muted">No calculations to assess</p>
         </div>
       </Card>
     );
   }
 
-  // Mock quality assessment for current calculations
-  const qualityAssessment = {
-    high: calculations.filter(calc => calc.quality?.rating === 'high' || Math.random() > 0.6).length,
-    medium: calculations.filter(calc => calc.quality?.rating === 'medium' || Math.random() > 0.3).length,
-    low: calculations.filter(calc => calc.quality?.rating === 'low' || Math.random() > 0.8).length,
-  };
-
-  // If no quality data, distribute randomly for demo
-  if (qualityAssessment.high + qualityAssessment.medium + qualityAssessment.low === 0) {
-    qualityAssessment.high = Math.floor(calculations.length * 0.6);
-    qualityAssessment.medium = Math.floor(calculations.length * 0.3);
-    qualityAssessment.low = calculations.length - qualityAssessment.high - qualityAssessment.medium;
-  }
-
-  const total = calculations.length;
-  const averageQuality = total > 0 ? 
-    ((qualityAssessment.high * 3 + qualityAssessment.medium * 2 + qualityAssessment.low * 1) / total / 3 * 100) : 0;
-
   const indicators = [
     {
       label: 'High Quality',
-      count: qualityAssessment.high,
-      percentage: total > 0 ? (qualityAssessment.high / total * 100).toFixed(0) : '0',
+      count: counts.high,
       icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      description: 'Egyptian factors, recent data',
+      color: 'text-green-600 dark:text-green-400',
+      bgColor: 'bg-green-500/10',
+      description: 'Region-specific factors, recent data',
     },
     {
       label: 'Medium Quality',
-      count: qualityAssessment.medium,
-      percentage: total > 0 ? (qualityAssessment.medium / total * 100).toFixed(0) : '0',
+      count: counts.medium,
       icon: AlertTriangle,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
+      color: 'text-yellow-600 dark:text-yellow-400',
+      bgColor: 'bg-yellow-500/10',
       description: 'Global factors, some uncertainty',
     },
     {
       label: 'Low Quality',
-      count: qualityAssessment.low,
-      percentage: total > 0 ? (qualityAssessment.low / total * 100).toFixed(0) : '0',
+      count: counts.low,
       icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: 'text-red-600 dark:text-red-400',
+      bgColor: 'bg-red-500/10',
       description: 'Estimated factors, high uncertainty',
     },
+    ...(counts.unrated > 0
+      ? [{
+          label: 'Unrated',
+          count: counts.unrated,
+          icon: Info,
+          color: 'text-muted',
+          bgColor: 'bg-fg/[0.04]',
+          description: 'Saved before quality tracking',
+        }]
+      : []),
   ];
 
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality</h3>
-      
-      {/* Overall Quality Score */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-fg">Data Quality</h3>
+        <button
+          onClick={() => setShowHelp((v) => !v)}
+          className="text-muted hover:text-fg transition-colors"
+          aria-label="What does data quality mean?"
+        >
+          <HelpCircle className="w-4 h-4" />
+        </button>
+      </div>
+
+      {helpPanel}
+
+      {/* Overall Quality Score (rated entries only) */}
+      <div className="mb-6 p-4 bg-fg/[0.04] rounded-lg">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">Overall Quality Score</span>
+          <span className="text-sm font-medium text-fg/80">Overall Quality Score</span>
           <span className="text-2xl font-bold text-primary-600">
-            {averageQuality.toFixed(0)}%
+            {rated > 0 ? `${averageQuality.toFixed(0)}%` : '—'}
           </span>
         </div>
-        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-          <div 
+        <div className="mt-2 w-full bg-fg/[0.08] rounded-full h-2">
+          <div
             className="bg-primary-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${averageQuality}%` }}
           />
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Across {total} saved {total === 1 ? 'entry' : 'entries'}
+          {counts.unrated > 0 ? ` (${counts.unrated} unrated excluded from the score)` : ''}
+        </p>
+      </div>
+
+      {/* PCAF-style weighted DQ + estimated-data share */}
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <div className="p-3 bg-fg/[0.04] rounded-lg" title="Emissions-weighted PCAF-style data quality score: 1 (supplier-specific) … 5 (estimate). Entries without a DQ score are excluded.">
+          <p className="text-xs font-medium text-fg/80">Weighted DQ score</p>
+          <p className="text-xl font-bold text-primary-600 mt-1">
+            {weightedDqScore != null ? weightedDqScore.toFixed(2) : '—'}
+            <span className="text-xs font-normal text-muted ml-1">/ 5 (1 = best)</span>
+          </p>
+        </div>
+        <div className="p-3 bg-fg/[0.04] rounded-lg" title="Share of total emissions backed by gap-filled estimates rather than measured activity data.">
+          <p className="text-xs font-medium text-fg/80">Estimated data</p>
+          <p className="text-xl font-bold text-primary-600 mt-1">
+            {estimateShare.toFixed(0)}%
+            <span className="text-xs font-normal text-muted ml-1">
+              ({estimateCount} {estimateCount === 1 ? 'entry' : 'entries'})
+            </span>
+          </p>
         </div>
       </div>
 
@@ -91,6 +188,7 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
       <div className="space-y-3">
         {indicators.map((indicator, index) => {
           const Icon = indicator.icon;
+          const percentage = total > 0 ? ((indicator.count / total) * 100).toFixed(0) : '0';
           return (
             <div key={index} className={`p-3 ${indicator.bgColor} rounded-lg`}>
               <div className="flex items-center justify-between">
@@ -98,12 +196,12 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
                   <Icon className={`w-5 h-5 ${indicator.color}`} />
                   <div>
                     <p className={`font-medium ${indicator.color}`}>{indicator.label}</p>
-                    <p className="text-xs text-gray-600">{indicator.description}</p>
+                    <p className="text-xs text-muted">{indicator.description}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className={`font-bold ${indicator.color}`}>{indicator.count}</p>
-                  <p className="text-xs text-gray-600">{indicator.percentage}%</p>
+                  <p className="text-xs text-muted">{percentage}%</p>
                 </div>
               </div>
             </div>
@@ -112,8 +210,8 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
       </div>
 
       {/* Recommendations */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-600">
+      <div className="mt-4 pt-4 border-t border-line">
+        <p className="text-xs text-muted">
           💡 <strong>Tip:</strong> Use Egyptian-specific emission factors when available for higher accuracy
         </p>
       </div>

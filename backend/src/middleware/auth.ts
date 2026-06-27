@@ -1,15 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Response, NextFunction } from 'express';
 import { User } from '../models/User';
-import { config } from '../config/config';
+import { verifyAccessToken } from '../utils/jwt';
 import { AuthenticatedRequest } from '../types';
-
-interface JwtPayload {
-  id: string;
-  email: string;
-  organizationId: string;
-  role: string;
-}
 
 export const authenticate = async (
   req: AuthenticatedRequest,
@@ -18,7 +10,7 @@ export const authenticate = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({
         success: false,
@@ -30,9 +22,9 @@ export const authenticate = async (
     const token = authHeader.substring(7);
 
     try {
-      const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
-      
-      // Optional: Verify user still exists and is active
+      const decoded = verifyAccessToken(token);
+
+      // Verify the user still exists and is active.
       const user = await User.findById(decoded.id).select('-password');
       if (!user || !user.isActive) {
         res.status(401).json({
@@ -64,18 +56,12 @@ export const authenticate = async (
 export const authorize = (...roles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     if (!roles.includes(req.user.role)) {
-      res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-      });
+      res.status(403).json({ success: false, message: 'Insufficient permissions' });
       return;
     }
 
@@ -85,26 +71,31 @@ export const authorize = (...roles: string[]) => {
 
 export const optionalAuth = async (
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> => {
   const authHeader = req.headers.authorization;
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const token = authHeader.substring(7);
-      const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
-      
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        organizationId: decoded.organizationId,
-        role: decoded.role,
-      };
+      const decoded = verifyAccessToken(token);
+
+      // Confirm the user is still active before trusting optional auth.
+      const user = await User.findById(decoded.id).select('isActive');
+      if (user && user.isActive) {
+        req.user = {
+          id: decoded.id,
+          email: decoded.email,
+          organizationId: decoded.organizationId,
+          role: decoded.role,
+        };
+      }
     } catch (error) {
-      // Ignore errors for optional auth
+      // Ignore errors for optional auth — request proceeds unauthenticated.
     }
   }
-  
+
   next();
 };
+

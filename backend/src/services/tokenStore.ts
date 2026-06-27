@@ -1,0 +1,102 @@
+import Database from '../config/database';
+import { config } from '../config/config';
+import { logger } from '../utils/logger';
+
+/**
+ * Revocable refresh-token store backed by Redis.
+ *
+ * Each issued refresh token has a unique `jti`. We persist `refresh:<jti> -> userId`
+ * with a TTL equal to the token's lifetime, and track the set of a user's active
+ * jtis under `refresh:user:<userId>` so we can revoke everything for a user at once
+ * (used on logout-all and password change).
+ *
+ * Degradation: refresh validation FAILS CLOSED. If Redis is unavailable (or a lookup
+ * errors), `isValid` returns false so a refresh request is rejected and the user must
+ * re-authenticate — a revoked refresh token can never be honoured just because the
+ * revocation store is temporarily unreachable. The access token already issued stays
+ * valid until it expires (default 15m), so an active session is not torn down mid-flight;
+ * only the long-lived refresh path is gated. Run Redis as a hard dependency in production.
+ */
+
+function parseExpiryToSeconds(expiry: string): number {
+  if (/^\d+$/.test(expiry)) return parseInt(expiry, 10);
+  const match = /^(\d+)\s*([smhd])$/.exec(expiry.trim());
+  if (!match) return 7 * 24 * 60 * 60; // safe default: 7 days
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+  return value * multipliers[unit];
+}
+
+const REFRESH_TTL_SECONDS = parseExpiryToSeconds(config.JWT_REFRESH_EXPIRE);
+
+const tokenKey = (jti: string) => `refresh:${jti}`;
+const userSetKey = (userId: string) => `refresh:user:${userId}`;
+
+function redis() {
+  return Database.getInstance().redis;
+}
+
+export const tokenStore = {
+  ttlSeconds: REFRESH_TTL_SECONDS,
+
+  async store(userId: string, jti: string): Promise<void> {
+    const client = redis();
+    if (!client) {
+      logger.warn('Redis unavailable: refresh token not persisted (revocation degraded).');
+      return;
+    }
+    try {
+      await client.setEx(tokenKey(jti), REFRESH_TTL_SECONDS, userId);
+      await client.sAdd(userSetKey(userId), jti);
+      await client.expire(userSetKey(userId), REFRESH_TTL_SECONDS);
+    } catch (error) {
+      logger.error('Failed to store refresh token:', error);
+    }
+  },
+
+  /**
+   * Returns true ONLY if the jti is recognised for this user. Fails CLOSED:
+   * if Redis is unavailable or the lookup errors, returns false so a (possibly
+   * revoked) refresh token is never honoured while the revocation store is
+   * unreachable. The caller rejects the refresh and forces re-authentication.
+   */
+  async isValid(userId: string, jti: string): Promise<boolean> {
+    const client = redis();
+    if (!client) {
+      logger.error('Redis unavailable: rejecting refresh token (fail-closed, re-auth required).');
+      return false;
+    }
+    try {
+      const stored = await client.get(tokenKey(jti));
+      return stored === userId;
+    } catch (error) {
+      logger.error('Failed to validate refresh token (rejecting, fail-closed):', error);
+      return false;
+    }
+  },
+
+  async revoke(jti: string, userId?: string): Promise<void> {
+    const client = redis();
+    if (!client) return;
+    try {
+      await client.del(tokenKey(jti));
+      if (userId) await client.sRem(userSetKey(userId), jti);
+    } catch (error) {
+      logger.error('Failed to revoke refresh token:', error);
+    }
+  },
+
+  async revokeAllForUser(userId: string): Promise<void> {
+    const client = redis();
+    if (!client) return;
+    try {
+      const jtis = await client.sMembers(userSetKey(userId));
+      const keys = jtis.map(tokenKey);
+      if (keys.length > 0) await client.del(keys);
+      await client.del(userSetKey(userId));
+    } catch (error) {
+      logger.error('Failed to revoke user refresh tokens:', error);
+    }
+  },
+};

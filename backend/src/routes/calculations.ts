@@ -6,8 +6,18 @@ import {
   saveCalculation,
   getCalculations,
   getCalculationById,
+  lockCalculation,
+  unlockCalculation,
+  verifyCalculation,
+  getCalculationSnapshots,
+  getSnapshotDiff,
+  recomputeCheck,
+  estimateCalculationValue,
 } from '../controllers/calculationController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
+
+// Contributor+ roles may compute and save; viewer/verifier are read-only.
+const CONTRIBUTOR_ROLES = ['admin', 'manager', 'user'] as const;
 import { validate } from '../middleware/validation';
 import { body } from 'express-validator';
 import { clearCache } from '../middleware/cache';
@@ -41,22 +51,35 @@ export const validateSaveCalculation = [
   body('calculations').isArray({ min: 1 }).withMessage('At least one calculation is required'),
 ];
 
-// Calculation endpoints
-router.post('/calculate', 
+// Calculation endpoints (write/compute actions — viewer/verifier are read-only)
+router.post('/calculate',
+  authorize(...CONTRIBUTOR_ROLES),
   validate(validateCalculation),
   calculateEmissions
 );
 
 router.post('/calculate-batch',
+  authorize(...CONTRIBUTOR_ROLES),
   calculateBatchEmissions
 );
 
 router.post('/calculate-business-travel',
+  authorize(...CONTRIBUTOR_ROLES),
   validate(validateBusinessTravel),
   calculateBusinessTravel
 );
 
-router.post('/', 
+// Conservative gap-filling suggestion (does not save anything).
+router.post('/estimate',
+  authorize(...CONTRIBUTOR_ROLES),
+  body('categoryId').isMongoId().withMessage('Valid category ID is required'),
+  body('period.start').isISO8601().withMessage('Valid period start is required'),
+  body('period.end').isISO8601().withMessage('Valid period end is required'),
+  estimateCalculationValue
+);
+
+router.post('/',
+  authorize(...CONTRIBUTOR_ROLES),
   validate(validateSaveCalculation),
   clearCache('calculations'),
   saveCalculation
@@ -64,5 +87,20 @@ router.post('/',
 
 router.get('/', getCalculations);
 router.get('/:id', getCalculationById);
+
+// Inventory lifecycle: lock = publish (immutable), unlock = audited correction path.
+router.patch('/:id/lock', authorize('admin', 'manager'), clearCache('calculations'), lockCalculation);
+router.patch('/:id/unlock', authorize('admin', 'manager'), clearCache('calculations'), unlockCalculation);
+
+// Independent verification: verifier (or admin) signs off a locked inventory.
+router.patch('/:id/verify', authorize('verifier', 'admin'), clearCache('calculations'), verifyCalculation);
+
+// Publication snapshots + restatement diffs.
+router.get('/:id/snapshots', getCalculationSnapshots);
+router.get('/:id/snapshots/diff', getSnapshotDiff);
+
+// Deterministic recompute check: re-run the engine math against the pinned
+// immutable factor versions and confirm the stored figures reproduce (§3).
+router.get('/:id/recompute-check', recomputeCheck);
 
 export default router;

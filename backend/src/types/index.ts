@@ -17,7 +17,7 @@ export interface IUser extends Document {
   password: string;
   name: string;
   organizationId: Types.ObjectId;
-  role: 'admin' | 'manager' | 'user';
+  role: 'admin' | 'manager' | 'user' | 'viewer' | 'verifier';
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
@@ -31,10 +31,48 @@ export interface IOrganization extends Document {
   industry: string;
   country: string;
   size: 'micro' | 'small' | 'medium' | 'large';
+  consolidationApproach?: 'equity_share' | 'financial_control' | 'operational_control';
   settings: {
     currency: string;
     timezone: string;
     language: string;
+    gwpSet?: 'AR4' | 'AR5' | 'AR6';
+    persona?: 'enterprise' | 'consultant' | 'sme';
+  };
+  exclusions?: Array<{
+    source: string;
+    scope?: 1 | 2 | 3;
+    categoryId?: Types.ObjectId; // optional explicit link to a category
+    justification: string;
+    estimatedEmissions?: number; // kg CO2e per year
+    createdAt?: Date;
+  }>;
+  // Relevance screening: categories judged relevant to the inventory.
+  // Completeness is measured against this set. Empty = not yet screened.
+  relevantCategories?: Types.ObjectId[];
+  denominators?: Array<{
+    year: number;
+    metric: 'production' | 'revenue' | 'employees' | 'floor_area' | 'custom';
+    label?: string; // human label, mainly for metric=custom
+    value: number;
+    unit: string;
+  }>;
+  targets?: Array<{
+    name: string;
+    description?: string;
+    baselineYear: number;
+    baselineEmissions: number; // kg CO2e in the baseline year
+    targetYear: number;
+    targetReduction: number; // percent vs baseline (100 = net zero)
+  }>;
+  // Guided onboarding state (§10). Absent on organizations created before the
+  // wizard existed — treated as already onboarded. New orgs default to
+  // not-completed so the wizard runs on first login.
+  onboarding?: {
+    completed: boolean;
+    completedAt?: Date;
+    skipped: boolean;
+    currentStep: number;
   };
   isActive: boolean;
   createdAt: Date;
@@ -102,6 +140,9 @@ export interface IEmissionFactor extends Document {
   qualityRating?: string;
   uncertainty?: number;
   isActive: boolean;
+  organizationId?: Types.ObjectId; // set for org-scoped custom factors
+  supplierId?: Types.ObjectId; // set when the factor came from a specific supplier
+  supplierName?: string; // denormalized for display/provenance
   metadata?: Record<string, any>;
   egyptianData?: {
     adjustmentFactor?: number;
@@ -109,6 +150,78 @@ export interface IEmissionFactor extends Document {
   tags?: string[];
   isDefault?: boolean;
   version?: string;
+  // License / terms of use of the underlying factor source (§3 versioned
+  // reference data). Free text, e.g. 'Open Government Licence v3.0' (DEFRA).
+  license?: string;
+  // Pointer to the latest immutable EmissionFactorVersion number (§3). A value
+  // edit/import records a new version and bumps this; calculations pin the
+  // version in force at save time so a locked inventory recomputes deterministically.
+  currentVersion?: number;
+}
+
+/**
+ * Immutable, append-only snapshot of an emission factor's value-bearing state at
+ * a point in time (§3 — factor library as versioned reference data). One row per
+ * distinct content state per factor; calculations pin `factorVersion` so a locked
+ * inventory recomputes deterministically even after the live factor is edited or
+ * a new annual factor set is imported over it.
+ */
+export interface IEmissionFactorVersion extends Document {
+  _id: Types.ObjectId;
+  factorId: Types.ObjectId;
+  factorCode?: string;
+  version: number; // 1-based, monotonic per factorId
+  // --- value-bearing snapshot (the fields a recompute depends on) ---
+  name: string;
+  factor: number;
+  unit: string;
+  co2: number;
+  ch4: number;
+  n2o: number;
+  otherGhg: number;
+  source: string;
+  sourceUrl?: string;
+  sourceDocument?: string;
+  region: string;
+  country?: string;
+  year: number;
+  validFrom?: Date;
+  validTo?: Date;
+  license?: string;
+  qualityRating?: string;
+  uncertainty?: number;
+  metadata?: Record<string, any>;
+  organizationId?: Types.ObjectId;
+  supplierId?: Types.ObjectId;
+  supplierName?: string;
+  // --- bookkeeping ---
+  contentHash: string; // sha256 of the canonicalized value-bearing fields
+  recordedBy: string; // user email, or 'import' / 'seed' / 'backfill'
+  changeReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Evidence attachment for a single calculation data line (§4.3 — required for
+ * assurance). The bytes live in GridFS (bucket `evidence`); this is the metadata
+ * record linking a file to a specific `Calculation.data[entryIndex]`.
+ */
+export interface IEvidence extends Document {
+  _id: Types.ObjectId;
+  organizationId: Types.ObjectId;
+  calculationId: Types.ObjectId;
+  entryIndex: number; // position in Calculation.data[]
+  gridFsId: Types.ObjectId; // _id in the evidence.files GridFS collection
+  filename: string;
+  contentType: string;
+  size: number; // bytes
+  sha256: string; // integrity / duplicate hint
+  description?: string;
+  uploadedBy: Types.ObjectId;
+  uploadedByEmail: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IIndustryBenchmark extends mongoose.Document {
@@ -181,10 +294,42 @@ interface BenchmarkStats {
   average: number;
 }
 
+/**
+ * Reporting-year inventory: groups an organization's calculations for one
+ * reporting year under a lifecycle (Draft → Review → Published/Locked). One
+ * inventory per (organization, reporting year). Publishing freezes the
+ * whole-year figures and the GWP set, locks the member calculations, and
+ * (optionally) designates the base year for recalculation tracking.
+ */
+export interface IInventory extends Document {
+  _id: Types.ObjectId;
+  organizationId: Types.ObjectId;
+  reportingYear: number;
+  period: { start: Date; end: Date };
+  status: 'draft' | 'review' | 'published';
+  // Frozen at publish: the GWP-100 set the published figures were computed
+  // under, so historical years don't shift when the org later switches sets.
+  gwpSet?: 'AR4' | 'AR5' | 'AR6';
+  // Exactly one inventory per org may be the base year (controller-enforced).
+  isBaseYear: boolean;
+  // GHG Protocol base-year recalculation significance threshold (percent).
+  recalcThresholdPercent: number;
+  // Frozen whole-year figures captured at publish (the "frozen results").
+  frozenTotals?: { scope1: number; scope2: number; scope3: number; total: number };
+  frozenCompletenessPercent?: number;
+  publishedAt?: Date;
+  publishedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ICalculation extends Document {
   _id: Types.ObjectId;
   organizationId: Types.ObjectId;
   userId: Types.ObjectId;
+  facilityId?: Types.ObjectId;
+  // Reporting-year inventory this calculation belongs to (one per org+year).
+  inventoryId?: Types.ObjectId;
   title: string;
   description?: string;
   period: {
@@ -198,7 +343,13 @@ export interface ICalculation extends Document {
     total: number;
   };
   data: ICalculationEntry[];
-  status: 'draft' | 'completed' | 'verified';
+  status: 'draft' | 'completed' | 'verified' | 'locked';
+  verification?: {
+    verified: boolean;
+    verifiedBy?: string;
+    verifiedAt?: Date;
+    comment?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -209,7 +360,63 @@ export interface ICalculationEntry {
   unit: string;
   factor: number;
   emissions: number;
+  quality?: 'high' | 'medium' | 'low';
   notes?: string;
+  // Calculation provenance (audit lineage)
+  factorId?: Types.ObjectId;
+  factorName?: string;
+  factorSource?: string;
+  factorYear?: number;
+  // Pinned immutable factor version used for this entry (§3). Lets a locked
+  // inventory recompute deterministically against the exact factor values in
+  // force at save time, even after the live factor is edited / re-imported.
+  factorVersion?: number;
+  factorVersionId?: Types.ObjectId;
+  gwpSet?: string; // GWP set in force when computed (e.g. 'AR6')
+  gwpApplied?: 'per-gas' | 'embedded'; // whether GWPs were applied or already embedded in a CO2e factor
+  method?: string; // calculation method (activity_based / spend_based / supplier-specific / ...)
+  // Supplier provenance (entries computed with a supplier-linked factor)
+  supplierId?: Types.ObjectId;
+  supplierName?: string;
+  // Scope 2 dual reporting (electricity entries only)
+  scope2Location?: number; // location-based figure (grid average), kg CO2e
+  scope2Market?: number; // market-based figure, kg CO2e
+  scope2MarketMethod?: string; // which rung of the market-based hierarchy was used
+  // Biogenic CO2 (kg) from biomass combustion — memo item, EXCLUDED from
+  // `emissions` (the scope total) per the GHG Protocol; biomass CH4/N2O stay in scope
+  biogenicCO2?: number;
+  // Per-gas masses (kg) when computed via the per-gas path (co2 is the in-scope
+  // CO2; biogenic CO2 lives in biogenicCO2). Absent for CO2e-denominated factors.
+  gasBreakdown?: { co2: number; ch4: number; n2o: number };
+  // Fugitive material-balance provenance (component masses + derived released kg).
+  materialBalance?: {
+    releasedKg?: number;
+    purchases?: number;
+    inventoryStart?: number;
+    inventoryEnd?: number;
+    chargedIntoEquipment?: number;
+    recovered?: number;
+  };
+  // Round-trippable method-specific activity inputs, captured so an export of
+  // this entry re-imports to the SAME number (business-travel route/distance/
+  // class, combustion fuel, mobile vehicle, spend currency). Fugitive
+  // material-balance inputs live in `materialBalance` above.
+  activityInput?: {
+    fuelType?: string;
+    vehicleType?: string;
+    origin?: string;
+    destination?: string;
+    distance?: number;
+    travelMode?: string;
+    travelClass?: string;
+    roundTrip?: boolean;
+    currency?: string;
+  };
+  // Gap-filling / estimation flags (estimates must be distinguishable)
+  isEstimate?: boolean;
+  estimationMethod?: string; // e.g. 'same-period-prior-year +10% conservativeness'
+  // PCAF-style data-quality score: 1 (best, supplier-specific measured) … 5 (rough estimate)
+  dqScore?: number;
 }
 
 export interface ApiResponse<T = any> {

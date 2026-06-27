@@ -77,12 +77,12 @@ export const ProfileSettings: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center mb-6">
           <User className="w-5 h-5 text-primary-600 mr-2" />
-          <h2 className="text-xl font-semibold text-gray-900">Profile Information</h2>
+          <h2 className="text-xl font-semibold text-fg">Profile Information</h2>
         </div>
 
         <form onSubmit={handleProfileUpdate} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="name" className="block text-sm font-medium text-fg/80 mb-2">
               Full Name
             </label>
             <Input
@@ -94,7 +94,7 @@ export const ProfileSettings: React.FC = () => {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-fg/80 mb-2">
               Email Address
             </label>
             <Input
@@ -107,7 +107,7 @@ export const ProfileSettings: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between pt-4">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted">
               <Mail className="w-4 h-4 inline mr-1" />
               Role: <span className="font-medium capitalize">{user?.role}</span>
             </div>
@@ -123,16 +123,16 @@ export const ProfileSettings: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center mb-6">
           <Lock className="w-5 h-5 text-primary-600 mr-2" />
-          <h2 className="text-xl font-semibold text-gray-900">Password & Security</h2>
+          <h2 className="text-xl font-semibold text-fg">Password & Security</h2>
         </div>
 
         {!showPasswordForm ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted">
                 Keep your account secure by using a strong password
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Last updated: {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : 'Never'}
               </p>
             </div>
@@ -146,7 +146,7 @@ export const ProfileSettings: React.FC = () => {
         ) : (
           <form onSubmit={handlePasswordChange} className="space-y-4">
             <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-fg/80 mb-2">
                 Current Password
               </label>
               <Input
@@ -160,7 +160,7 @@ export const ProfileSettings: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="newPassword" className="block text-sm font-medium text-fg/80 mb-2">
                 New Password
               </label>
               <Input
@@ -175,7 +175,7 @@ export const ProfileSettings: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-fg/80 mb-2">
                 Confirm New Password
               </label>
               <Input

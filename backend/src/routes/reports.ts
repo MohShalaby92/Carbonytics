@@ -7,6 +7,16 @@ import {
   getTrendAnalysis,
   exportReport,
   getIndustryBenchmarks,
+  getGHGInventoryReport,
+  getCompletenessReport,
+  getConsolidationReport,
+  getAssurancePackage,
+  getLineage,
+  getInventoryManagementPlan,
+  getDataQualityTrend,
+  getCdpMapping,
+  getSbtiSummary,
+  getEsrsE1Mapping,
 } from '../controllers/reportController';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -54,9 +64,38 @@ router.get('/export/:reportId',
 );
 
 // Benchmark routes
-router.get('/benchmarks', 
-  cache(3600), 
+router.get('/benchmarks',
+  cache(3600),
   getIndustryBenchmarks
 );
+
+// GHG inventory report (GHGP/ISO 14064-1 content; ?format=markdown downloads).
+// Uncached: this is an explicit export action and must reflect current data.
+router.get('/ghg-inventory', validate(validateDateRange), getGHGInventoryReport);
+
+// Completeness assessment (relevant vs covered/excluded/gaps). Uncached.
+router.get('/completeness', validate(validateDateRange), getCompletenessReport);
+
+// Consolidation roll-up (gross vs reported share per approach; §1.2). Uncached.
+router.get('/consolidation', validate(validateDateRange), getConsolidationReport);
+
+// Assurance package (verifier bundle). Uncached export action.
+router.get('/assurance-package', validate(validateDateRange), getAssurancePackage);
+
+// Calculation-lineage drill-down (§7): reported numbers → contributing lines
+// with full provenance, derived formulas, evidence and reconciliation. Uncached.
+router.get('/lineage', validate(validateDateRange), getLineage);
+
+// Inventory Management Plan (process document, auto-generated from live
+// configuration; ?format=markdown downloads). Uncached export action.
+router.get('/imp', validate(validateDateRange), getInventoryManagementPlan);
+
+// Year-over-year data-quality trend (weighted DQ + primary share per year; §5).
+router.get('/data-quality-trend', getDataQualityTrend);
+
+// Disclosure-framework mappings (preparation aids; ?format=markdown downloads).
+router.get('/cdp', validate(validateDateRange), getCdpMapping);
+router.get('/sbti', validate(validateDateRange), getSbtiSummary);
+router.get('/esrs', validate(validateDateRange), getEsrsE1Mapping);
 
 export default router;

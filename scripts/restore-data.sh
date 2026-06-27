@@ -1,67 +1,34 @@
-#!/bin/bash
-echo "📥 Restoring Carbonytics database from backup..."
+#!/usr/bin/env bash
+# Restore a Carbonytics MongoDB backup (a gzipped `mongodump --archive` produced
+# by the backup sidecar or scripts/backup-production.sh). Runs mongorestore
+# inside the running mongo container using the root credentials already present
+# in that container's environment (env_file).
+#
+# Usage:   ./scripts/restore-data.sh [backups/carbonytics_*.archive.gz]
+#          (no arg -> restores the most recent archive in ./backups)
+set -euo pipefail
 
-# Check if backup file is provided
-if [ $# -eq 0 ]; then
-    echo "❌ Please provide the backup file path."
-    echo "Usage: ./scripts/restore-data.sh <backup-file>"
-    echo ""
-    echo "Available backups:"
-    ls -la ./backups/carbonytics_backup_*.tar.gz 2>/dev/null || echo "No backups found"
-    exit 1
+CONTAINER="${MONGO_CONTAINER:-carbonytics-mongo}"
+ARCHIVE="${1:-$(ls -1t ./backups/carbonytics_*.archive.gz 2>/dev/null | head -1 || true)}"
+
+if [ -z "${ARCHIVE:-}" ] || [ ! -f "$ARCHIVE" ]; then
+  echo "No backup archive found."
+  echo "Usage: $0 [path/to/carbonytics_*.archive.gz]"
+  echo "Available:"
+  ls -1 ./backups/carbonytics_*.archive.gz 2>/dev/null || echo "  (none)"
+  exit 1
 fi
+BASENAME="$(basename "$ARCHIVE")"
 
-BACKUP_FILE="$1"
-DB_NAME="${MONGODB_DB:-carbonytics}"
-MONGODB_URI="${MONGODB_URI:-mongodb://localhost:27017}"
+echo "WARNING: this restores (with --drop) from '$BASENAME' into container '$CONTAINER'."
+read -r -p "Continue? (y/N): " ans
+case "$ans" in y|Y) ;; *) echo "cancelled"; exit 1 ;; esac
 
-# Check if backup file exists
-if [ ! -f "$BACKUP_FILE" ]; then
-    echo "❌ Backup file not found: $BACKUP_FILE"
-    exit 1
-fi
+# /backup inside the container is the host ./backups directory.
+docker exec "$CONTAINER" sh -c \
+  "mongorestore --archive=/backup/${BASENAME} --gzip --drop \
+     --username \"\$MONGO_INITDB_ROOT_USERNAME\" \
+     --password \"\$MONGO_INITDB_ROOT_PASSWORD\" \
+     --authenticationDatabase admin"
 
-# Extract backup
-echo "📂 Extracting backup..."
-TEMP_DIR=$(mktemp -d)
-tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
-
-# Find the backup directory
-BACKUP_DIR=$(find "$TEMP_DIR" -name "carbonytics_backup_*" -type d | head -1)
-
-if [ -z "$BACKUP_DIR" ]; then
-    echo "❌ Invalid backup file format"
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-# Confirm restoration
-echo "⚠️  This will replace all data in database: $DB_NAME"
-read -p "Are you sure you want to continue? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "❌ Restoration cancelled"
-    rm -rf "$TEMP_DIR"
-    exit 1
-fi
-
-# Drop existing database
-echo "🗑️  Dropping existing database..."
-mongo "$MONGODB_URI/$DB_NAME" --eval "db.dropDatabase()"
-
-# Restore from backup
-echo "📥 Restoring database..."
-mongorestore --uri="$MONGODB_URI" "$BACKUP_DIR"
-
-if [ $? -eq 0 ]; then
-    echo "✅ Database restoration completed successfully!"
-    
-    # Show restored collections
-    echo "📊 Restored collections:"
-    mongo "$MONGODB_URI/$DB_NAME" --quiet --eval "db.getCollectionNames().forEach(function(name) { print('  • ' + name + ': ' + db[name].count() + ' documents'); })"
-else
-    echo "❌ Database restoration failed!"
-fi
-
-# Cleanup
-rm -rf "$TEMP_DIR"
+echo "Restore complete from ${BASENAME}."

@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import { ApiResponseUtil } from '../utils/apiResponse';
 import { asyncHandler } from '../utils/asyncHandler';
 import { CSVService } from '../services/csvService';
+import { recordAudit } from '../utils/audit';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -23,12 +24,18 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: any) => {
-  if (file.mimetype === 'text/csv' || 
-      file.mimetype === 'application/vnd.ms-excel' ||
-      file.originalname.toLowerCase().endsWith('.csv')) {
+  const name = file.originalname.toLowerCase();
+  const allowed =
+    file.mimetype === 'text/csv' ||
+    file.mimetype === 'application/vnd.ms-excel' ||
+    file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    name.endsWith('.csv') ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.xls');
+  if (allowed) {
     cb(null, true);
   } else {
-    cb(new Error('Only CSV files are allowed'), false);
+    cb(new Error('Only CSV or Excel (.xlsx/.xls) files are allowed'), false);
   }
 };
 
@@ -39,6 +46,25 @@ export const upload = multer({
     fileSize: config.MAX_FILE_SIZE, // 10MB
   },
 });
+
+/**
+ * Run the CSV upload middleware and map multer errors (rejected type, size
+ * limit) to a clean 400 rather than a generic 500 — these are client errors.
+ */
+export const uploadCsvMiddleware = (req: Request, res: Response, next: import('express').NextFunction) => {
+  upload.single('file')(req, res, (err: any) => {
+    if (err) {
+      const message =
+        err instanceof multer.MulterError
+          ? err.code === 'LIMIT_FILE_SIZE'
+            ? `File too large (max ${Math.round(config.MAX_FILE_SIZE / 1048576)}MB)`
+            : err.message
+          : err?.message || 'File upload failed';
+      return ApiResponseUtil.error(res, message, 400);
+    }
+    next();
+  });
+};
 
 export const validateCSVFile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) {
@@ -51,7 +77,7 @@ export const validateCSVFile = asyncHandler(async (req: AuthenticatedRequest, re
 
   try {
     const csvService = new CSVService();
-    const validation = await csvService.validateCSV(req.file.path);
+    const validation = await csvService.previewImport(req.file.path, req.user.organizationId);
 
     // Clean up uploaded file after validation
     setTimeout(() => {
@@ -95,30 +121,18 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
 
   try {
     const csvService = new CSVService();
-    
-    // First validate the file
-    const validation = await csvService.validateCSV(req.file.path);
-    
-    if (!validation.valid) {
-      // Clean up file
-      try {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (cleanupError) {
-        console.error('Error cleaning up invalid file:', cleanupError);
-      }
-      
-      return ApiResponseUtil.error(res, 'File validation failed', 400, {
-        errors: validation.errors,
-      });
-    }
 
-    // Import the data
+    // The importer resolves + recomputes every row server-side and reports per-row
+    // status, so partial imports are fine — no separate all-or-nothing gate.
+    // `skipDuplicates` (a multipart text field) honours the user's per-import choice
+    // to skip rows flagged as duplicates of existing data.
+    const skipDuplicates = String((req.body && req.body.skipDuplicates) || '').toLowerCase() === 'true';
+
     const importResult = await csvService.importCalculations(
       req.file.path,
       req.user.id,
-      req.user.organizationId
+      req.user.organizationId,
+      { skipDuplicates }
     );
 
     // Clean up uploaded file
@@ -132,9 +146,26 @@ export const importCSVFile = asyncHandler(async (req: AuthenticatedRequest, res:
       }
     }, 1000);
 
-    const message = importResult.failed > 0 
-      ? `Import completed with ${importResult.failed} errors`
-      : 'Import completed successfully';
+    const parts = [`Imported ${importResult.successful} of ${importResult.processed} row(s) into ${importResult.createdCalculations} calculation(s)`];
+    if (importResult.failed > 0) parts.push(`${importResult.failed} failed`);
+    if (importResult.skipped > 0) parts.push(`${importResult.skipped} skipped`);
+    const message = parts.join(', ');
+
+    await recordAudit({
+      organizationId: req.user.organizationId,
+      userId: req.user.id,
+      userEmail: req.user.email,
+      action: 'import',
+      resourceType: 'calculation',
+      after: {
+        fileName: req.file.originalname,
+        processed: importResult.processed,
+        successful: importResult.successful,
+        failed: importResult.failed,
+        skipped: importResult.skipped,
+        createdCalculations: importResult.createdCalculations,
+      },
+    });
 
     ApiResponseUtil.success(res, {
       fileName: req.file.originalname,
@@ -162,31 +193,16 @@ export const getImportTemplate = asyncHandler(async (req: AuthenticatedRequest, 
   }
 
   try {
+    const format = String(req.query.format || 'xlsx').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
     const csvService = new CSVService();
-    const fileName = await csvService.exportTemplate();
-    const filePath = path.join(process.cwd(), 'uploads', fileName);
+    const { buffer, contentType, fileName } = await csvService.buildImportTemplate(
+      req.user.organizationId,
+      format
+    );
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    
-    return res.sendFile(filePath, (err) => {
-      if (err) {
-        console.error('Error sending template file:', err);
-        ApiResponseUtil.error(res, 'Failed to download template', 500);
-      } else {
-        // Clean up file after sending
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (cleanupError) {
-            console.error('Error cleaning up template file:', cleanupError);
-          }
-        }, 5000);
-      }
-    });
-
+    return res.send(buffer);
   } catch (error) {
     console.error('Template generation failed:', error);
     ApiResponseUtil.error(res, 'Template generation failed', 500);
@@ -199,40 +215,28 @@ export const exportCalculationsCSV = asyncHandler(async (req: AuthenticatedReque
   }
 
   try {
-    const { startDate, endDate, scopes, categories } = req.query;
-    
+    const { startDate, endDate, scopes, categories, facilityId, status, format } = req.query;
+    const fmt = String(format || 'xlsx').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
+
     const filters = {
       startDate: startDate as string,
       endDate: endDate as string,
-      scopes: scopes ? (scopes as string).split(',').map(Number) : undefined,
+      scopes: scopes ? (scopes as string).split(',').map(Number).filter((n) => !isNaN(n)) : undefined,
       categories: categories ? (categories as string).split(',') : undefined,
+      facilityId: facilityId as string | undefined,
+      status: status as string | undefined,
     };
 
     const csvService = new CSVService();
-    const fileName = await csvService.exportCalculations(req.user.organizationId, filters);
-    const filePath = path.join(process.cwd(), 'uploads', fileName);
+    const { buffer, contentType, fileName } = await csvService.exportCalculations(
+      req.user.organizationId,
+      filters,
+      fmt
+    );
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    
-    return res.sendFile(filePath, (err) => {
-      if (err) {
-        console.error('Error sending export file:', err);
-        ApiResponseUtil.error(res, 'Failed to download export', 500);
-      } else {
-        // Clean up file after sending
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (cleanupError) {
-            console.error('Error cleaning up export file:', cleanupError);
-          }
-        }, 5000);
-      }
-    });
-
+    return res.send(buffer);
   } catch (error) {
     console.error('CSV export failed:', error);
     ApiResponseUtil.error(res, 'Export failed', 500);

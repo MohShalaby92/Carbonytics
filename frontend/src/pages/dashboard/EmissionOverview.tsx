@@ -18,20 +18,23 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
       case 'down':
         return <TrendingDown className="w-4 h-4 text-green-500" />;
       default:
-        return <Minus className="w-4 h-4 text-gray-500" />;
+        return <Minus className="w-4 h-4 text-muted" />;
     }
   };
 
   const getTrendColor = (trend: 'up' | 'down' | 'stable') => {
     switch (trend) {
       case 'up':
-        return 'text-red-600';
+        return 'text-red-600 dark:text-red-400';
       case 'down':
-        return 'text-green-600';
+        return 'text-green-600 dark:text-green-400';
       default:
-        return 'text-gray-600';
+        return 'text-muted';
     }
   };
+
+  const share = (value: number) =>
+    data.totalEmissions > 0 ? `${((value / data.totalEmissions) * 100).toFixed(1)}%` : '—';
 
   const metrics = [
     {
@@ -44,21 +47,21 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
     {
       title: 'Scope 1',
       value: formatEmissions(data.scopeBreakdown[1] || 0),
-      change: `${((data.scopeBreakdown[1] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[1] || 0),
       trend: 'stable' as const,
       subtitle: 'Direct emissions',
     },
     {
       title: 'Scope 2',
       value: formatEmissions(data.scopeBreakdown[2] || 0),
-      change: `${((data.scopeBreakdown[2] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[2] || 0),
       trend: 'stable' as const,
-      subtitle: 'Energy emissions',
+      subtitle: 'Indirect emissions',
     },
     {
       title: 'Scope 3',
       value: formatEmissions(data.scopeBreakdown[3] || 0),
-      change: `${((data.scopeBreakdown[3] || 0) / data.totalEmissions * 100).toFixed(1)}%`,
+      change: share(data.scopeBreakdown[3] || 0),
       trend: 'stable' as const,
       subtitle: 'Value chain emissions',
     },
@@ -70,8 +73,8 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
         <Card key={index} className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-600">{metric.title}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+              <p className="text-sm font-medium text-muted">{metric.title}</p>
+              <p className="text-2xl font-bold text-fg mt-1">{metric.value}</p>
             </div>
             <div className="ml-3">
               {getTrendIcon(metric.trend)}
@@ -79,7 +82,7 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
           </div>
           
           <div className="mt-4 flex items-center justify-between">
-            <span className="text-xs text-gray-500">{metric.subtitle}</span>
+            <span className="text-xs text-muted">{metric.subtitle}</span>
             <span className={`text-xs font-medium ${getTrendColor(metric.trend)}`}>
               {metric.change}
             </span>
