@@ -10,10 +10,12 @@ import { logger } from '../utils/logger';
  * jtis under `refresh:user:<userId>` so we can revoke everything for a user at once
  * (used on logout-all and password change).
  *
- * Degradation: if Redis is unavailable, refresh validation falls back to signature-only
- * verification. Access tokens remain short-lived (default 15m), so the practical exposure
- * is bounded, but server-side revocation is unavailable until Redis recovers. This is
- * logged loudly. For strict deployments, run Redis as a hard dependency.
+ * Degradation: refresh validation FAILS CLOSED. If Redis is unavailable (or a lookup
+ * errors), `isValid` returns false so a refresh request is rejected and the user must
+ * re-authenticate — a revoked refresh token can never be honoured just because the
+ * revocation store is temporarily unreachable. The access token already issued stays
+ * valid until it expires (default 15m), so an active session is not torn down mid-flight;
+ * only the long-lived refresh path is gated. Run Redis as a hard dependency in production.
  */
 
 function parseExpiryToSeconds(expiry: string): number {
@@ -53,19 +55,24 @@ export const tokenStore = {
     }
   },
 
-  /** Returns true if the jti is recognised for this user (or Redis is unavailable). */
+  /**
+   * Returns true ONLY if the jti is recognised for this user. Fails CLOSED:
+   * if Redis is unavailable or the lookup errors, returns false so a (possibly
+   * revoked) refresh token is never honoured while the revocation store is
+   * unreachable. The caller rejects the refresh and forces re-authentication.
+   */
   async isValid(userId: string, jti: string): Promise<boolean> {
     const client = redis();
     if (!client) {
-      logger.warn('Redis unavailable: accepting refresh token on signature only.');
-      return true; // fail-open, bounded by short access-token lifetime
+      logger.error('Redis unavailable: rejecting refresh token (fail-closed, re-auth required).');
+      return false;
     }
     try {
       const stored = await client.get(tokenKey(jti));
       return stored === userId;
     } catch (error) {
-      logger.error('Failed to validate refresh token:', error);
-      return true;
+      logger.error('Failed to validate refresh token (rejecting, fail-closed):', error);
+      return false;
     }
   },
 
