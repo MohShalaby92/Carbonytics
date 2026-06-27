@@ -148,7 +148,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 - Config/data (2): [x] backend/src/config/config.ts [x] backend/src/data/gwpSets.ts
 
 ### INC-2 · Core domain & methodology services (14)
-- [ ] calculationEngine [ ] calculationPersistence [ ] completenessService [ ] consolidationService [ ] dataQuality [ ] estimationService [ ] evidenceStorage [ ] factorVersioning [ ] importMapping [ ] importQuality [ ] inventoryService [ ] lineage [ ] pedigree [ ] tokenStore
+- [x] calculationEngine [x] calculationPersistence [x] completenessService [x] consolidationService [x] dataQuality [x] estimationService [x] evidenceStorage [x] factorVersioning [x] importMapping [x] importQuality [x] inventoryService [x] lineage [x] pedigree [x] tokenStore
 
 ### INC-3 · Reports, renderers & import/export I/O (9)
 - [ ] reportController [ ] reportKit [ ] reportRenderers [ ] frameworkRenderers [ ] assuranceRenderers [ ] importExportKit [ ] csvService [ ] assets/brandIcon.ts [ ] assets/brandIconWhite.ts
@@ -236,6 +236,8 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | F-003 | INC-1 | S4 | models/EmissionFactorVersion.ts:91 | Immutability hooks cover all query-level update/delete + `pre('save')` via `isNew`, but the **document-method** `doc.deleteOne()`/`doc.updateOne()` are not hooked (only query variants). No controller calls them, so not exploitable today; add `{document:true,query:true}` for defense-in-depth. | ACCEPTED (no call path; hardening nice-to-have) |
 | F-004 | INC-1 | S4 | models/AuditLog.ts | AuditLog is append-only by convention (comment says "immutable entry") but has **no model-level update/delete guard** like Calculation/EFV. No API route updates/deletes audit rows, so not exploitable; add block-write hooks for consistency/defense-in-depth. | ACCEPTED (no call path) |
 | F-005 | INC-1 | S4 | models/Inventory.ts | Published inventories are "locked" but the lock is **procedural** (controllers/services check `status==='published'`), not a model hook. Member calcs ARE model-locked on publish, so data is protected; the Inventory doc itself relies on controller discipline. Confirm no unguarded write path in INC-4. | OPEN (verify in INC-4) |
+| **F-006** | **INC-2** | **S2** | **services/tokenStore.ts:57-69** | **`isValid` FAILS OPEN**: returns `true` both when Redis is unavailable (l.61) and when `client.get` throws (l.68). The refresh JWT is still signature-verified, but **revocation state lives only in Redis**, so a *revoked* refresh token (logout / `revokeAllForUser` after compromise) is honored again for the duration of any Redis outage — a revocation-bypass / session-resurrection window (refresh-token lifetime, not access-token). Recommend **fail closed** (return `false` → forces re-login) or an explicit, signed-off risk acceptance. | OPEN — recommend fix before merge |
+| F-007 | INC-2 | info | services/evidenceStorage.ts | Storage streams by GridFS `ObjectId` (no path-traversal surface); tenant isolation is delegated to the Evidence metadata model. **Cross-check in INC-4** that the evidence-download controller resolves the Evidence doc scoped to `organizationId` BEFORE streaming the fileId. | OPEN (verify in INC-4) |
 
 > Status: OPEN → FIXED (`<commit>`) / ACCEPTED (rationale) / WONTFIX (rationale).
 
@@ -247,7 +249,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 |---|---|---|---|
 | INC-0 Baseline & gates | Claude | — | ✅ done — tsc×2 green, jest 128 (stable ×2), secret-scan clean, deps current, partition=207, dev images build; npm audit deferred (F-001), prod build → INC-6 |
 | INC-1 Data layer | Claude | 27 | ✅ done — all 27 reviewed; immutability guards (Calc/EFV) correct, tenant scoping universal, User password select:false+bcrypt(12), importers policy-#2/#3 compliant & idempotent, seed destructive but manual-only. 3 S4 consistency notes (F-003/4/5), F-002 resolved. No S1/S2. |
-| INC-2 Core services | Claude | 14 | ⬜ pending |
+| INC-2 Core services | Claude | 14 | ✅ done — engine per-gas×GWP/biogenic/fail-loud/MB-spoof verified live (6 checks + AR5/AR6 sensitivity, baseline 9193.02 intact); consolidation read-only, estimation no-chaining+rung order, persistence/versioning/evidence sound; lineage reconciles across 2026/2030/2031. **1 S2 (F-006 tokenStore fail-open)**, 1 cross-check (F-007). |
 | INC-3 Reports & export | Claude | 9 | ⬜ pending |
 | INC-4 API surface | Claude | 29 | ⬜ pending |
 | INC-5 Frontend | Claude | 76 | ⬜ pending |
