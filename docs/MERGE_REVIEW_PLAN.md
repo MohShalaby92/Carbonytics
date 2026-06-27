@@ -142,7 +142,7 @@ Increments **INC-1…INC-6, INC-8(tests), INC-9(docs)** are *file-owning* and to
 Tick a box when **every diff hunk** of that file has been reviewed and its checks recorded. `(new)` = file is 100% new (read whole file); otherwise review the delta.
 
 ### INC-1 · Data layer (27)
-- Models (15): [ ] AuditLog [ ] Calculation [ ] CalculationSnapshot [ ] EmissionCategory [ ] EmissionFactor [ ] EmissionFactorVersion [ ] Evidence [ ] Facility [ ] IndustryBenchmark [ ] Inventory [ ] InventorySnapshot [ ] Organization [ ] Supplier [ ] User [ ] Vehicle
+- Models (15): [ ] AuditLog [ ] Calculation [ ] CalculationSnapshot [ ] EmissionCategory [ ] EmissionFactor [x] EmissionFactorVersion [ ] Evidence [ ] Facility [ ] IndustryBenchmark [ ] Inventory [ ] InventorySnapshot [ ] Organization [ ] Supplier [ ] User [ ] Vehicle
 - Types (1): [ ] backend/src/types/index.ts
 - Scripts (9): [ ] backfillFactorVersions [ ] createDemoUser [ ] importEfdbGhgp [ ] importEpaFuels [ ] importEpaHub [ ] importFactorLibrary [ ] migrateInventories [ ] seed [ ] seedBasicData
 - Config/data (2): [ ] backend/src/config/* [ ] backend/src/data/*
@@ -231,7 +231,9 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 
 | ID | Inc | Sev | File:line | Description | Status |
 |---|---|---|---|---|---|
-| — | — | — | — | _(none yet — review not started)_ | — |
+| F-001 | INC-0 | S4 | (env) | `npm audit` cannot run in this offline sandbox (ENOLOCK — requires registry access). Manual dep review: all new deps are current majors (multer **2.x** not vulnerable 1.x; exceljs 4.4, prom-client 15, docx 9.7, cookie-parser; FE Vite 5 / React 19 / recharts 3.8). | ACCEPTED — re-run `npm audit` with registry access at merge time (tracked in INC-10). |
+| F-002 | INC-0 | info | backend/src/utils/jwt.ts | Dev fallback derives the refresh secret as `${JWT_ACCESS_SECRET}-refresh` when `JWT_REFRESH_SECRET` is unset; **throws in prod** if missing. To confirm fully in INC-4/INC-7 (acceptable for dev). | OPEN (verify in INC-4) |
+| F-003 | INC-1 | S4 | models/EmissionFactorVersion.ts:91 | Immutability hooks cover all query-level update/delete + `pre('save')` via `isNew`, but the **document-method** `doc.deleteOne()`/`doc.updateOne()` are not hooked (only query variants). No controller calls them, so not exploitable today; add `{document:true,query:true}` for defense-in-depth. | ACCEPTED (no call path; hardening nice-to-have) |
 
 > Status: OPEN → FIXED (`<commit>`) / ACCEPTED (rationale) / WONTFIX (rationale).
 
@@ -241,7 +243,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 
 | Increment | Owner | Files | Status |
 |---|---|---|---|
-| INC-0 Baseline & gates | Claude | — | ⬜ pending |
+| INC-0 Baseline & gates | Claude | — | ✅ done — tsc×2 green, jest 128 (stable ×2), secret-scan clean, deps current, partition=207, dev images build; npm audit deferred (F-001), prod build → INC-6 |
 | INC-1 Data layer | Claude | 27 | ⬜ pending |
 | INC-2 Core services | Claude | 14 | ⬜ pending |
 | INC-3 Reports & export | Claude | 9 | ⬜ pending |
