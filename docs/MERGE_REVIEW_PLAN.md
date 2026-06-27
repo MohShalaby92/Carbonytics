@@ -187,8 +187,9 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 - Backend build (2): [x] backend/package.json [x] backend/package-lock.json *(audit-only)*
 - Public assets (10): [x] android-chrome-192 [x] android-chrome-512 [x] apple-touch-icon [x] favicon-16 [x] favicon-32 [x] favicon.ico [x] icon.png [x] public/index.html [x] site.webmanifest [x] theme-init.js *(localStorage theme read only — safe)*
 
-### INC-8 · Tests (8, owned here; reviewed for adequacy)
-- [ ] dataQuality.test [ ] engineSession.test [ ] factorRecompute.test [ ] factorVersioning.test [ ] importMapping.test [ ] importQuality.test [ ] lineage.test [ ] pedigree.test
+### INC-8 · Tests (8 reviewed + 1 added; adequacy + stability)
+- [x] dataQuality.test [x] engineSession.test [x] factorRecompute.test [x] factorVersioning.test [x] importMapping.test [x] importQuality.test [x] lineage.test [x] pedigree.test
+- [x] **tokenStore.test (NEW)** — F-006 fail-closed regression guard (5 cases)
 
 ### INC-9 · Docs (2)
 - [ ] docs/HANDOFF.md [ ] docs/ENTERPRISE_GAP_ANALYSIS.md
@@ -242,6 +243,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | F-010 | INC-4 | S3 | middleware/errorHandler.ts | `error.message` was returned to the client in all environments on a 500, leaking internal error text in prod. | **FIXED** (`generic 5xx message…`) — generic `Internal Server Error` for `>=500` in production (real message logged server-side); 4xx keep their message. Verified 4xx message preserved (400). |
 | F-011 | INC-4 | S4 | utils/jwt.ts:44 | `jwt.verify` does not pin `algorithms: ['HS256']`. Low risk (symmetric string secret; jsonwebtoken v9 rejects `alg:none` — confirmed live a forged `alg:none` token → 401), but pinning the algorithm is best practice against any future RS/HS confusion. | ACCEPTED (defense-in-depth; verified not exploitable today) |
 | F-012 | INC-7 | S4 | controllers/calculationController.ts:534 | `getCalculationSnapshots` returns **200 with `{snapshots:[],count:0}`** for a calc id not owned by the caller (it queries snapshots with the `organizationId` filter directly, without pre-fetching the calc), whereas sibling endpoints return 404. **Data is protected** (verified live: org2 sees count 0 for a demo calc that has 1 snapshot); purely a 200-empty-vs-404 consistency nit (no existence leak — identical to a real calc with zero snapshots). | ACCEPTED (no leak; optional: pre-fetch calc for a uniform 404) |
+| F-013 | INC-8 | S4 | backend/tests (harness) | The jest harness is **pure-unit only** (no test DB / supertest), so the DB-orchestrating services (`consolidationService`, `estimationService`, `completenessService`, `inventoryService`, `calculationPersistence`, `evidenceStorage`) and all routes/controllers have **no jest coverage** — they are covered by **live API verification** in this review instead. Engine math + all pure services ARE unit-tested (133 cases, value-assertion-heavy). Recommend a future supertest + mongodb-memory-server integration layer (would also enable a jest test for F-009 RBAC). | ACCEPTED (covered by live API; integration layer = follow-up) |
 | F-008 | INC-3 | S4 | controllers/reportController.ts (all 6 handlers) | An **unsupported `format`** (e.g. `format=xlsx` for the narrative SBTi/IMP reports, which have no xlsx per gotcha 55) falls through the `exports[format]` guard to `ApiResponseUtil.success(res, data)` → returns the JSON summary with **HTTP 200 + `application/json`** (no attachment disposition). Honest JSON, not a corrupt file, and not UI-reachable (ReportsTab hides those buttons). Loose API contract — optional: reject unknown formats with 400/406. | ACCEPTED (graceful default; not exploitable) |
 
 > Status: OPEN → FIXED (`<commit>`) / ACCEPTED (rationale) / WONTFIX (rationale).
@@ -260,7 +262,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | INC-5 Frontend | Claude | 76 | ✅ done — **no XSS sinks** (zero dangerouslySetInnerHTML/innerHTML/eval); access token **in-memory only** + refresh httpOnly cookie + single-flight refresh; all shape gotchas handled (14/8/42/25, getBlob/postForm); in-browser: 13 compliance tabs + dashboard(data) + import/export + glossary all render, **0 console errors**. No findings. |
 | INC-6 Deploy/infra | Claude | 42 | ✅ done — **no real secrets tracked** (gitignore covers all; .example only); prod compose validates, secrets via env_file (not interpolated), mongo/redis internal-only; nginx TLS/HSTS/301/metrics-private; redis requirepass+disabled-cmds; mongo least-priv; Dockerfile non-root; scripts set -euo pipefail. **No findings.** Live 11-service boot → INC-10 (§52 recipe; already all-green in §52). |
 | INC-7 Security pass | Claude | — | ✅ done — cross-tenant battery (10 probes, all 404/empty, no leak); NoSQL 400, upload bad-type 400, cookie HttpOnly+SameSite=Strict, alg:none 401; /security-review run → only the already-fixed F-006/F-009/F-010, no new HIGH/MEDIUM. 1 S4 (F-012 snapshots 200-empty). `/metrics`-not-public deferred to INC-6 prod stack. |
-| INC-8 Tests | Claude | 8 | ⬜ pending |
+| INC-8 Tests | Claude | 8+1 | ✅ done — new-logic suites value-assertion-heavy + adversarial; **added tokenStore F-006 regression** (jest 128→**133**); stable 133/133 ×3 (incl. --runInBand, no flakiness); multi-scenario regression green (2026/2022-equity/2030 per-gas/org2-isolated/Egyptian default). 1 S4 coverage note (F-013: no integration-test harness). |
 | INC-9 Coherence & docs | Claude | 2 | ⬜ pending |
 | INC-10 Final regression & sign-off | Claude | — | ⬜ pending |
 | Ultrareview findings addressed | User+Claude | — | ⬜ pending |
