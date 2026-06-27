@@ -142,10 +142,10 @@ Increments **INC-1…INC-6, INC-8(tests), INC-9(docs)** are *file-owning* and to
 Tick a box when **every diff hunk** of that file has been reviewed and its checks recorded. `(new)` = file is 100% new (read whole file); otherwise review the delta.
 
 ### INC-1 · Data layer (27)
-- Models (15): [ ] AuditLog [ ] Calculation [ ] CalculationSnapshot [ ] EmissionCategory [ ] EmissionFactor [x] EmissionFactorVersion [ ] Evidence [ ] Facility [ ] IndustryBenchmark [ ] Inventory [ ] InventorySnapshot [ ] Organization [ ] Supplier [ ] User [ ] Vehicle
-- Types (1): [ ] backend/src/types/index.ts
-- Scripts (9): [ ] backfillFactorVersions [ ] createDemoUser [ ] importEfdbGhgp [ ] importEpaFuels [ ] importEpaHub [ ] importFactorLibrary [ ] migrateInventories [ ] seed [ ] seedBasicData
-- Config/data (2): [ ] backend/src/config/* [ ] backend/src/data/*
+- Models (15): [x] AuditLog [x] Calculation [x] CalculationSnapshot [x] EmissionCategory [x] EmissionFactor [x] EmissionFactorVersion [x] Evidence [x] Facility [x] IndustryBenchmark [x] Inventory [x] InventorySnapshot [x] Organization [x] Supplier [x] User [x] Vehicle
+- Types (1): [x] backend/src/types/index.ts
+- Scripts (9): [x] backfillFactorVersions [x] createDemoUser [x] importEfdbGhgp [x] importEpaFuels [x] importEpaHub [x] importFactorLibrary [x] migrateInventories [x] seed [x] seedBasicData
+- Config/data (2): [x] backend/src/config/config.ts [x] backend/src/data/gwpSets.ts
 
 ### INC-2 · Core domain & methodology services (14)
 - [ ] calculationEngine [ ] calculationPersistence [ ] completenessService [ ] consolidationService [ ] dataQuality [ ] estimationService [ ] evidenceStorage [ ] factorVersioning [ ] importMapping [ ] importQuality [ ] inventoryService [ ] lineage [ ] pedigree [ ] tokenStore
@@ -232,8 +232,10 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | ID | Inc | Sev | File:line | Description | Status |
 |---|---|---|---|---|---|
 | F-001 | INC-0 | S4 | (env) | `npm audit` cannot run in this offline sandbox (ENOLOCK — requires registry access). Manual dep review: all new deps are current majors (multer **2.x** not vulnerable 1.x; exceljs 4.4, prom-client 15, docx 9.7, cookie-parser; FE Vite 5 / React 19 / recharts 3.8). | ACCEPTED — re-run `npm audit` with registry access at merge time (tracked in INC-10). |
-| F-002 | INC-0 | info | backend/src/utils/jwt.ts | Dev fallback derives the refresh secret as `${JWT_ACCESS_SECRET}-refresh` when `JWT_REFRESH_SECRET` is unset; **throws in prod** if missing. To confirm fully in INC-4/INC-7 (acceptable for dev). | OPEN (verify in INC-4) |
+| F-002 | INC-0/1 | info | backend/src/config/config.ts | Dev fallback derives the refresh secret as `${JWT_ACCESS_SECRET}-refresh` when `JWT_REFRESH_SECRET` is unset. **Verified in config.ts:** prod `resolveSecret` enforces length ≥32 + not-in-`WEAK_SECRETS` for BOTH secrets and throws if missing; the dev fallback derives a *distinct* refresh secret. | RESOLVED — safe by design (dev-only, prod fails closed). |
 | F-003 | INC-1 | S4 | models/EmissionFactorVersion.ts:91 | Immutability hooks cover all query-level update/delete + `pre('save')` via `isNew`, but the **document-method** `doc.deleteOne()`/`doc.updateOne()` are not hooked (only query variants). No controller calls them, so not exploitable today; add `{document:true,query:true}` for defense-in-depth. | ACCEPTED (no call path; hardening nice-to-have) |
+| F-004 | INC-1 | S4 | models/AuditLog.ts | AuditLog is append-only by convention (comment says "immutable entry") but has **no model-level update/delete guard** like Calculation/EFV. No API route updates/deletes audit rows, so not exploitable; add block-write hooks for consistency/defense-in-depth. | ACCEPTED (no call path) |
+| F-005 | INC-1 | S4 | models/Inventory.ts | Published inventories are "locked" but the lock is **procedural** (controllers/services check `status==='published'`), not a model hook. Member calcs ARE model-locked on publish, so data is protected; the Inventory doc itself relies on controller discipline. Confirm no unguarded write path in INC-4. | OPEN (verify in INC-4) |
 
 > Status: OPEN → FIXED (`<commit>`) / ACCEPTED (rationale) / WONTFIX (rationale).
 
@@ -244,7 +246,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | Increment | Owner | Files | Status |
 |---|---|---|---|
 | INC-0 Baseline & gates | Claude | — | ✅ done — tsc×2 green, jest 128 (stable ×2), secret-scan clean, deps current, partition=207, dev images build; npm audit deferred (F-001), prod build → INC-6 |
-| INC-1 Data layer | Claude | 27 | ⬜ pending |
+| INC-1 Data layer | Claude | 27 | ✅ done — all 27 reviewed; immutability guards (Calc/EFV) correct, tenant scoping universal, User password select:false+bcrypt(12), importers policy-#2/#3 compliant & idempotent, seed destructive but manual-only. 3 S4 consistency notes (F-003/4/5), F-002 resolved. No S1/S2. |
 | INC-2 Core services | Claude | 14 | ⬜ pending |
 | INC-3 Reports & export | Claude | 9 | ⬜ pending |
 | INC-4 API surface | Claude | 29 | ⬜ pending |
@@ -263,3 +265,5 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 ## 9. Order of execution
 
 INC-0 → INC-1 → INC-2 → INC-3 → INC-4 → INC-7 (security, after the API surface is mapped) → INC-5 → INC-6 → INC-8 → INC-9 → INC-10. Cross-cutting passes (7/9) may surface findings that re-open a file-owning increment; that's expected — re-tick only after the fix is verified.
+
+**Execution mode (chosen by user, 2026-06-27):** **Stop after each increment** for go-ahead before the next. **Review-and-log only — no code changes during an increment;** findings + recommended fixes are presented at each stop for the user to approve. **Ultrareview skipped** — rely on this manual plan + the `/security-review` skill (INC-7).
