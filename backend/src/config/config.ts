@@ -101,6 +101,13 @@ export const config = {
 
   // Cache
   CACHE_TTL: parseInt(process.env.CACHE_TTL || '3600', 10), // 1 hour
+
+  // Feature flags
+  // When true, the public POST /api/auth/register endpoint returns 403. Used on
+  // closed/invite-only deployments (e.g. the specialist-review instance) where
+  // accounts are pre-created out of band (scripts/seedReviewAccounts.ts) and
+  // self-service signup must not be exposed to the public internet.
+  DISABLE_REGISTRATION: process.env.DISABLE_REGISTRATION === 'true',
 } as const;
 
 if (isProd && !process.env.MONGODB_URI) {

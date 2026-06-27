@@ -10,6 +10,7 @@ import {
   changePassword,
 } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
+import { registrationGate } from '../middleware/registrationGate';
 import { validate } from '../middleware/validation';
 
 const router = Router();
@@ -46,7 +47,7 @@ const validateChangePassword = [
 ];
 
 // Public routes
-router.post('/register', validate(validateRegister), register);
+router.post('/register', registrationGate, validate(validateRegister), register);
 router.post('/login', validate(validateLogin), login);
 router.post('/refresh', refreshToken);
 

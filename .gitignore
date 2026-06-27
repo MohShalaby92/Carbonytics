@@ -121,6 +121,7 @@ package-lock.json
 !frontend/package-lock.json
 .env.production
 .env.monitoring
+.env.review
 
 # TLS certificates / private keys — NEVER commit. Generated locally by
 # scripts/gen-self-signed-cert.sh or provisioned (Let's Encrypt) at deploy time.
@@ -128,6 +129,16 @@ nginx/ssl/
 *.pem
 *.key
 *.crt
+
+# Let's Encrypt state + ACME webroot (review/prod TLS, bind mounts). The tracked
+# certbot/deploy-hook.sh is re-included below.
+/certbot/conf/
+/certbot/www/
+!/certbot/deploy-hook.sh
+
+# Reference-data seed archives (produced by scripts/export-reference-data.sh;
+# regenerate from the dev stack — don't commit the binary dumps).
+/seed/*.archive.gz
 
 # Runtime output of the prod stack (bind mounts) — never commit DB dumps or logs.
 /backups/

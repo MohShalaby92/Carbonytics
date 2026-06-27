@@ -1,0 +1,199 @@
+# Specialist-REVIEW stack for Carbonytics.
+#
+# A slim, invite-only variant of docker-compose.prod.yml for putting the app in
+# front of a small panel of (non-technical) emission specialists on a cheap VM:
+#
+#   internet --443--> nginx (edge, TLS) ──/───────────> frontend:80  (static SPA)
+#                                        └──/api,/health──> backend:5000
+#                     backend ──> mongo (auth) + redis (auth)
+#                     certbot ──> Let's Encrypt cert (auto-renew) into nginx/ssl
+#
+# Differences vs docker-compose.prod.yml:
+#   * Monitoring stack (prometheus/grafana/exporters) DROPPED — not needed for a
+#     review and lets the whole thing run comfortably on a 2 GB box.
+#   * Adds an automated certbot service (Let's Encrypt, free auto-renewing TLS)
+#     wired to the nginx ACME webroot — the §52 "certbot not automated" gap.
+#   * Self-service registration is CLOSED (DISABLE_REGISTRATION=true); accounts
+#     are pre-created with scripts/seedReviewAccounts.ts.
+#
+# First boot (on the VM):
+#   1) cp .env.review.example .env.review     # then edit in real secrets
+#   2) bash scripts/init-letsencrypt.sh <name>.duckdns.org you@email   # issues the cert
+#   3) docker compose -p carbonytics-review -f docker-compose.review.yml up -d --build
+#   4) docker compose -p carbonytics-review -f docker-compose.review.yml \
+#        exec backend node dist/scripts/seedReviewAccounts.js "Name=email" ...
+#
+# Always use the isolated project name -p carbonytics-review (separate volumes /
+# network) and tear down with `down -v` so it never collides with the dev stack.
+
+services:
+  # ---- Edge reverse proxy: terminates TLS, single public origin ----
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: carbonytics-review-proxy
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./logs/nginx:/var/log/nginx
+    # Reload every 12h so a certbot-renewed cert (copied into ./nginx/ssl by the
+    # deploy-hook) is picked up without manual intervention. $${!} -> ${!} in the
+    # container (compose escapes $$); nginx runs in the foreground to keep PID 1.
+    command: ['sh', '-c', "while :; do sleep 12h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"]
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+  # ---- Certbot: issues + auto-renews the Let's Encrypt cert ----
+  # First issuance is done by scripts/init-letsencrypt.sh (certonly). This service
+  # then loops `certbot renew` every 12h; on a real renewal its deploy-hook copies
+  # the new cert into ./nginx/ssl, which the nginx reload loop above picks up.
+  certbot:
+    image: certbot/certbot:latest
+    container_name: carbonytics-review-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./certbot/deploy-hook.sh:/deploy-hook.sh:ro
+    entrypoint: ['sh', '-c', "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --deploy-hook 'sh /deploy-hook.sh'; sleep 12h & wait $${!}; done"]
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+  # ---- Frontend: static Vite SPA served by its own nginx on :80 ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: carbonytics-review-frontend
+    expose:
+      - '80'
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - carbonytics
+    healthcheck:
+      # 127.0.0.1 (not localhost): the SPA nginx is IPv4-only (gotcha 61).
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ---- Backend: Node/Express API on :5000 (internal only) ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: carbonytics-review-backend
+    expose:
+      - '5000'
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_ACCESS_EXPIRE=15m
+      - JWT_REFRESH_EXPIRE=7d
+      - COOKIE_SECURE=true
+      - RATE_LIMIT_WINDOW=900000
+      - RATE_LIMIT_MAX=100
+      - AUTH_RATE_LIMIT_MAX=10
+      - MAX_FILE_SIZE=10485760
+      - CACHE_TTL=3600
+      - UPLOAD_PATH=/app/uploads
+      # Closed instance: no public self-service signup (accounts are pre-created).
+      - DISABLE_REGISTRATION=true
+    env_file:
+      - .env.review
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - carbonytics
+    volumes:
+      - uploads:/app/uploads
+      - ./logs/backend:/app/logs
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---- MongoDB (authenticated, least-privilege app user via init script) ----
+  mongo:
+    image: mongo:7.0
+    container_name: carbonytics-review-mongo
+    environment:
+      - MONGO_INITDB_DATABASE=carbonytics_prod
+    env_file:
+      - .env.review
+    volumes:
+      - mongo_data:/data/db
+      - ./backups:/backup
+      - ./mongo/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    networks:
+      - carbonytics
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- Redis (password-protected, destructive commands disabled) ----
+  redis:
+    image: redis:7.2-alpine
+    container_name: carbonytics-review-redis
+    command: ['sh', '-c', 'exec redis-server /etc/redis/redis.conf --requirepass "$$REDIS_PASSWORD" --appendonly yes']
+    env_file:
+      - .env.review
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    restart: unless-stopped
+    networks:
+      - carbonytics
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- Automated MongoDB backups (scheduled mongodump sidecar) ----
+  backup:
+    image: mongo:7.0
+    container_name: carbonytics-review-backup
+    command: ['bash', '/backup.sh']
+    env_file:
+      - .env.review
+    volumes:
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backups:/backup
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - carbonytics
+
+volumes:
+  mongo_data:
+  redis_data:
+  uploads:
+
+networks:
+  carbonytics:
+    driver: bridge
