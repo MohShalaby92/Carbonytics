@@ -161,19 +161,19 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 - [x] server.ts
 
 ### INC-5 · Frontend (76)
-- Pages — top (2): [ ] GlossaryPage [ ] ImportExportPage
-- Pages — calculations (3): [ ] CalculationPage [ ] CalculationSummary [ ] CategorySelector
-- Pages — compliance (14): [ ] AuditLogTab [ ] CompletenessTab [ ] CompliancePage [ ] DataQualityTab [ ] DenominatorsTab [ ] EvidenceTab [ ] ExclusionsTab [ ] FacilitiesTab [ ] FleetTab [ ] InventoriesTab [ ] LineageTab [ ] ReportsTab [ ] SnapshotsTab [ ] SuppliersTab
-- Pages — dashboard (13): [ ] CategoryAnalysis [ ] CompletenessCard [ ] DashboardPage [ ] EmissionOverview [ ] EntityBreakdown [ ] ParetoAnalysis [ ] QualityIndicators [ ] QuickCalculator [ ] RecentCalculations [ ] ScopeBreakdown [ ] TargetsModal [ ] TargetsProgress
-- Pages — settings (4): [ ] GeneralSettings [ ] OrganizationSettingsTab [ ] ProfileSettings [ ] SettingsPage [ ] UserManagement *(5 — settings dir)*
-- Components (17): [ ] auth/LoginPage [ ] dashboard/EmptyState [ ] forms/EmissionCalculationForm [ ] forms/FileUpload [ ] layout/Navbar [ ] onboarding/OnboardingGate [ ] onboarding/OnboardingWizard [ ] ui/Alert [ ] ui/Badge [ ] ui/Button [ ] ui/Card [ ] ui/ChartContainer [ ] ui/Input [ ] ui/LoadingSpinner [ ] ui/Modal [ ] ui/Select [ ] ui/Textarea
-- Services (4): [ ] api [ ] calculationService [ ] complianceService [ ] organizationService
-- Hooks (3): [ ] useAuth [ ] usePersona [ ] useTheme
-- Constants (2): [ ] constants/index [ ] constants/sourcingGuidance
-- Types (2): [ ] types/index [ ] types/calculations
-- Singletons (10): [ ] App.tsx [ ] App.css [ ] App.test.tsx [ ] main.tsx [ ] index.tsx [ ] index.css [ ] setupTests.ts [ ] reportWebVitals.ts [ ] vite-env.d.ts [ ] react-app-env.d.ts
-- Assets (1): [ ] assets/brand/carbonytics-icon.png *(binary — visual check)*
-- Test (1): [ ] utils/utils.test.ts
+- Pages — top (2): [x] GlossaryPage [x] ImportExportPage
+- Pages — calculations (3): [x] CalculationPage [x] CalculationSummary [x] CategorySelector
+- Pages — compliance (14): [x] AuditLogTab [x] CompletenessTab [x] CompliancePage [x] DataQualityTab [x] DenominatorsTab [x] EvidenceTab [x] ExclusionsTab [x] FacilitiesTab [x] FleetTab [x] InventoriesTab [x] LineageTab [x] ReportsTab [x] SnapshotsTab [x] SuppliersTab
+- Pages — dashboard (13): [x] CategoryAnalysis [x] CompletenessCard [x] DashboardPage [x] EmissionOverview [x] EntityBreakdown [x] ParetoAnalysis [x] QualityIndicators [x] QuickCalculator [x] RecentCalculations [x] ScopeBreakdown [x] TargetsModal [x] TargetsProgress
+- Pages — settings (5): [x] GeneralSettings [x] OrganizationSettingsTab [x] ProfileSettings [x] SettingsPage [x] UserManagement
+- Components (17): [x] auth/LoginPage [x] dashboard/EmptyState [x] forms/EmissionCalculationForm [x] forms/FileUpload [x] layout/Navbar [x] onboarding/OnboardingGate [x] onboarding/OnboardingWizard [x] ui/Alert [x] ui/Badge [x] ui/Button [x] ui/Card [x] ui/ChartContainer [x] ui/Input [x] ui/LoadingSpinner [x] ui/Modal [x] ui/Select [x] ui/Textarea
+- Services (4): [x] api [x] calculationService [x] complianceService [x] organizationService
+- Hooks (3): [x] useAuth [x] usePersona [x] useTheme
+- Constants (2): [x] constants/index [x] constants/sourcingGuidance
+- Types (2): [x] types/index [x] types/calculations
+- Singletons (10): [x] App.tsx [x] App.css [x] App.test.tsx [x] main.tsx [x] index.tsx [x] index.css [x] setupTests.ts [x] reportWebVitals.ts [x] vite-env.d.ts [x] react-app-env.d.ts
+- Assets (1): [x] assets/brand/carbonytics-icon.png *(binary — visual check)*
+- Test (1): [x] utils/utils.test.ts
 
 ### INC-6 · Deploy, infra, build & secrets (42)
 - Compose (2): [ ] docker-compose.yml [ ] docker-compose.prod.yml
@@ -238,8 +238,8 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | F-005 | INC-1 | S4 | models/Inventory.ts | Published inventories' lock is procedural, not a model hook. **INC-4 verified:** every inventory write handler (status/publish/reopen/base-year) uses `Inventory.findOne({_id, organizationId})` and the base-year `updateMany` is org-scoped. Data protection holds; model hook is defense-in-depth only. | RESOLVED — controller scoping consistent (hook = optional hardening). |
 | **F-006** | **INC-2** | **S2** | **services/tokenStore.ts:57-72** | **`isValid` FAILED OPEN**: returned `true` when Redis was unavailable or `.get` threw, so a *revoked* refresh token would be honored again during a Redis outage (revocation bypass / session resurrection). | **FIXED** (`tokenStore fail-closed`) — now returns `false` in both cases (re-auth forced); JSDoc updated. Verified: happy-path refresh 200, bogus token 401, tsc green. |
 | F-007 | INC-2 | info | services/evidenceStorage.ts | **INC-4 verified:** `downloadEvidence` resolves `Evidence.findOne({_id, organizationId})` → 404 on cross-tenant BEFORE streaming the gridFsId, and `encodeURIComponent`s the filename (no header injection). | RESOLVED — tenant-scoped download. |
-| **F-009** | **INC-4** | **S2** | **routes/csv.ts:30 (no authorize)** | `/csv/import` applies `authenticate` but **no `authorize`** role gate, while `/calculations` POST is gated. **Confirmed live:** a `verifier` (read-only) gets **403** on direct calc-create but **200** on `/csv/import` — so read-only roles (viewer/verifier) can create calculations via CSV, a write-authorization bypass / separation-of-duties violation (a verifier is meant to *verify*, not author, data). Still tenant-scoped (own org only), so not a data leak. Fix: add `authorize(<calc-create roles>)` to `/csv/import` (and optionally keep `/validate` open as a read-only preview). | OPEN — recommend fix before merge |
-| F-010 | INC-4 | S3 | middleware/errorHandler.ts:17,76 | `message = error.message || 'Internal Server Error'` is returned to the client in **all** environments (only `stack` is dev-gated). An unhandled 500 leaks the raw internal error message in prod. Most throws are controlled `ApiResponseUtil.error` (safe strings) but a programming/DB error would leak its text. Fix: for `statusCode >= 500` in production, send a generic message + log the real one. | OPEN — recommend fix (hardening) |
+| **F-009** | **INC-4** | **S2** | **routes/csv.ts:30** | `/csv/import` had `authenticate` but **no `authorize`** role gate (verifier got 200 on import vs 403 on direct calc-create) — read-only roles could author calculations via CSV (separation-of-duties bypass). | **FIXED** (`gate csv import…`) — `/csv/import` now `authorize('admin','manager','user')`. Verified: verifier import **403**, verifier validate 200 (preview kept), admin import 200. jest 128. |
+| F-010 | INC-4 | S3 | middleware/errorHandler.ts | `error.message` was returned to the client in all environments on a 500, leaking internal error text in prod. | **FIXED** (`generic 5xx message…`) — generic `Internal Server Error` for `>=500` in production (real message logged server-side); 4xx keep their message. Verified 4xx message preserved (400). |
 | F-011 | INC-4 | S4 | utils/jwt.ts:44 | `jwt.verify` does not pin `algorithms: ['HS256']`. Low risk (symmetric string secret; jsonwebtoken v9 rejects `alg:none` — confirmed live a forged `alg:none` token → 401), but pinning the algorithm is best practice against any future RS/HS confusion. | ACCEPTED (defense-in-depth; verified not exploitable today) |
 | F-008 | INC-3 | S4 | controllers/reportController.ts (all 6 handlers) | An **unsupported `format`** (e.g. `format=xlsx` for the narrative SBTi/IMP reports, which have no xlsx per gotcha 55) falls through the `exports[format]` guard to `ApiResponseUtil.success(res, data)` → returns the JSON summary with **HTTP 200 + `application/json`** (no attachment disposition). Honest JSON, not a corrupt file, and not UI-reachable (ReportsTab hides those buttons). Loose API contract — optional: reject unknown formats with 400/406. | ACCEPTED (graceful default; not exploitable) |
 
@@ -256,7 +256,7 @@ Tick a box when **every diff hunk** of that file has been reviewed and its check
 | INC-2 Core services | Claude | 14 | ✅ done — engine per-gas×GWP/biogenic/fail-loud/MB-spoof verified live (6 checks + AR5/AR6 sensitivity, baseline 9193.02 intact); consolidation read-only, estimation no-chaining+rung order, persistence/versioning/evidence sound; lineage reconciles across 2026/2030/2031. **1 S2 (F-006 tokenStore fail-open)**, 1 cross-check (F-007). |
 | INC-3 Reports & export | Claude | 9 | ✅ done — 6 reports × pdf/docx/xlsx all 200 + valid magic bytes; pdfSafe covers all dynamic PDF text (no raw drawText in renderers); CSV formula-injection guard present; export 2026 = 14 rows reconcile to 9193.02, zero fabricated sources, xlsx PK. 1 S4 (F-008 unsupported-format→JSON). |
 | INC-4 API surface | Claude | 29 | ✅ done — auth middleware solid; tenant scoping verified across all controllers (factor edit/versions 403/404, evidence download org-scoped, inventory all org-scoped, **cache key org-namespaced**); server.ts helmet/CORS-single-origin/rate-limit/body-limit; adversarial unauth-401/NoSQL-400/forged-401. **F-005/F-007 resolved.** Findings: **F-009 S2 (csv import no role gate)**, F-010 S3 (500 message leak), F-011 S4 (jwt alg pin). |
-| INC-5 Frontend | Claude | 76 | ⬜ pending |
+| INC-5 Frontend | Claude | 76 | ✅ done — **no XSS sinks** (zero dangerouslySetInnerHTML/innerHTML/eval); access token **in-memory only** + refresh httpOnly cookie + single-flight refresh; all shape gotchas handled (14/8/42/25, getBlob/postForm); in-browser: 13 compliance tabs + dashboard(data) + import/export + glossary all render, **0 console errors**. No findings. |
 | INC-6 Deploy/infra | Claude | 42 | ⬜ pending |
 | INC-7 Security pass | Claude | — | ⬜ pending |
 | INC-8 Tests | Claude | 8 | ⬜ pending |
