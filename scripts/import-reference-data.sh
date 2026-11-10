@@ -3,9 +3,10 @@
 # export-reference-data.sh) into the REVIEW stack's authenticated MongoDB, then
 # clear the API response cache so the freshly-seeded library is visible at once.
 #
-# Idempotent: --drop replaces the three reference collections, so re-running just
-# refreshes them. Run on the VM from the repo root, with the review stack up and
-# .env.review filled in.
+# Idempotent: deletes only the SHARED docs (organizationId null/absent) of the
+# three reference collections, then restores the seed. Reviewers' org-private
+# custom factors + the versions their calculations pin are left untouched.
+# Run on the VM from the repo root, with the review stack up and .env.review filled in.
 #
 # Usage:  bash scripts/import-reference-data.sh [review-mongo-container] [review-redis-container]
 #         defaults: carbonytics-review-mongo  carbonytics-review-redis
@@ -19,12 +20,20 @@ MONGO_CONTAINER="${1:-carbonytics-review-mongo}"
 REDIS_CONTAINER="${2:-carbonytics-review-redis}"
 APP_DB="${MONGO_APP_DB:-carbonytics_prod}"
 
-for C in emissioncategories emissionfactors emissionfactorversions; do
+COLLECTIONS=(emissioncategories emissionfactors emissionfactorversions)
+for C in "${COLLECTIONS[@]}"; do
   [ -f "seed/$C.archive.gz" ] || { echo "missing seed/$C.archive.gz — run export-reference-data.sh on the dev machine first"; exit 1; }
+done
+
+for C in "${COLLECTIONS[@]}"; do
+  docker exec "$MONGO_CONTAINER" \
+    mongosh --quiet --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" \
+      --authenticationDatabase admin "$APP_DB" \
+      --eval "print('$C: removed ' + db.$C.deleteMany({ organizationId: null }).deletedCount + ' shared docs')"
   docker exec -i "$MONGO_CONTAINER" \
     mongorestore --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" \
       --authenticationDatabase admin --nsFrom='carbonytics.*' --nsTo="${APP_DB}.*" \
-      --gzip --archive --drop < "seed/$C.archive.gz"
+      --gzip --archive < "seed/$C.archive.gz"
   echo "restored $C"
 done
 

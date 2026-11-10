@@ -158,8 +158,8 @@ Then open the URL in a browser, log in, and confirm the calculator returns a val
 - **Backups:** the `backup` sidecar dumps the DB to `./backups` daily (30-day
   retention); restore with `scripts/restore-data.sh` if needed.
 - **Re-seed reference data** (e.g. after importing new factors on dev): re-run
-  step 0 + step 5; `import-reference-data.sh` replaces the collections and clears
-  the API cache.
+  step 0 + step 5; `import-reference-data.sh` replaces only the shared library
+  (reviewers' own custom factors are kept) and clears the API cache.
 - **Add a reviewer later:** re-run step 6 with the new name=email (idempotent —
   existing accounts are skipped, not reset).
 - **Tear down** (when the review ends):

@@ -41,8 +41,8 @@ services:
       - ./logs/nginx:/var/log/nginx
     # Reload every 12h so a certbot-renewed cert (copied into ./nginx/ssl by the
     # deploy-hook) is picked up without manual intervention. $${!} -> ${!} in the
-    # container (compose escapes $$); nginx runs in the foreground to keep PID 1.
-    command: ['sh', '-c', "while :; do sleep 12h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"]
+    # container (compose escapes $$); `exec` makes nginx PID 1 so docker stop is graceful.
+    command: ['sh', '-c', "while :; do sleep 12h & wait $${!}; nginx -s reload; done & exec nginx -g 'daemon off;'"]
     depends_on:
       frontend:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
   # then loops `certbot renew` every 12h; on a real renewal its deploy-hook copies
   # the new cert into ./nginx/ssl, which the nginx reload loop above picks up.
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/certbot:v5.9.0
     container_name: carbonytics-review-certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt

@@ -137,13 +137,16 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-8 rounded-xl border border-line bg-fg/[0.02] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
-              Demo credentials
-            </p>
-            <p className="text-xs font-mono text-fg/70">demo@carbonytics.com</p>
-            <p className="text-xs font-mono text-fg/70">Demo!2026Pass</p>
-          </div>
+          {/* Dev builds only: production/review instances have no demo account and must not publish a password. */}
+          {import.meta.env.DEV && (
+            <div className="mt-8 rounded-xl border border-line bg-fg/[0.02] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+                Demo credentials
+              </p>
+              <p className="text-xs font-mono text-fg/70">demo@carbonytics.com</p>
+              <p className="text-xs font-mono text-fg/70">Demo!2026Pass</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,8 +1,8 @@
-import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { config } from '../config/config';
 import { User } from '../models/User';
 import { Organization } from '../models/Organization';
+import { generateTemporaryPassword } from '../utils/security';
 
 /**
  * Pre-create isolated specialist-review accounts for the closed (invite-only)
@@ -20,8 +20,10 @@ import { Organization } from '../models/Organization';
  *   node dist/scripts/seedReviewAccounts.js jane@firm.com omar@firm.com   # names derived from the address
  *
  * Idempotent: an email that already exists is left untouched (its password is
- * NOT reset) and reported as skipped. Generated passwords are printed ONCE here —
- * capture them; they are stored only as a bcrypt hash and cannot be recovered.
+ * NOT reset) and reported as skipped. Each password is printed ONCE, right after
+ * its account is created — capture it; it is stored only as a bcrypt hash. A
+ * reviewer that fails (e.g. the User email validator rejects it) is rolled back
+ * (its org deleted) and reported; the remaining reviewers are still created.
  *
  * Optional env: REVIEW_ORG_SUFFIX (default " — Review Workspace"),
  *               REVIEW_INDUSTRY (one of the Organization industry enum; default "Other").
@@ -54,23 +56,38 @@ function parseReviewer(arg: string): Reviewer {
 }
 
 /**
- * Strong, human-typeable password: 14 chars from an unambiguous set (no
- * 0/O/1/l/I), guaranteed to contain an upper, a lower and a digit so it always
- * satisfies the register policy (min 8, has a letter, has a number).
+ * Create one reviewer's org + admin user. If the user cannot be created the org
+ * is deleted again, so a failure never leaves an orphan sandbox behind.
+ * Returns the plain password (to print once) and the org name.
  */
-function generatePassword(): string {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnpqrstuvwxyz';
-  const digits = '23456789';
-  const all = upper + lower + digits;
-  const bytes = crypto.randomBytes(14);
-  const chars: string[] = [];
-  for (let i = 0; i < 11; i++) chars.push(all[bytes[i] % all.length]);
-  // Guarantee the three classes.
-  chars.push(upper[bytes[11] % upper.length]);
-  chars.push(lower[bytes[12] % lower.length]);
-  chars.push(digits[bytes[13] % digits.length]);
-  return chars.join('');
+export async function createReviewer({ name, email }: Reviewer): Promise<{ password: string; org: string }> {
+  const orgName = `${name}${ORG_SUFFIX}`;
+  const org = await Organization.create({
+    name: orgName,
+    industry: INDUSTRY,
+    country: 'Egypt',
+    size: 'medium',
+    isActive: true,
+    // Skip the guided onboarding wizard so reviewers land straight in the app.
+    onboarding: { completed: true },
+  });
+
+  const password = generateTemporaryPassword();
+  try {
+    // Plain password — the User pre-save hook hashes it exactly once.
+    await User.create({
+      email,
+      password,
+      name,
+      role: 'admin', // admin of their own sandbox org -> full feature access
+      organizationId: org._id,
+      isActive: true,
+    });
+  } catch (err) {
+    await Organization.deleteOne({ _id: org._id });
+    throw err;
+  }
+  return { password, org: orgName };
 }
 
 async function seedReviewAccounts(): Promise<void> {
@@ -84,78 +101,57 @@ async function seedReviewAccounts(): Promise<void> {
     return;
   }
 
-  const reviewers = args.map(parseReviewer);
-  const created: Array<{ name: string; email: string; password: string; org: string }> = [];
   const skipped: string[] = [];
+  const failed: string[] = [];
+  let createdCount = 0;
+
+  console.log('\n=========================================================');
+  console.log(' SPECIALIST REVIEW CREDENTIALS (capture these now)');
+  console.log('=========================================================');
 
   await mongoose.connect(config.MONGODB_URI);
   try {
-    for (const { name, email } of reviewers) {
-      if (!email.includes('@')) {
-        console.warn(`Skipping "${email}" — not a valid email.`);
+    for (const reviewer of args.map(parseReviewer)) {
+      const { name, email } = reviewer;
+      if (await User.findOne({ email })) {
+        console.log(` • ${email} already exists — skipped (password left unchanged).`);
         skipped.push(email);
         continue;
       }
-
-      const existing = await User.findOne({ email });
-      if (existing) {
-        console.log(`• ${email} already exists — skipped (password left unchanged).`);
-        skipped.push(email);
-        continue;
+      try {
+        const { password, org } = await createReviewer(reviewer);
+        createdCount++;
+        // Printed immediately so a later failure can never swallow it.
+        console.log(` Name:     ${name}`);
+        console.log(` Email:    ${email}`);
+        console.log(` Password: ${password}`);
+        console.log(` Org:      ${org}`);
+        console.log(' ---------------------------------------------------------');
+      } catch (err) {
+        console.error(` ❌ ${email} NOT created: ${(err as Error).message}`);
+        failed.push(email);
       }
-
-      const orgName = `${name}${ORG_SUFFIX}`;
-      const org = await Organization.create({
-        name: orgName,
-        industry: INDUSTRY,
-        country: 'Egypt',
-        size: 'medium',
-        isActive: true,
-        // Skip the guided onboarding wizard so reviewers land straight in the app.
-        onboarding: { completed: true },
-      });
-
-      const password = generatePassword();
-      // Plain password — the User pre-save hook hashes it exactly once.
-      await User.create({
-        email,
-        password,
-        name,
-        role: 'admin', // admin of their own sandbox org -> full feature access
-        organizationId: org._id,
-        isActive: true,
-      });
-
-      created.push({ name, email, password, org: orgName });
-      console.log(`✅ Created ${email} (admin of "${orgName}")`);
     }
   } finally {
     await mongoose.disconnect();
   }
 
-  console.log('\n=========================================================');
-  console.log(' SPECIALIST REVIEW CREDENTIALS (capture these now)');
-  console.log('=========================================================');
-  if (created.length === 0) {
-    console.log(' No new accounts were created.');
-  } else {
-    for (const c of created) {
-      console.log(` Name:     ${c.name}`);
-      console.log(` Email:    ${c.email}`);
-      console.log(` Password: ${c.password}`);
-      console.log(` Org:      ${c.org}`);
-      console.log(' ---------------------------------------------------------');
-    }
+  if (createdCount === 0) console.log(' No new accounts were created.');
+  if (skipped.length) console.log(` Skipped (already existed): ${skipped.join(', ')}`);
+  if (failed.length) {
+    console.log(` FAILED (nothing created, safe to re-run): ${failed.join(', ')}`);
+    process.exitCode = 1;
   }
-  if (skipped.length) console.log(` Skipped (already existed / invalid): ${skipped.join(', ')}`);
   console.log('=========================================================');
   console.log(' Passwords are shown ONCE and stored only as a bcrypt hash.');
   console.log('=========================================================\n');
 }
 
-seedReviewAccounts()
-  .then(() => process.exit(process.exitCode ?? 0))
-  .catch((err) => {
-    console.error('❌ seedReviewAccounts failed:', err);
-    process.exit(1);
-  });
+if (require.main === module) {
+  seedReviewAccounts()
+    .then(() => process.exit(process.exitCode ?? 0))
+    .catch((err) => {
+      console.error('❌ seedReviewAccounts failed:', err);
+      process.exit(1);
+    });
+}
