@@ -108,8 +108,7 @@ The commands below work the same in PowerShell, Command Prompt, Git Bash, macOS 
 	docker compose exec backend node dist/scripts/seed.js
 	```
 
-	> [!WARNING]
-	> `seed.js` deletes every emission category and factor before it loads the starter set, including custom factors. Run it only on a new database.
+	**Warning.** `seed.js` deletes every emission category and factor before it loads the starter set, including custom factors. Run it only on a new database.
 
 4. Create the demo organization and its admin account.
 
