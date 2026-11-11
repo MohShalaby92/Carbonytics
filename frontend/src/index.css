@@ -2,18 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Width-matched stand-in while Archivo (display=swap) loads, so headings wrap the same before and after
+   the swap. Headings are only 600/700, so the stand-in is Arial Bold (synthetic bold would not widen
+   glyphs); 108.4% = measured Archivo-600-at-112.5%-width vs Arial Bold advance ratio. */
+@font-face {
+  font-family: 'Archivo Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Neue Bold'), local('Helvetica-Bold');
+  font-weight: 600 700;
+  size-adjust: 108.4%;
+}
+
 /* ---- Theme tokens -------------------------------------------------------- */
 :root {
   /* Verdant (light) — refined, editorial, warm paper */
   --bg: 246 244 238;        /* #f6f4ee */
   --surface: 255 253 248;   /* #fffdf8 */
   --fg: 28 38 32;           /* #1c2620 */
-  --muted: 123 134 125;     /* #7b867d */
+  --muted: 93 101 95;       /* #5d655f lichen, ≥4.5:1 on bg, surface and 8% ink washes */
   --line: 230 225 212;      /* #e6e1d4 */
+  --line-strong: 133 140 134; /* #858c86 control edges, ≥3:1 on bg + surface */
   --brand: 31 61 43;        /* #1f3d2b deep forest */
   --brand-fg: 244 241 232;  /* #f4f1e8 */
   --accent: 31 138 85;      /* #1f8a55 */
   --ring: 31 138 85;
+  /* Text-safe greens (≥4.5:1 on bg + surface): emphasis = brand voice, positive = earned good state. */
+  --emphasis: 31 115 71;    /* #1f7347 */
+  --positive: 4 120 87;     /* #047857 */
+  /* Status text (Status Is Earned): same families as Badge, text-safe on bg + surface. */
+  --caution: 180 83 9;      /* #b45309 */
+  --critical: 185 28 28;    /* #b91c1c */
+  --info: 3 105 161;        /* #0369a1 */
+  /* GHG scopes are ordered categories, not status: one forest hue, darkest = most direct. */
+  --scope-1: 18 58 39;      /* #123a27 */
+  --scope-2: 31 115 71;     /* #1f7347 */
+  --scope-3: 63 154 102;    /* #3f9a66 */
 }
 
 .dark {
@@ -21,12 +43,22 @@
   --bg: 10 15 13;           /* #0a0f0d */
   --surface: 14 23 20;      /* #0e1714 */
   --fg: 234 255 244;        /* #eafff4 */
-  --muted: 111 138 125;     /* #6f8a7d */
+  --muted: 125 150 138;     /* #7d968a moss, ≥4.5:1 on 8% washes */
   --line: 27 42 35;         /* #1b2a23 */
+  --line-strong: 86 105 95;  /* #56695f control edges, ≥3:1 on bg + surface */
   --brand: 27 240 154;      /* #1bf09a mint */
   --brand-fg: 4 19 13;      /* #04130d */
   --accent: 11 209 209;     /* #0bd1d1 teal */
   --ring: 27 240 154;
+  --emphasis: 127 191 150;  /* #7fbf96 */
+  --positive: 52 211 153;   /* #34d399 */
+  --caution: 251 191 36;    /* #fbbf24 */
+  --critical: 248 113 113;  /* #f87171 */
+  --info: 56 189 248;       /* #38bdf8 */
+  /* Inverse of Verdant: brightest mint = most direct. */
+  --scope-1: 27 240 154;    /* #1bf09a */
+  --scope-2: 22 184 119;    /* #16b877 */
+  --scope-3: 26 138 92;     /* #1a8a5c */
 }
 
 @layer base {
@@ -42,7 +74,33 @@
   }
   h1, h2, h3, h4 {
     @apply font-display;
+  }
+  /* Archivo is loaded only at 112.5% width (SemiExpanded); keep the stretch on every display use. */
+  h1, h2, h3, h4, .font-display {
+    font-stretch: 112.5%;
     letter-spacing: -0.01em;
+  }
+  h1, h1.font-display {
+    letter-spacing: -0.015em;
+  }
+  /* Native checkboxes/radios take the theme's brand instead of the browser's blue. */
+  input[type='checkbox'], input[type='radio'] {
+    accent-color: rgb(var(--brand));
+  }
+  /* Directional icons mirror in right-to-left layouts (Arabic is a committed language). */
+  [dir='rtl'] :is(.lucide-arrow-right, .lucide-arrow-left, .lucide-chevron-right, .lucide-chevron-left) {
+    transform: scaleX(-1);
+  }
+  /* Themed keyboard focus for anything that doesn't draw its own ring (outline follows border-radius). */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring)); /* full strength: ≥3:1 on paper */
+    outline-offset: 2px;
+  }
+  /* Reduced motion: keep every state change, drop the movement. Spinners stay (they report progress). */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse { animation: none; opacity: 0.7; }
+    [class*='active:scale-']:active { transform: none; }
+    *, ::before, ::after { scroll-behavior: auto !important; }
   }
   ::selection {
     background: rgb(var(--accent) / 0.18);
@@ -56,6 +114,19 @@
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted) / 0.55); background-clip: padding-box; }
+
+  /* Touch: controls are sized for a mouse (28–40px). Lift them to a 44px target on coarse
+     pointers only, so desktop density is untouched. Inline text links stay inline. */
+  @media (pointer: coarse) {
+    button:not([role='switch']), select, [role='tab'], textarea,
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']) {
+      min-height: 44px;
+    }
+    /* Icon-only buttons (edit / delete / help) also need the width. */
+    button:has(> svg:only-child) { min-width: 44px; }
+    /* ≥16px stops iOS Safari zooming the page on focus. */
+    input, select, textarea { font-size: 16px; }
+  }
 }
 
 @layer components {
@@ -64,6 +135,6 @@
   }
   .focus-ring {
     @apply outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-bg;
-    --tw-ring-color: rgb(var(--ring) / 0.55);
+    --tw-ring-color: rgb(var(--ring));
   }
 }

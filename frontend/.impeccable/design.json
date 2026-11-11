@@ -1,0 +1,732 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T00:07:07.869473+00:00",
+  "title": "Design System: Carbonytics",
+  "extensions": {
+    "colorMeta": {
+      "verdant-paper": {
+        "role": "neutral",
+        "displayName": "Verdant Paper",
+        "canonical": "#f6f4ee",
+        "tonalRamp": [
+          "#2d2a1f",
+          "#4d4732",
+          "#736844",
+          "#9b8a54",
+          "#b2a376",
+          "#c4bba1",
+          "#dad5c8",
+          "#f4f3f0"
+        ]
+      },
+      "verdant-sheet": {
+        "role": "neutral",
+        "displayName": "Verdant Sheet",
+        "canonical": "#fffdf8",
+        "tonalRamp": [
+          "#3c3010",
+          "#6c5313",
+          "#a87d0f",
+          "#eba904",
+          "#f5bd33",
+          "#edcb78",
+          "#edddb5",
+          "#f8f5ec"
+        ]
+      },
+      "verdant-ink": {
+        "role": "neutral",
+        "displayName": "Verdant Ink",
+        "canonical": "#1c2620",
+        "tonalRamp": [
+          "#232a26",
+          "#39473e",
+          "#506759",
+          "#668974",
+          "#85a391",
+          "#aabbb1",
+          "#cdd5d0",
+          "#f1f3f2"
+        ]
+      },
+      "verdant-lichen": {
+        "role": "neutral",
+        "displayName": "Lichen",
+        "canonical": "#5d655f",
+        "tonalRamp": [
+          "#252726",
+          "#3e423f",
+          "#585f5a",
+          "#737d75",
+          "#909891",
+          "#b0b5b1",
+          "#d0d2d0",
+          "#f2f3f2"
+        ]
+      },
+      "verdant-rule": {
+        "role": "neutral",
+        "displayName": "Verdant Rule",
+        "canonical": "#e6e1d4",
+        "tonalRamp": [
+          "#2c2920",
+          "#4c4534",
+          "#706548",
+          "#968559",
+          "#ae9f7a",
+          "#c2b9a3",
+          "#d9d4ca",
+          "#f4f3f1"
+        ]
+      },
+      "deep-forest": {
+        "role": "primary",
+        "displayName": "Deep Forest",
+        "canonical": "#1f3d2b",
+        "tonalRamp": [
+          "#1f2d25",
+          "#314e3d",
+          "#437557",
+          "#529e70",
+          "#74b38e",
+          "#a0c5af",
+          "#c8dacf",
+          "#f0f4f2"
+        ]
+      },
+      "forest-cream": {
+        "role": "primary",
+        "displayName": "Forest Cream",
+        "canonical": "#f4f1e8",
+        "tonalRamp": [
+          "#2e2a1e",
+          "#504830",
+          "#776941",
+          "#a18c4f",
+          "#b6a572",
+          "#c7bd9e",
+          "#dbd6c7",
+          "#f4f3f0"
+        ]
+      },
+      "verdant-leaf": {
+        "role": "secondary",
+        "displayName": "Verdant Leaf",
+        "canonical": "#1f8a55",
+        "tonalRamp": [
+          "#183426",
+          "#235c40",
+          "#2b8c5c",
+          "#2fc179",
+          "#57d194",
+          "#8ed7b3",
+          "#bfe3d1",
+          "#eff6f2"
+        ]
+      },
+      "console-night": {
+        "role": "neutral",
+        "displayName": "Console Night",
+        "canonical": "#0a0f0d",
+        "tonalRamp": [
+          "#222b27",
+          "#374942",
+          "#4d6b5f",
+          "#618f7c",
+          "#81a798",
+          "#a7beb5",
+          "#cbd7d2",
+          "#f1f3f2"
+        ]
+      },
+      "console-panel": {
+        "role": "neutral",
+        "displayName": "Console Panel",
+        "canonical": "#0e1714",
+        "tonalRamp": [
+          "#212c28",
+          "#354b43",
+          "#496e62",
+          "#5c9481",
+          "#7cab9c",
+          "#a4c1b7",
+          "#cad8d3",
+          "#f1f4f3"
+        ]
+      },
+      "console-glow-ink": {
+        "role": "neutral",
+        "displayName": "Console Glow Ink",
+        "canonical": "#eafff4",
+        "tonalRamp": [
+          "#103c25",
+          "#136c3e",
+          "#0fa858",
+          "#04eb72",
+          "#33f58f",
+          "#78edb0",
+          "#b5edd0",
+          "#ecf8f2"
+        ]
+      },
+      "console-moss": {
+        "role": "neutral",
+        "displayName": "Moss",
+        "canonical": "#7d968a",
+        "tonalRamp": [
+          "#242926",
+          "#3b4540",
+          "#54645c",
+          "#6b8478",
+          "#899e94",
+          "#acb9b3",
+          "#ced4d1",
+          "#f2f3f2"
+        ]
+      },
+      "console-rule": {
+        "role": "neutral",
+        "displayName": "Console Rule",
+        "canonical": "#1b2a23",
+        "tonalRamp": [
+          "#212b27",
+          "#364940",
+          "#4b6c5d",
+          "#5f917a",
+          "#7fa995",
+          "#a6bfb3",
+          "#cbd7d2",
+          "#f1f4f2"
+        ]
+      },
+      "console-mint": {
+        "role": "primary",
+        "displayName": "Console Mint",
+        "canonical": "#1bf09a",
+        "tonalRamp": [
+          "#133a2a",
+          "#196747",
+          "#199f69",
+          "#13dd8b",
+          "#3fe9a4",
+          "#80e5bc",
+          "#b8ead6",
+          "#edf7f3"
+        ]
+      },
+      "console-mint-ink": {
+        "role": "primary",
+        "displayName": "Mint Ink",
+        "canonical": "#04130d",
+        "tonalRamp": [
+          "#183529",
+          "#235d46",
+          "#2a8e66",
+          "#2dc387",
+          "#55d3a1",
+          "#8dd8ba",
+          "#bfe4d5",
+          "#eef6f3"
+        ]
+      },
+      "console-teal": {
+        "role": "secondary",
+        "displayName": "Console Teal",
+        "canonical": "#0bd1d1",
+        "tonalRamp": [
+          "#123a3a",
+          "#186868",
+          "#17a1a1",
+          "#10e0e0",
+          "#3debeb",
+          "#7ee7e7",
+          "#b8ebeb",
+          "#edf8f8"
+        ]
+      },
+      "verdant-emphasis": {
+        "role": "secondary",
+        "displayName": "Verdant Emphasis",
+        "canonical": "#1f7347",
+        "tonalRamp": [
+          "#062916",
+          "#14452a",
+          "#236440",
+          "#338456",
+          "#609f78",
+          "#8abc9b",
+          "#b3d9bf",
+          "#e5fcec"
+        ]
+      },
+      "verdant-positive": {
+        "role": "semantic",
+        "displayName": "Verdant Positive",
+        "canonical": "#047857",
+        "tonalRamp": [
+          "#00291c",
+          "#064632",
+          "#12644a",
+          "#1f8563",
+          "#56a082",
+          "#83bda3",
+          "#aed9c6",
+          "#e2fcf0"
+        ]
+      },
+      "console-emphasis": {
+        "role": "secondary",
+        "displayName": "Console Emphasis",
+        "canonical": "#7fbf96",
+        "tonalRamp": [
+          "#0d2818",
+          "#1e442d",
+          "#2f6143",
+          "#42815b",
+          "#6a9d7c",
+          "#90ba9e",
+          "#b8d7c2",
+          "#e8fbee"
+        ]
+      },
+      "console-positive": {
+        "role": "semantic",
+        "displayName": "Console Positive",
+        "canonical": "#34d399",
+        "tonalRamp": [
+          "#00291a",
+          "#00462f",
+          "#096546",
+          "#15865e",
+          "#29a779",
+          "#6cc29c",
+          "#9fdec0",
+          "#ddffed"
+        ]
+      },
+      "verdant-caution": {
+        "role": "semantic",
+        "displayName": "Verdant Caution",
+        "canonical": "#b45309",
+        "tonalRamp": [
+          "#3a1601",
+          "#5f2802",
+          "#863d0a",
+          "#b25105",
+          "#ca7748",
+          "#e09c77",
+          "#f6c0a4",
+          "#fff2ec"
+        ]
+      },
+      "verdant-critical": {
+        "role": "semantic",
+        "displayName": "Verdant Critical",
+        "canonical": "#b91c1c",
+        "tonalRamp": [
+          "#450404",
+          "#6e110f",
+          "#9a201d",
+          "#c9302b",
+          "#df6257",
+          "#f48d81",
+          "#ffbab1",
+          "#fff2f0"
+        ]
+      },
+      "verdant-info": {
+        "role": "semantic",
+        "displayName": "Verdant Info",
+        "canonical": "#0369a1",
+        "tonalRamp": [
+          "#00243c",
+          "#073e60",
+          "#135a88",
+          "#2078b1",
+          "#5596c7",
+          "#81b4dd",
+          "#add3f2",
+          "#edf7ff"
+        ]
+      },
+      "console-caution": {
+        "role": "semantic",
+        "displayName": "Console Caution",
+        "canonical": "#fbbf24",
+        "tonalRamp": [
+          "#2d1f01",
+          "#4b3704",
+          "#6d5003",
+          "#8f6b0d",
+          "#b4870f",
+          "#cea857",
+          "#e7ca8f",
+          "#fff4df"
+        ]
+      },
+      "console-critical": {
+        "role": "semantic",
+        "displayName": "Console Critical",
+        "canonical": "#f87171",
+        "tonalRamp": [
+          "#410a0e",
+          "#681a1e",
+          "#932b30",
+          "#bf3d43",
+          "#d66968",
+          "#ec918e",
+          "#febab6",
+          "#fff2f1"
+        ]
+      },
+      "console-info": {
+        "role": "semantic",
+        "displayName": "Console Info",
+        "canonical": "#38bdf8",
+        "tonalRamp": [
+          "#002536",
+          "#014059",
+          "#085d7e",
+          "#157ba6",
+          "#339aca",
+          "#6eb8df",
+          "#a0d6f4",
+          "#ebf7ff"
+        ]
+      },
+      "verdant-green-500": {
+        "role": "secondary",
+        "displayName": "Verdant Green 500 (legacy)",
+        "canonical": "#2f8a55",
+        "tonalRamp": [
+          "#123a27",
+          "#16482f",
+          "#1a5c3a",
+          "#1f7347",
+          "#2f8a55",
+          "#4fa370",
+          "#7fbf96",
+          "#d6ebdd"
+        ]
+      },
+      "verdant-green-600": {
+        "role": "secondary",
+        "displayName": "Verdant Green 600 (legacy)",
+        "canonical": "#1f7347",
+        "tonalRamp": [
+          "#123a27",
+          "#16482f",
+          "#1a5c3a",
+          "#1f7347",
+          "#2f8a55",
+          "#4fa370",
+          "#7fbf96",
+          "#d6ebdd"
+        ]
+      },
+      "danger-red": {
+        "role": "status",
+        "displayName": "Danger Red",
+        "canonical": "#dc2626",
+        "tonalRamp": [
+          "#361616",
+          "#602020",
+          "#932525",
+          "#cb2424",
+          "#da4e4e",
+          "#dc8989",
+          "#e6bdbd",
+          "#f6eeee"
+        ]
+      },
+      "scope-1": {
+        "role": "data",
+        "displayName": "Scope 1 Forest",
+        "canonical": "#123a27",
+        "tonalRamp": [
+          "#1b3227",
+          "#285741",
+          "#34845e",
+          "#3bb57b",
+          "#61c796",
+          "#94d1b4",
+          "#c2e0d2",
+          "#eff5f2"
+        ]
+      },
+      "scope-2": {
+        "role": "data",
+        "displayName": "Scope 2 Forest",
+        "canonical": "#1f7347",
+        "tonalRamp": [
+          "#193326",
+          "#26593f",
+          "#30885a",
+          "#35ba75",
+          "#5ccc91",
+          "#91d4b1",
+          "#c1e1d0",
+          "#eff6f2"
+        ]
+      },
+      "scope-3": {
+        "role": "data",
+        "displayName": "Scope 3 Forest",
+        "canonical": "#3f9a66",
+        "tonalRamp": [
+          "#1d3025",
+          "#2d523d",
+          "#3c7c57",
+          "#47a871",
+          "#6bbd8e",
+          "#9acbaf",
+          "#c5ddcf",
+          "#f0f5f2"
+        ]
+      },
+      "console-scope-1": {
+        "role": "data",
+        "displayName": "Scope 1 Mint",
+        "canonical": "#1bf09a",
+        "tonalRamp": [
+          "#133a2a",
+          "#196747",
+          "#199f69",
+          "#13dd8b",
+          "#3fe9a4",
+          "#80e5bc",
+          "#b8ead6",
+          "#edf7f3"
+        ]
+      },
+      "console-scope-2": {
+        "role": "data",
+        "displayName": "Scope 2 Mint",
+        "canonical": "#16b877",
+        "tonalRamp": [
+          "#15382a",
+          "#1d6347",
+          "#209868",
+          "#1dd38a",
+          "#48e0a3",
+          "#85e0bc",
+          "#bbe7d5",
+          "#eef7f3"
+        ]
+      },
+      "console-scope-3": {
+        "role": "data",
+        "displayName": "Scope 3 Mint",
+        "canonical": "#1a8a5c",
+        "tonalRamp": [
+          "#173529",
+          "#215e45",
+          "#289065",
+          "#29c786",
+          "#52d6a0",
+          "#8bdaba",
+          "#bee4d5",
+          "#eef6f3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles, one per page. Archivo SemiExpanded 700, -0.015em."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings and major panel headers. Archivo SemiExpanded 600."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card titles and modal headings. Archivo SemiExpanded 600."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default UI text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase eyebrows and menu group labels."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Formulas, factor codes, credentials."
+      }
+    },
+    "shadows": [
+      {
+        "name": "soft",
+        "value": "0 1px 2px rgba(16,24,20,0.04), 0 8px 24px -12px rgba(16,24,20,0.12)",
+        "purpose": "Resting cards and primary/danger buttons."
+      },
+      {
+        "name": "lift",
+        "value": "0 12px 40px -16px rgba(16,24,20,0.28)",
+        "purpose": "Menus, popovers and modals."
+      }
+    ],
+    "motion": [
+      {
+        "name": "press",
+        "value": "transform: scale(0.98); 150ms",
+        "purpose": "Button press feedback."
+      },
+      {
+        "name": "state",
+        "value": "150ms colour/background/border transitions",
+        "purpose": "Hover and focus changes."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action per surface; forest in Verdant, mint in Console.",
+      "html": "<button class=\"ds-btn-primary\">Save calculation</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:0.875rem;font:600 0.875rem/1 'Hanken Grotesk',system-ui,sans-serif;cursor:pointer;transition:all 150ms;border:none;background:rgb(var(--brand));color:rgb(var(--brand-fg));box-shadow:0 1px 2px rgba(16,24,20,0.04),0 8px 24px -12px rgba(16,24,20,0.12)}.ds-btn-primary:hover{opacity:.9}.ds-btn-primary:active{transform:scale(.98)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(var(--bg)),0 0 0 4px rgb(var(--ring))}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting actions beside a primary.",
+      "html": "<button class=\"ds-btn-secondary\">Export</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:0.875rem;font:600 0.875rem/1 'Hanken Grotesk',system-ui,sans-serif;cursor:pointer;transition:all 150ms;border:1px solid rgb(var(--line));background:rgb(var(--surface));color:rgb(var(--fg))}.ds-btn-secondary:hover{background:rgb(var(--fg) / .04)}.ds-btn-secondary:active{transform:scale(.98)}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(var(--bg)),0 0 0 4px rgb(var(--ring))}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis inline actions and toolbars.",
+      "html": "<button class=\"ds-btn-ghost\">Reset</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:0.875rem;font:600 0.875rem/1 'Hanken Grotesk',system-ui,sans-serif;cursor:pointer;transition:all 150ms;border:none;background:transparent;color:rgb(var(--fg) / .8)}.ds-btn-ghost:hover{background:rgb(var(--fg) / .06);color:rgb(var(--fg))}.ds-btn-ghost:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(var(--bg)),0 0 0 4px rgb(var(--ring))}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions only.",
+      "html": "<button class=\"ds-btn-danger\">Delete vehicle</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:0.875rem;font:600 0.875rem/1 'Hanken Grotesk',system-ui,sans-serif;cursor:pointer;transition:all 150ms;border:none;background:#dc2626;color:#fff;box-shadow:0 1px 2px rgba(16,24,20,0.04),0 8px 24px -12px rgba(16,24,20,0.12)}.ds-btn-danger:hover{background:#b91c1c}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(var(--bg)),0 0 0 4px rgb(var(--ring))}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "All single-line fields; accent border and ring on focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Enter kWh consumed\" />",
+      "css": ".ds-input{display:block;width:100%;max-width:320px;padding:10px 14px;border:1px solid rgb(var(--line));border-radius:0.875rem;background:rgb(var(--surface));color:rgb(var(--fg));font:400 0.875rem/1.4 'Hanken Grotesk',system-ui,sans-serif;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:border-color 150ms,box-shadow 150ms}.ds-input::placeholder{color:rgb(var(--muted))}.ds-input:focus{outline:none;border-color:rgb(var(--accent));box-shadow:0 0 0 2px rgb(var(--accent) / .3)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Default container for every panel.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Scope 2</h3><p class=\"ds-card-body\">966.38 kg CO₂e, location-based</p></div>",
+      "css": ".ds-card{max-width:320px;padding:24px;border:1px solid rgb(var(--line));border-radius:1.125rem;background:rgb(var(--surface));box-shadow:0 1px 2px rgba(16,24,20,0.04),0 8px 24px -12px rgba(16,24,20,0.12)}.ds-card-title{margin:0 0 4px;font:600 1.125rem/1.5 Archivo,ui-sans-serif,system-ui,sans-serif;font-stretch:112.5%;letter-spacing:-.01em;color:rgb(var(--fg))}.ds-card-body{margin:0;font:400 .875rem/1.45 'Hanken Grotesk',system-ui,sans-serif;color:rgb(var(--fg) / .8)}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Real status only: verified, locked, warning, error.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Verified</span> <span class=\"ds-badge\">Draft</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:4px 10px;border:1px solid rgb(var(--line));border-radius:9999px;background:rgb(var(--fg) / .06);color:rgb(var(--fg) / .7);font:600 .875rem/1.2 'Hanken Grotesk',system-ui,sans-serif}.ds-badge-success{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.2);color:#047857}"
+    },
+    {
+      "name": "Navbar",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Sticky translucent top bar with the Archivo SemiExpanded wordmark; hidden on the sign-in page.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-nav-brand\">Carbonytics</span><a class=\"ds-nav-link\" href=\"#\">Dashboard</a><a class=\"ds-nav-link\" href=\"#\">Calculate</a><a class=\"ds-nav-link\" href=\"#\">Compliance</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:8px;padding:12px 24px;background:rgb(var(--surface) / .8);backdrop-filter:blur(8px);border-bottom:1px solid rgb(var(--line))}.ds-nav-brand{margin-inline-end:16px;font:600 1.125rem/1 Archivo,ui-sans-serif,system-ui,sans-serif;font-stretch:112.5%;letter-spacing:-.01em;color:rgb(var(--fg))}.ds-nav-link{padding:8px 12px;border-radius:.5rem;color:rgb(var(--fg) / .8);font:500 .875rem/1 'Hanken Grotesk',system-ui,sans-serif;text-decoration:none;transition:background 150ms}.ds-nav-link:hover{background:rgb(var(--fg) / .05);color:rgb(var(--fg))}.ds-nav-link:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(var(--ring))}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Greenhouse & Control Room",
+    "overview": "Carbonytics is one building with two rooms. **Verdant**, the light theme, is the greenhouse: warm paper, deep forest ink and a wide, engineered heading voice, made for reading inventories, reviewing reports and preparing disclosures. **Console**, the dark theme, is the control room: near-black panels, electric mint signal and teal accents, made for operating the calculator and scanning dashboards. Both rooms share one floor plan. Every component, size and radius is identical; only the light changes, through a single set of semantic tokens (`bg`, `surface`, `fg`, `muted`, `line`, `brand`, `brand-fg`, `accent`, `ring`).\n\nThe system is **quietly premium**. Brand appears in precise details (the dotted-C mark, the SemiExpanded Archivo headings, one forest or mint accent per surface), never in loud colour or ornament. Density follows the task. Reading surfaces breathe; operating surfaces such as the calculator, lineage drill-down and data tables stay compact (12px and 16px internal steps) so specialists can check numbers without scrolling.\n\nThe confirmed visual rejections are generic SaaS gradients (no purple or blue gradient heroes, glassy blobs or startup-template looks), cartoon eco clichés (no leaves, globes, earth-in-hands or smokestacks) and loud traffic-light colour used where it isn't real status.",
+    "keyCharacteristics": [
+      "Two themes, one geometry: Verdant (light, editorial) and Console (dark, technical), swapped with a `.dark` class on the same tokens.",
+      "A semi-expanded grotesk display face (Archivo at 112.5% width) over a humanist grotesk (Hanken Grotesk), with JetBrains Mono for formulas and figures that must be read exactly.",
+      "Soft, generous rounding (14px controls, 18px cards) and two restrained shadows.",
+      "Hairline borders in the theme's rule colour carry most of the structure.",
+      "One brand accent per surface; status colour only for real status."
+    ],
+    "rules": [
+      {
+        "name": "The Scope Ramp Rule",
+        "body": "Scope colour encodes distance from the organisation, never good or bad. Always pair it with the scope name and value; colour is never the only code.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Accent Rule",
+        "body": "Each surface has one brand moment (Deep Forest in Verdant, Console Mint in Console). Everything else is ink, rule and paper.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Is Earned Rule",
+        "body": "Red, amber and green mean an actual state: error, warning, verified or locked. They never decorate categories, scopes or charts.",
+        "section": "colors"
+      },
+      {
+        "name": "The Same Room Plan Rule",
+        "body": "Never hard-code a hex colour in a component. Use the semantic tokens so the greenhouse and the control room stay one building.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif Is for Titles Rule",
+        "body": "All `h1`–`h4` and the `font-display` wordmarks render in Archivo SemiExpanded with -0.01em tracking (-0.015em on `h1`). Body, labels, numbers in tables and controls never use the display face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Exact Figure Rule",
+        "body": "A formula, factor code or reproducible number that someone may copy goes in mono. Ordinary statistics stay in the grotesk.",
+        "section": "typography"
+      },
+      {
+        "name": "The Paper First Rule",
+        "body": "Separate with tone and a rule before reaching for a shadow. Only the two named shadows exist; no others.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the semantic tokens (`bg`, `surface`, `fg`, `muted`, `line`, `brand`, `brand-fg`, `accent`, `ring`) so every screen works in both Verdant and Console.",
+      "**Do** keep one brand accent moment per surface: Deep Forest in Verdant, Console Mint in Console.",
+      "**Do** set every `h1`–`h4` and the wordmark in Archivo SemiExpanded and everything else in Hanken Grotesk; use JetBrains Mono for formulas, factor codes and credentials.",
+      "**Do** use 14px radius on controls and 18px on cards, with 1px rule borders.",
+      "**Do** separate with tone and rules first; use only the Soft and Lift shadows.",
+      "**Do** place the dotted-C mark transparent on the page, or white directly on a coloured band.",
+      "**Do** keep layouts RTL-ready with logical properties (start/end, not left/right); Arabic is a committed language."
+    ],
+    "donts": [
+      "**Don't** place the logo on a white box, chip or tile.",
+      "**Don't** use generic SaaS gradients: no purple or blue gradient heroes, glassy blobs or startup-template looks.",
+      "**Don't** use cartoon eco clichés: no leaves, globes, earth-in-hands or smokestack illustrations.",
+      "**Don't** use red, amber and green as decoration or category colour; reserve them for real status.",
+      "**Don't** hard-code hex colours in components, or add a third shadow, radius or accent."
+    ]
+  }
+}

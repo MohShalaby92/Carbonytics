@@ -13,10 +13,10 @@ export const Badge: React.FC<BadgeProps> = ({ variant = 'default', size = 'md', 
 
   const variants = {
     default: 'bg-fg/[0.06] text-fg/70 border-line',
-    success: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 dark:text-emerald-300 border-emerald-500/20',
-    warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 dark:text-amber-300 border-amber-500/20',
-    error: 'bg-red-500/15 text-red-700 dark:text-red-300 dark:text-red-300 border-red-500/20',
-    info: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 dark:text-sky-300 border-sky-500/20',
+    success: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/20',
+    warning: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/20',
+    error: 'bg-red-500/15 text-red-800 dark:text-red-300 border-red-500/20',
+    info: 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/20',
   };
 
   const sizes = {

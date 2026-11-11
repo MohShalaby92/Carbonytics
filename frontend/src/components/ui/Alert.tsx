@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -6,30 +7,34 @@ interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
-export const Alert: React.FC<AlertProps> = ({ 
-  className, 
-  variant = 'default', 
-  children, 
-  ...props 
+// Status colours come from the theme tokens; the icon is the second cue so state never rests on colour alone.
+const variants = {
+  default: { box: 'bg-fg/[0.04] border-line', icon: null },
+  info: { box: 'bg-info/10 border-info/30', icon: <Info className="w-4 h-4 text-info" /> },
+  success: { box: 'bg-positive/10 border-positive/30', icon: <CheckCircle2 className="w-4 h-4 text-positive" /> },
+  warning: { box: 'bg-caution/10 border-caution/30', icon: <AlertTriangle className="w-4 h-4 text-caution" /> },
+  error: { box: 'bg-critical/10 border-critical/30', icon: <AlertCircle className="w-4 h-4 text-critical" /> },
+};
+
+export const Alert: React.FC<AlertProps> = ({
+  className,
+  variant = 'default',
+  children,
+  ...props
 }) => {
-  const variants = {
-    default: 'bg-fg/[0.04] text-fg border-line',
-    info: 'bg-blue-500/10 text-blue-900 border-blue-500/25',
-    success: 'bg-green-500/10 text-green-900 border-green-500/25',
-    warning: 'bg-yellow-500/10 text-yellow-900 border-yellow-500/25',
-    error: 'bg-red-500/10 text-red-900 border-red-500/25',
-  };
+  const { box, icon } = variants[variant];
+
+  // Errors interrupt; success/warning are polite; neutral notes stay silent (no chatter on static panels).
+  const role = variant === 'error' ? 'alert' : variant === 'success' || variant === 'warning' ? 'status' : undefined;
 
   return (
     <div
-      className={cn(
-        'rounded-md border p-4',
-        variants[variant],
-        className
-      )}
+      role={role}
+      className={cn('rounded-xl border p-4 text-sm text-fg', icon && 'flex items-start gap-2.5', box, className)}
       {...props}
     >
-      {children}
+      {icon && <span className="mt-0.5 shrink-0" aria-hidden="true">{icon}</span>}
+      {icon ? <div className="min-w-0 flex-1">{children}</div> : children}
     </div>
   );
 };

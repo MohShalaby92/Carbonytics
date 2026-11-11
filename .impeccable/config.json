@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "2rem",
+        "createdAt": "2026-11-11T12:39:26.347Z",
+        "reason": "user chose the Large sign-in lockup"
+      }
+    ]
+  }
+}

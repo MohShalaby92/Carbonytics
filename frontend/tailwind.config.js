@@ -4,6 +4,10 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      screens: {
+        // em, not px: scales with the user's text-size setting so the full navbar only appears when it fits.
+        nav: { raw: '(min-width: 68em)' },
+      },
       colors: {
         // Verdant green scale — existing components using `primary-*` reskin to this.
         primary: {
@@ -26,13 +30,23 @@ export default {
         fg: 'rgb(var(--fg) / <alpha-value>)',
         muted: 'rgb(var(--muted) / <alpha-value>)',
         line: 'rgb(var(--line) / <alpha-value>)',
+        'line-strong': 'rgb(var(--line-strong) / <alpha-value>)',
         brand: 'rgb(var(--brand) / <alpha-value>)',
         'brand-fg': 'rgb(var(--brand-fg) / <alpha-value>)',
         accent: 'rgb(var(--accent) / <alpha-value>)',
+        ring: 'rgb(var(--ring) / <alpha-value>)',
+        emphasis: 'rgb(var(--emphasis) / <alpha-value>)',
+        positive: 'rgb(var(--positive) / <alpha-value>)',
+        caution: 'rgb(var(--caution) / <alpha-value>)',
+        critical: 'rgb(var(--critical) / <alpha-value>)',
+        info: 'rgb(var(--info) / <alpha-value>)',
+        'scope-1': 'rgb(var(--scope-1) / <alpha-value>)',
+        'scope-2': 'rgb(var(--scope-2) / <alpha-value>)',
+        'scope-3': 'rgb(var(--scope-3) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Hanken Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['Fraunces', 'Georgia', 'serif'],
+        display: ['Archivo', 'Archivo Fallback', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       borderRadius: {
