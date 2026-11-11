@@ -94,7 +94,7 @@ export const EvidenceTab: React.FC = () => {
   return (
     <Card className="p-6">
       <div className="flex items-center gap-2 mb-2">
-        <FileCheck2 className="w-5 h-5 text-primary-600" />
+        <FileCheck2 className="w-5 h-5 text-emphasis" />
         <h2 className="text-xl font-semibold text-fg">Evidence Attachments</h2>
       </div>
       <p className="text-sm text-muted mb-4">
@@ -104,8 +104,7 @@ export const EvidenceTab: React.FC = () => {
       </p>
 
       <div className="space-y-1 mb-4">
-        <label className="block text-xs font-medium text-fg/80">Calculation</label>
-        <Select value={selectedCalcId} onChange={(e) => setSelectedCalcId(e.target.value)}>
+        <Select label="Calculation" value={selectedCalcId} onChange={(e) => setSelectedCalcId(e.target.value)}>
           <option value="">Select a calculation…</option>
           {calculations.map((calc: any) => {
             const id = calc.id || calc._id;
@@ -120,7 +119,7 @@ export const EvidenceTab: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -128,7 +127,7 @@ export const EvidenceTab: React.FC = () => {
       {selectedCalc && (
         <>
           {isLocked && (
-            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5" />
               This calculation is locked (published). You can still attach assurance evidence, but
               existing evidence cannot be deleted while it is locked.
@@ -154,7 +153,7 @@ export const EvidenceTab: React.FC = () => {
                           {entry.factorName || 'factor'} {entry.method ? `· ${entry.method}` : ''}
                         </div>
                       </div>
-                      <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-500/15 text-primary-700 dark:text-primary-300">
+                      <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-brand/10 text-emphasis">
                         {items.length} file{items.length === 1 ? '' : 's'}
                       </span>
                     </div>
@@ -168,7 +167,7 @@ export const EvidenceTab: React.FC = () => {
                           >
                             <div className="min-w-0">
                               <span className="text-fg/90 truncate">{item.filename}</span>
-                              <span className="text-xs text-muted ml-2">
+                              <span className="text-xs text-muted ms-2">
                                 {fmtSize(item.size)} · {item.uploadedByEmail}
                                 {item.description ? ` · ${item.description}` : ''}
                               </span>
@@ -222,7 +221,7 @@ export const EvidenceTab: React.FC = () => {
                         loading={busyEntry === idx}
                         disabled={busyEntry !== null}
                       >
-                        <Paperclip className="w-3.5 h-3.5 mr-1" />
+                        <Paperclip className="w-3.5 h-3.5 me-1" />
                         Attach file
                       </Button>
                     </div>

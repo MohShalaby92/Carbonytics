@@ -20,16 +20,16 @@ import {
 
 const STATUS_BADGES: Record<string, { label: string; classes: string }> = {
   not_engaged: { label: 'Not engaged', classes: 'bg-fg/[0.08] text-muted' },
-  awaiting_response: { label: 'Awaiting response', classes: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
-  data_received: { label: 'Data received', classes: 'bg-blue-500/15 text-blue-700 dark:text-blue-300' },
-  data_integrated: { label: 'Data integrated', classes: 'bg-green-500/15 text-green-700 dark:text-green-300' },
+  awaiting_response: { label: 'Awaiting response', classes: 'bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  data_received: { label: 'Data received', classes: 'bg-blue-500/15 text-blue-800 dark:text-blue-300' },
+  data_integrated: { label: 'Data integrated', classes: 'bg-green-500/15 text-green-800 dark:text-green-300' },
 };
 
 const REQUEST_BADGES: Record<string, string> = {
-  sent: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  received: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  fulfilled: 'bg-green-500/15 text-green-700 dark:text-green-300',
-  declined: 'bg-red-500/15 text-red-700 dark:text-red-300',
+  sent: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  received: 'bg-blue-500/15 text-blue-800 dark:text-blue-300',
+  fulfilled: 'bg-green-500/15 text-green-800 dark:text-green-300',
+  declined: 'bg-red-500/15 text-red-800 dark:text-red-300',
 };
 
 const emptySupplierForm = { name: '', contactName: '', contactEmail: '', notes: '', categories: [] as string[] };
@@ -299,12 +299,12 @@ export const SuppliersTab: React.FC = () => {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Handshake className="w-5 h-5 text-primary-600" />
+          <Handshake className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Suppliers</h2>
         </div>
         {canEdit && (
           <Button variant="outline" size="sm" onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-1" /> Add Supplier
+            <Plus className="w-4 h-4 me-1" /> Add Supplier
           </Button>
         )}
       </div>
@@ -334,12 +334,12 @@ export const SuppliersTab: React.FC = () => {
       )}
 
       {message && (
-        <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-700 dark:text-green-300">
+        <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-800 dark:text-green-300">
           {message}
         </div>
       )}
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -392,7 +392,7 @@ export const SuppliersTab: React.FC = () => {
                       </button>
                       <button
                         onClick={() => handleDeactivate(supplier)}
-                        className="p-1.5 rounded-lg text-muted hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                        className="p-1.5 rounded-lg text-muted hover:text-critical hover:bg-red-500/10 transition-colors"
                         title="Deactivate supplier (soft delete)"
                       >
                         <Archive className="w-4 h-4" />
@@ -428,7 +428,7 @@ export const SuppliersTab: React.FC = () => {
                               </span>
                             )}
                             {canEdit && (request.status === 'sent' || request.status === 'received') && (
-                              <span className="ml-auto flex gap-1.5">
+                              <span className="ms-auto flex gap-1.5">
                                 {request.status === 'sent' && (
                                   <>
                                     <Button size="sm" variant="ghost" onClick={() => handleRequestStatus(supplier, request, 'received')}>
@@ -457,24 +457,21 @@ export const SuppliersTab: React.FC = () => {
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="space-y-1">
-                              <label className="block text-xs text-muted">Period start *</label>
-                              <Input
+                              <Input label="Period start *"
                                 type="date"
                                 value={requestForm.start}
                                 onChange={(e) => setRequestForm({ ...requestForm, start: e.target.value })}
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="block text-xs text-muted">Period end *</label>
-                              <Input
+                              <Input label="Period end *"
                                 type="date"
                                 value={requestForm.end}
                                 onChange={(e) => setRequestForm({ ...requestForm, end: e.target.value })}
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="block text-xs text-muted">Category</label>
-                              <Select
+                              <Select label="Category"
                                 value={requestForm.categoryId}
                                 onChange={(e) => setRequestForm({ ...requestForm, categoryId: e.target.value })}
                               >
@@ -503,7 +500,7 @@ export const SuppliersTab: React.FC = () => {
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" onClick={() => { setRequestFormFor(supplier.id); setRequestForm({ ...emptyRequestForm }); }}>
-                          <Send className="w-3.5 h-3.5 mr-1.5" /> New data request
+                          <Send className="w-3.5 h-3.5 me-1.5" /> New data request
                         </Button>
                       )
                     )}
@@ -523,8 +520,7 @@ export const SuppliersTab: React.FC = () => {
       >
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">Name *</label>
-            <Input
+            <Input label="Name *"
               value={supplierForm.name}
               onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
               placeholder="e.g. Misr Cement Co."
@@ -532,16 +528,14 @@ export const SuppliersTab: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Contact name</label>
-              <Input
+              <Input label="Contact name"
                 value={supplierForm.contactName}
                 onChange={(e) => setSupplierForm({ ...supplierForm, contactName: e.target.value })}
                 placeholder="optional"
               />
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Contact email</label>
-              <Input
+              <Input label="Contact email"
                 type="email"
                 value={supplierForm.contactEmail}
                 onChange={(e) => setSupplierForm({ ...supplierForm, contactEmail: e.target.value })}
@@ -573,8 +567,7 @@ export const SuppliersTab: React.FC = () => {
             </div>
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">Notes</label>
-            <Input
+            <Input label="Notes"
               value={supplierForm.notes}
               onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
               placeholder="optional"
@@ -600,8 +593,7 @@ export const SuppliersTab: React.FC = () => {
       >
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">How did the data land?</label>
-            <Select
+            <Select label="How did the data land?"
               value={fulfillForm.type}
               onChange={(e) => setFulfillForm({ ...fulfillForm, type: e.target.value as any })}
             >
@@ -614,8 +606,7 @@ export const SuppliersTab: React.FC = () => {
           {fulfillForm.type === 'custom-factor' && (
             <>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-fg/80">Category *</label>
-                <Select
+                <Select label="Category *"
                   value={fulfillForm.categoryId}
                   onChange={(e) => setFulfillForm({ ...fulfillForm, categoryId: e.target.value })}
                 >
@@ -628,8 +619,7 @@ export const SuppliersTab: React.FC = () => {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-fg/80">Factor name *</label>
-                <Input
+                <Input label="Factor name *"
                   value={fulfillForm.name}
                   onChange={(e) => setFulfillForm({ ...fulfillForm, name: e.target.value })}
                   placeholder="e.g. Supplier cement, cradle-to-gate"
@@ -637,8 +627,7 @@ export const SuppliersTab: React.FC = () => {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Value (kg CO2e) *</label>
-                  <Input
+                  <Input label="Value (kg CO2e) *"
                     type="number"
                     step="any"
                     min="0"
@@ -647,16 +636,14 @@ export const SuppliersTab: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Per unit *</label>
-                  <Input
+                  <Input label="Per unit *"
                     value={fulfillForm.unit}
                     onChange={(e) => setFulfillForm({ ...fulfillForm, unit: e.target.value })}
                     placeholder="e.g. kg, t, kWh"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Data year</label>
-                  <Input
+                  <Input label="Data year"
                     type="number"
                     value={fulfillForm.year}
                     onChange={(e) => setFulfillForm({ ...fulfillForm, year: e.target.value })}
@@ -665,8 +652,7 @@ export const SuppliersTab: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-fg/80">Source documentation</label>
-                <Input
+                <Input label="Source documentation"
                   value={fulfillForm.source}
                   onChange={(e) => setFulfillForm({ ...fulfillForm, source: e.target.value })}
                 />
@@ -676,8 +662,7 @@ export const SuppliersTab: React.FC = () => {
 
           {fulfillForm.type === 'activity-data' && (
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Calculation *</label>
-              <Select
+              <Select label="Calculation *"
                 value={fulfillForm.calculationId}
                 onChange={(e) => setFulfillForm({ ...fulfillForm, calculationId: e.target.value })}
               >
@@ -692,10 +677,7 @@ export const SuppliersTab: React.FC = () => {
           )}
 
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">
-              Notes{fulfillForm.type === 'document' ? ' (what was received) *' : ''}
-            </label>
-            <Input
+            <Input label={<>Notes{fulfillForm.type === 'document' ? ' (what was received) *' : ''}</>}
               value={fulfillForm.notes}
               onChange={(e) => setFulfillForm({ ...fulfillForm, notes: e.target.value })}
               placeholder={fulfillForm.type === 'document' ? 'e.g. 2025 EPD PDF received' : 'optional'}

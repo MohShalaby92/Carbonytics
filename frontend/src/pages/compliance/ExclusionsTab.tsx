@@ -88,12 +88,12 @@ export const ExclusionsTab: React.FC = () => {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <ListX className="w-5 h-5 text-primary-600" />
+          <ListX className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Exclusions Register</h2>
         </div>
         {canEdit && (
           <Button variant="outline" size="sm" onClick={addRow}>
-            <Plus className="w-4 h-4 mr-1" /> Add Exclusion
+            <Plus className="w-4 h-4 me-1" /> Add Exclusion
           </Button>
         )}
       </div>
@@ -106,8 +106,8 @@ export const ExclusionsTab: React.FC = () => {
         <div
           className={`mb-4 p-3 rounded-lg border text-sm ${
             message.type === 'success'
-              ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
-              : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+              ? 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
           }`}
         >
           {message.text}
@@ -125,8 +125,7 @@ export const ExclusionsTab: React.FC = () => {
             <div key={index} className="p-4 border border-line rounded-lg space-y-3 bg-fg/[0.02]">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                 <div className="md:col-span-5 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Excluded source *</label>
-                  <Input
+                  <Input label="Excluded source *"
                     value={exclusion.source}
                     disabled={!canEdit}
                     placeholder="e.g. Refrigerant top-ups at leased warehouse"
@@ -134,8 +133,7 @@ export const ExclusionsTab: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Scope</label>
-                  <Select
+                  <Select label="Scope"
                     value={exclusion.scope ? String(exclusion.scope) : ''}
                     disabled={!canEdit}
                     onChange={(e) =>
@@ -151,10 +149,7 @@ export const ExclusionsTab: React.FC = () => {
                   </Select>
                 </div>
                 <div className="md:col-span-4 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">
-                    Materiality estimate (kg CO₂e/yr)
-                  </label>
-                  <Input
+                  <Input label="Materiality estimate (kg CO₂e/yr)"
                     type="number"
                     min="0"
                     disabled={!canEdit}
@@ -171,7 +166,7 @@ export const ExclusionsTab: React.FC = () => {
                   <div className="md:col-span-1 flex items-end justify-end">
                     <button
                       onClick={() => removeRow(index)}
-                      className="p-2 rounded-lg text-muted hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg text-muted hover:text-critical hover:bg-red-500/10 transition-colors"
                       title="Remove exclusion"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -180,8 +175,7 @@ export const ExclusionsTab: React.FC = () => {
                 )}
               </div>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-fg/80">Justification *</label>
-                <Textarea
+                <Textarea label="Justification *"
                   rows={2}
                   disabled={!canEdit}
                   value={exclusion.justification}
@@ -197,7 +191,7 @@ export const ExclusionsTab: React.FC = () => {
       {canEdit && (
         <div className="mt-6 flex justify-end">
           <Button onClick={handleSave} loading={saving} disabled={!dirty}>
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="w-4 h-4 me-2" />
             Save Register
           </Button>
         </div>

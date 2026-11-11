@@ -46,11 +46,11 @@ const dqVariant = (s?: number): 'success' | 'info' | 'warning' | 'error' | 'defa
 const ReconBadge: React.FC<{ reconciled: boolean; residual: number }> = ({ reconciled, residual }) =>
   reconciled ? (
     <Badge variant="success" size="sm">
-      <CheckCircle2 className="w-3 h-3 mr-1" /> reconciled
+      <CheckCircle2 className="w-3 h-3 me-1" /> reconciled
     </Badge>
   ) : (
     <Badge variant="warning" size="sm">
-      <AlertTriangle className="w-3 h-3 mr-1" /> residual {fmt(residual)}
+      <AlertTriangle className="w-3 h-3 me-1" /> residual {fmt(residual)}
     </Badge>
   );
 
@@ -85,12 +85,12 @@ const LineDetail: React.FC<{ line: LineageLine; recompute?: RecomputeEntry }> = 
           </span>
         )}
         {line.versionPinned ? (
-          <Badge variant="info" size="sm" className="ml-1">
-            <Pin className="w-3 h-3 mr-1" /> v{line.factorVersion} pinned
+          <Badge variant="info" size="sm" className="ms-1">
+            <Pin className="w-3 h-3 me-1" /> v{line.factorVersion} pinned
           </Badge>
         ) : (
           <span
-            className="ml-1 text-muted italic"
+            className="ms-1 text-muted italic"
             title="Saved before factor-version pinning (§3). Reproducible against the current factor, but not pinned to an immutable version."
           >
             unpinned
@@ -106,11 +106,11 @@ const LineDetail: React.FC<{ line: LineageLine; recompute?: RecomputeEntry }> = 
               not recomputable
             </span>
           ) : recompute.matches ? (
-            <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+            <span className="text-green-800 dark:text-green-400 inline-flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" /> reproduced ({fmt(recompute.recomputedEmissions)} kg)
               {recompute.factorChangedSincePin && (
                 <span
-                  className="ml-1 text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5"
+                  className="ms-1 text-caution dark:text-amber-400 inline-flex items-center gap-0.5"
                   title={`Live factor (v${recompute.currentFactorVersion}) would now give ${fmt(
                     recompute.liveEmissions
                   )} kg — the pinned version preserves the original`}
@@ -146,13 +146,13 @@ const LineDetail: React.FC<{ line: LineageLine; recompute?: RecomputeEntry }> = 
         {line.isEstimate && (
           <span title={line.estimationMethod}>
             <Badge variant="warning" size="sm">
-              <FlaskConical className="w-3 h-3 mr-1" /> estimate
+              <FlaskConical className="w-3 h-3 me-1" /> estimate
             </Badge>
           </span>
         )}
         {line.supplierName && (
           <Badge variant="info" size="sm">
-            <Building2 className="w-3 h-3 mr-1" /> {line.supplierName}
+            <Building2 className="w-3 h-3 me-1" /> {line.supplierName}
           </Badge>
         )}
       </div>
@@ -182,7 +182,7 @@ const LineDetail: React.FC<{ line: LineageLine; recompute?: RecomputeEntry }> = 
             <button
               key={ev.id}
               onClick={() => downloadEvidence(ev)}
-              className="text-xs inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 hover:underline"
+              className="text-xs inline-flex items-center gap-1 text-emphasis hover:text-fg hover:underline"
               title={`${ev.contentType} · ${ev.size} bytes`}
             >
               <Download className="w-3 h-3" /> {ev.filename}
@@ -253,7 +253,7 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
   return (
     <Card className="p-6">
       <div className="flex items-center gap-2 mb-2">
-        <Network className="w-5 h-5 text-primary-600" />
+        <Network className="w-5 h-5 text-emphasis" />
         <h2 className="text-xl font-semibold text-fg">Calculation Lineage</h2>
       </div>
       <p className="text-sm text-muted mb-4">
@@ -264,19 +264,17 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
       </p>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
 
       <div className="flex flex-wrap items-end gap-3 mb-5">
         <div className="space-y-1">
-          <label className="block text-xs text-muted">Period start</label>
-          <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          <Input label="Period start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <label className="block text-xs text-muted">Period end</label>
-          <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <Input label="Period end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
         </div>
         <Button variant="outline" onClick={load}>
           Load lineage
@@ -324,7 +322,7 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
                 <div key={s.scope} className="rounded-lg border border-line overflow-hidden">
                   <button
                     onClick={() => toggle(openScopes, s.scope, setOpenScopes)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-fg/[0.03] hover:bg-fg/[0.05] transition-colors text-left"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-fg/[0.03] hover:bg-fg/[0.05] transition-colors text-start"
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       {sOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
@@ -349,7 +347,7 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
                           <div key={cKey} className="rounded-md border border-line">
                             <button
                               onClick={() => toggle(openCats, cKey, setOpenCats)}
-                              className="w-full flex items-center justify-between gap-3 px-3 py-2 hover:bg-fg/[0.03] transition-colors text-left"
+                              className="w-full flex items-center justify-between gap-3 px-3 py-2 hover:bg-fg/[0.03] transition-colors text-start"
                             >
                               <span className="flex items-center gap-2 min-w-0">
                                 {cOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
@@ -376,12 +374,12 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
                                       <div className="flex items-center justify-between gap-2 px-3 py-2">
                                         <button
                                           onClick={() => toggle(openCalcs, calcKey, setOpenCalcs)}
-                                          className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity text-left"
+                                          className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity text-start"
                                         >
                                           {calcOpen ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                                           <span className="text-sm text-fg/90 truncate">{calc.title || '(untitled)'}</span>
                                           {calc.status === 'locked' && (
-                                            <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                            <Lock className="w-3.5 h-3.5 text-caution shrink-0" />
                                           )}
                                           {calc.facilityName && (
                                             <span className="text-xs text-muted shrink-0">· {calc.facilityName}</span>
@@ -408,7 +406,7 @@ export const LineageTab: React.FC<{ initialPeriod?: { start: string; end: string
                                               onClick={() => runCheck(calc.calculationId)}
                                               loading={checking === calc.calculationId}
                                             >
-                                              <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Check
+                                              <ShieldCheck className="w-3.5 h-3.5 me-1" /> Check
                                             </Button>
                                           )}
                                         </div>

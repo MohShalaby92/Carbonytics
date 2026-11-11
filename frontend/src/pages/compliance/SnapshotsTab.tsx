@@ -98,7 +98,7 @@ export const SnapshotsTab: React.FC = () => {
   return (
     <Card className="p-6">
       <div className="flex items-center gap-2 mb-2">
-        <History className="w-5 h-5 text-primary-600" />
+        <History className="w-5 h-5 text-emphasis" />
         <h2 className="text-xl font-semibold text-fg">Snapshots & Restatements</h2>
       </div>
       <p className="text-sm text-muted mb-4">
@@ -108,8 +108,7 @@ export const SnapshotsTab: React.FC = () => {
       </p>
 
       <div className="space-y-1 mb-4">
-        <label className="block text-xs font-medium text-fg/80">Calculation</label>
-        <Select value={selectedCalcId} onChange={(e) => setSelectedCalcId(e.target.value)}>
+        <Select label="Calculation" value={selectedCalcId} onChange={(e) => setSelectedCalcId(e.target.value)}>
           <option value="">Select a calculation…</option>
           {calculations.map((calc: any) => {
             const id = calc.id || calc._id;
@@ -124,7 +123,7 @@ export const SnapshotsTab: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -150,14 +149,14 @@ export const SnapshotsTab: React.FC = () => {
                   className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg text-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                    <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20">
                       v{snap.version}
                     </span>
                     <span className="text-fg/80 truncate">
                       {snap.comment || 'locked'}
                     </span>
                   </div>
-                  <span className="text-xs text-muted shrink-0 ml-3">
+                  <span className="text-xs text-muted shrink-0 ms-3">
                     {snap.createdBy} · {format(new Date(snap.createdAt), 'MMM dd, yyyy HH:mm')}
                   </span>
                 </div>
@@ -172,16 +171,14 @@ export const SnapshotsTab: React.FC = () => {
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="space-y-1">
-                    <label className="block text-xs text-muted">From version</label>
-                    <Select value={fromVersion} onChange={(e) => setFromVersion(e.target.value)}>
+                    <Select label="From version" value={fromVersion} onChange={(e) => setFromVersion(e.target.value)}>
                       {snapshots.map((s) => (
                         <option key={s.version} value={s.version}>v{s.version}</option>
                       ))}
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-xs text-muted">To version</label>
-                    <Select value={toVersion} onChange={(e) => setToVersion(e.target.value)}>
+                    <Select label="To version" value={toVersion} onChange={(e) => setToVersion(e.target.value)}>
                       {snapshots.map((s) => (
                         <option key={s.version} value={s.version}>v{s.version}</option>
                       ))}
@@ -194,7 +191,7 @@ export const SnapshotsTab: React.FC = () => {
 
                 {diff && (
                   diff.identical ? (
-                    <div className="p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-700 dark:text-green-300">
+                    <div className="p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-800 dark:text-green-300">
                       Versions v{diff.from.version} and v{diff.to.version} are identical — no
                       restatement.
                     </div>
@@ -202,20 +199,20 @@ export const SnapshotsTab: React.FC = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-left text-xs text-muted border-b border-line">
-                            <th className="py-2 pr-4 font-medium">Field</th>
-                            <th className="py-2 pr-4 font-medium">v{diff.from.version}</th>
+                          <tr className="text-start text-xs text-muted border-b border-line">
+                            <th className="py-2 pe-4 font-medium">Field</th>
+                            <th className="py-2 pe-4 font-medium">v{diff.from.version}</th>
                             <th className="py-2 font-medium">v{diff.to.version}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {diff.changes.map((change, i) => (
                             <tr key={i} className="border-b border-line/50">
-                              <td className="py-2 pr-4 font-mono text-xs text-fg/80">{change.path}</td>
-                              <td className="py-2 pr-4 text-red-600 dark:text-red-400">
+                              <td className="py-2 pe-4 font-mono text-xs text-fg/80">{change.path}</td>
+                              <td className="py-2 pe-4 text-red-600 dark:text-red-400">
                                 {formatValue(change.from)}
                               </td>
-                              <td className="py-2 text-green-700 dark:text-green-400">
+                              <td className="py-2 text-green-800 dark:text-green-400">
                                 {formatValue(change.to)}
                               </td>
                             </tr>
@@ -236,7 +233,7 @@ export const SnapshotsTab: React.FC = () => {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <p className="text-sm font-semibold text-fg flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-primary-600" />
+                <ShieldCheck className="w-4 h-4 text-emphasis" />
                 Deterministic recompute check
               </p>
               <p className="text-xs text-muted mt-0.5 max-w-xl">
@@ -255,10 +252,10 @@ export const SnapshotsTab: React.FC = () => {
               <div
                 className={`p-3 rounded-lg text-sm border ${
                   recompute.summary.mismatches > 0
-                    ? 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+                    ? 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
                     : recompute.deterministic
-                    ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
-                    : 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-300'
+                    ? 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
+                    : 'bg-amber-500/10 border-amber-500/25 text-amber-800 dark:text-amber-300'
                 }`}
               >
                 <span className="font-semibold">
@@ -279,44 +276,44 @@ export const SnapshotsTab: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-muted border-b border-line">
-                      <th className="py-2 pr-4 font-medium">Category</th>
-                      <th className="py-2 pr-4 font-medium">Factor</th>
-                      <th className="py-2 pr-4 font-medium">Pinned ver.</th>
-                      <th className="py-2 pr-4 font-medium text-right">Stored</th>
-                      <th className="py-2 pr-4 font-medium text-right">Recomputed</th>
+                    <tr className="text-start text-xs text-muted border-b border-line">
+                      <th className="py-2 pe-4 font-medium">Category</th>
+                      <th className="py-2 pe-4 font-medium">Factor</th>
+                      <th className="py-2 pe-4 font-medium">Pinned ver.</th>
+                      <th className="py-2 pe-4 font-medium text-end">Stored</th>
+                      <th className="py-2 pe-4 font-medium text-end">Recomputed</th>
                       <th className="py-2 font-medium">Result</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recompute.entries.map((e) => (
                       <tr key={e.index} className="border-b border-line/50">
-                        <td className="py-2 pr-4 text-fg/80">{e.categoryName || '—'}</td>
-                        <td className="py-2 pr-4 text-fg/70 truncate max-w-[14rem]">{e.factorName || '—'}</td>
-                        <td className="py-2 pr-4 text-fg/70">
+                        <td className="py-2 pe-4 text-fg/80">{e.categoryName || '—'}</td>
+                        <td className="py-2 pe-4 text-fg/70 truncate max-w-[14rem]">{e.factorName || '—'}</td>
+                        <td className="py-2 pe-4 text-fg/70">
                           {e.versionPinned ? (
-                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-500/15 text-primary-700 dark:text-primary-300">
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-brand/10 text-emphasis">
                               v{e.factorVersion}
                             </span>
                           ) : (
                             <span className="text-xs text-muted">unpinned</span>
                           )}
                         </td>
-                        <td className="py-2 pr-4 text-right tabular-nums text-fg/80">
+                        <td className="py-2 pe-4 text-end tabular-nums text-fg/80">
                           {e.storedEmissions?.toLocaleString()}
                         </td>
-                        <td className="py-2 pr-4 text-right tabular-nums text-fg/80">
+                        <td className="py-2 pe-4 text-end tabular-nums text-fg/80">
                           {e.recomputeSupported ? e.recomputedEmissions?.toLocaleString() : '—'}
                         </td>
                         <td className="py-2">
                           {!e.recomputeSupported ? (
                             <span className="text-xs text-muted" title={e.note}>not recomputable</span>
                           ) : e.matches ? (
-                            <span className="text-xs text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+                            <span className="text-xs text-green-800 dark:text-green-400 inline-flex items-center gap-1">
                               <ShieldCheck className="w-3.5 h-3.5" /> reproduced
                               {e.factorChangedSincePin && (
                                 <span
-                                  className="ml-1 text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5"
+                                  className="ms-1 text-amber-600 dark:text-amber-400 inline-flex items-center gap-0.5"
                                   title={`Live factor (v${e.currentFactorVersion}) would now give ${e.liveEmissions?.toLocaleString()} — the pin preserves the original`}
                                 >
                                   <AlertTriangle className="w-3.5 h-3.5" /> factor drifted

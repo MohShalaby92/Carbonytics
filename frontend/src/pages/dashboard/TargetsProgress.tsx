@@ -88,9 +88,9 @@ export const TargetsProgress: React.FC<TargetsProgressProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'on-track': return 'bg-green-500/15 text-green-700 dark:text-green-300';
-      case 'ahead': return 'bg-blue-500/15 text-blue-700 dark:text-blue-300';
-      case 'needs-attention': return 'bg-red-500/15 text-red-700 dark:text-red-300';
+      case 'on-track': return 'bg-green-500/15 text-green-800 dark:text-green-300';
+      case 'ahead': return 'bg-blue-500/15 text-blue-800 dark:text-blue-300';
+      case 'needs-attention': return 'bg-red-500/15 text-red-800 dark:text-red-300';
       default: return 'bg-fg/[0.06] text-fg/80';
     }
   };
@@ -107,12 +107,12 @@ export const TargetsProgress: React.FC<TargetsProgressProps> = ({
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <Target className="w-5 h-5 text-primary-600" />
-          <h3 className="text-lg font-semibold text-fg">Targets & Goals</h3>
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-emphasis" />
+          <h2 className="text-lg font-semibold text-fg">Targets & Goals</h2>
         </div>
         <Button variant="outline" size="sm" onClick={onConfigure}>
-          <Calendar className="w-4 h-4 mr-2" />
+          <Calendar className="w-4 h-4 me-2" />
           Set Targets
         </Button>
       </div>
@@ -129,7 +129,7 @@ export const TargetsProgress: React.FC<TargetsProgressProps> = ({
             No targets set yet — define a baseline and reduction goal to track progress.
           </p>
           <Button variant="outline" onClick={onConfigure}>
-            <TrendingDown className="w-4 h-4 mr-2" />
+            <TrendingDown className="w-4 h-4 me-2" />
             Set Your First Target
           </Button>
         </div>
@@ -139,7 +139,7 @@ export const TargetsProgress: React.FC<TargetsProgressProps> = ({
             <div key={idx} className="border border-line rounded-lg p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h4 className="font-medium text-fg">{target.name}</h4>
+                  <h3 className="font-medium text-fg">{target.name}</h3>
                   <p className="text-sm text-muted mt-1">
                     {target.targetReduction}% below {target.baselineYear} baseline (
                     {formatEmissions(target.baselineEmissions)}) by {target.targetYear}
@@ -154,7 +154,7 @@ export const TargetsProgress: React.FC<TargetsProgressProps> = ({
                 <span className="text-sm text-muted">Progress toward goal</span>
                 <span className="text-sm font-medium text-fg">
                   {target.progressOfGoal.toFixed(0)}%
-                  <span className="text-xs text-muted ml-1">
+                  <span className="text-xs text-muted ms-1">
                     (expected ~{target.expectedPace.toFixed(0)}% by now)
                   </span>
                 </span>

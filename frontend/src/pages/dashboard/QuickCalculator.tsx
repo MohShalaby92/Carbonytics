@@ -72,17 +72,14 @@ export const QuickCalculator: React.FC = () => {
 
   return (
     <Card className="p-6">
-      <div className="flex items-center space-x-2 mb-4">
-        <Calculator className="w-5 h-5 text-primary-600" />
-        <h3 className="text-lg font-semibold text-fg">Quick Calculator</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <Calculator className="w-5 h-5 text-emphasis" />
+        <h2 className="text-lg font-semibold text-fg">Quick Calculator</h2>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-fg/80 mb-2">
-            Type
-          </label>
-          <Select
+          <Select label="Type"
             value={selectedType}
             onChange={(e) => { setSelectedType(e.target.value); setResult(null); }}
           >
@@ -105,10 +102,7 @@ export const QuickCalculator: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-fg/80 mb-2">
-            Amount ({selectedCalcType?.unit})
-          </label>
-          <Input
+          <Input label={<>Amount ({selectedCalcType?.unit})</>}
             type="number"
             step="0.01"
             value={value}
@@ -117,14 +111,14 @@ export const QuickCalculator: React.FC = () => {
           />
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex gap-2">
           <Button
             onClick={handleCalculate}
             loading={calculating}
             disabled={!value}
             className="flex-1"
           >
-            <Zap className="w-4 h-4 mr-2" />
+            <Zap className="w-4 h-4 me-2" />
             Calculate
           </Button>
           <Button
@@ -138,12 +132,12 @@ export const QuickCalculator: React.FC = () => {
         {result !== null && selectedCalcType && (
           <div className="p-4 bg-green-500/10 border border-green-500/25 rounded-lg">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-green-700 dark:text-green-300">Emissions:</span>
-              <span className="text-lg font-bold text-green-700 dark:text-green-300">
+              <span className="text-sm font-medium text-green-800 dark:text-green-300">Emissions:</span>
+              <span className="text-lg font-bold text-green-800 dark:text-green-300">
                 {formatEmissions(result)}
               </span>
             </div>
-            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+            <p className="text-xs text-green-800 dark:text-green-300 mt-1">
               = {value} {selectedCalcType.unit} × {selectedCalcType.factor} kg CO₂e/
               {selectedCalcType.unit} ({selectedCalcType.source})
             </p>

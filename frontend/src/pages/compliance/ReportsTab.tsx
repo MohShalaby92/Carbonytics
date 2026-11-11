@@ -51,7 +51,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
           loading={busy === `${kind}:${f}`}
           disabled={!!busy}
         >
-          <Download className="w-4 h-4 mr-2" />
+          <Download className="w-4 h-4 me-2" />
           {FMT_LABEL[f]}
         </Button>
       ))}
@@ -85,15 +85,13 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
         </p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">Start</label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input label="Start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">End</label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input label="End" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <Button variant="outline" onClick={loadPreview} loading={loadingReport}>
-            <RefreshCw className="w-4 h-4 mr-2" />
+            <RefreshCw className="w-4 h-4 me-2" />
             Preview Inventory
           </Button>
         </div>
@@ -102,10 +100,10 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
         )}
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-5 h-5 text-primary-600" />
+            <FileText className="w-5 h-5 text-emphasis" />
             <h3 className="text-lg font-semibold text-fg">GHG Inventory Report</h3>
           </div>
           <p className="text-sm text-muted mb-4">
@@ -120,7 +118,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
 
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="w-5 h-5 text-primary-600" />
+            <ShieldCheck className="w-5 h-5 text-emphasis" />
             <h3 className="text-lg font-semibold text-fg">Assurance Package</h3>
           </div>
           <p className="text-sm text-muted mb-4">
@@ -133,7 +131,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
 
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-2">
-            <ClipboardList className="w-5 h-5 text-primary-600" />
+            <ClipboardList className="w-5 h-5 text-emphasis" />
             <h3 className="text-lg font-semibold text-fg">Inventory Management Plan</h3>
           </div>
           <p className="text-sm text-muted mb-4">
@@ -152,10 +150,10 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
           Preparation aids that reshape your inventory onto external frameworks — not official
           submissions. File through each framework's own portal after review.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-2">
-              <Globe className="w-5 h-5 text-primary-600" />
+              <Globe className="w-5 h-5 text-emphasis" />
               <h3 className="text-lg font-semibold text-fg">CDP Climate Change</h3>
             </div>
             <p className="text-sm text-muted mb-4">
@@ -168,7 +166,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
 
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-2">
-              <Target className="w-5 h-5 text-primary-600" />
+              <Target className="w-5 h-5 text-emphasis" />
               <h3 className="text-lg font-semibold text-fg">SBTi Target Readiness</h3>
             </div>
             <p className="text-sm text-muted mb-4">
@@ -181,7 +179,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
 
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-2">
-              <Landmark className="w-5 h-5 text-primary-600" />
+              <Landmark className="w-5 h-5 text-emphasis" />
               <h3 className="text-lg font-semibold text-fg">ESRS E1 (CSRD)</h3>
             </div>
             <p className="text-sm text-muted mb-4">
@@ -202,7 +200,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
             </h3>
             {onTrace && (
               <Button variant="outline" size="sm" onClick={() => onTrace(startDate, endDate)}>
-                <Network className="w-4 h-4 mr-2" />
+                <Network className="w-4 h-4 me-2" />
                 Trace in lineage
               </Button>
             )}
@@ -226,7 +224,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
           </div>
 
           {scope2 && (
-            <div className="mb-6 p-3 bg-sky-500/10 border border-sky-500/25 rounded-lg text-sm text-sky-700 dark:text-sky-300">
+            <div className="mb-6 p-3 bg-sky-500/10 border border-sky-500/25 rounded-lg text-sm text-sky-800 dark:text-sky-300">
               <p className="font-medium mb-1">Scope 2 dual reporting</p>
               <p>
                 Location-based: {formatEmissions(scope2.locationBased || 0)} · Market-based:{' '}
@@ -236,7 +234,7 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
           )}
 
           {(report.emissions?.biogenicCO2 ?? 0) > 0 && (
-            <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+            <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-sm text-amber-800 dark:text-amber-300">
               <p className="font-medium mb-1">Biogenic CO₂ (memo — excluded from the scope totals)</p>
               <p>
                 {formatEmissions(report.emissions.biogenicCO2)} of biomass-combustion CO₂, reported
@@ -252,37 +250,37 @@ export const ReportsTab: React.FC<{ onTrace?: (start: string, end: string) => vo
               </p>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-muted text-left">
+                  <tr className="text-muted text-start">
                     <th className="font-medium py-1">Gas</th>
-                    <th className="font-medium py-1 text-right">Mass (kg)</th>
-                    <th className="font-medium py-1 text-right">CO₂e (kg)</th>
+                    <th className="font-medium py-1 text-end">Mass (kg)</th>
+                    <th className="font-medium py-1 text-end">CO₂e (kg)</th>
                   </tr>
                 </thead>
                 <tbody className="text-fg/80">
                   <tr>
                     <td className="py-0.5">CO₂ (fossil, in-scope)</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.co2.toLocaleString()}</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.co2.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.massKg.co2.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.co2eByGas.co2.toLocaleString()}</td>
                   </tr>
                   <tr>
                     <td className="py-0.5">CH₄</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.ch4.toLocaleString()}</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.ch4.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.massKg.ch4.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.co2eByGas.ch4.toLocaleString()}</td>
                   </tr>
                   <tr>
                     <td className="py-0.5">N₂O</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.massKg.n2o.toLocaleString()}</td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eByGas.n2o.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.massKg.n2o.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.co2eByGas.n2o.toLocaleString()}</td>
                   </tr>
                   <tr className="font-medium text-fg border-t border-line">
                     <td className="py-0.5">Per-gas subtotal</td>
                     <td className="py-0.5"></td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.perGasSubtotalCo2e.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.perGasSubtotalCo2e.toLocaleString()}</td>
                   </tr>
                   <tr>
                     <td className="py-0.5">CO₂e factors (gases not separated)</td>
                     <td className="py-0.5"></td>
-                    <td className="py-0.5 text-right">{report.emissions.perGas.co2eNotSeparated.toLocaleString()}</td>
+                    <td className="py-0.5 text-end">{report.emissions.perGas.co2eNotSeparated.toLocaleString()}</td>
                   </tr>
                 </tbody>
               </table>

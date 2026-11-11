@@ -14,9 +14,9 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
   const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
     switch (trend) {
       case 'up':
-        return <TrendingUp className="w-4 h-4 text-red-500" />;
+        return <TrendingUp className="w-4 h-4 text-critical" />;
       case 'down':
-        return <TrendingDown className="w-4 h-4 text-green-500" />;
+        return <TrendingDown className="w-4 h-4 text-positive" />;
       default:
         return <Minus className="w-4 h-4 text-muted" />;
     }
@@ -27,7 +27,7 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
       case 'up':
         return 'text-red-600 dark:text-red-400';
       case 'down':
-        return 'text-green-600 dark:text-green-400';
+        return 'text-positive';
       default:
         return 'text-muted';
     }
@@ -68,7 +68,7 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
       {metrics.map((metric, index) => (
         <Card key={index} className="p-6">
           <div className="flex items-center justify-between">
@@ -76,7 +76,7 @@ export const EmissionOverview: React.FC<EmissionOverviewProps> = ({ data, timefr
               <p className="text-sm font-medium text-muted">{metric.title}</p>
               <p className="text-2xl font-bold text-fg mt-1">{metric.value}</p>
             </div>
-            <div className="ml-3">
+            <div className="ms-3">
               {getTrendIcon(metric.trend)}
             </div>
           </div>

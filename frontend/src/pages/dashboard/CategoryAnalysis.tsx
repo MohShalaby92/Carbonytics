@@ -32,7 +32,7 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
       return (
         <div className="bg-surface p-3 border border-line rounded-lg shadow-lg">
           <p className="font-medium text-fg">{data.fullCategory}</p>
-          <p className="text-primary-600">{data.formattedEmissions}</p>
+          <p className="text-emphasis">{data.formattedEmissions}</p>
         </div>
       );
     }
@@ -42,14 +42,14 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-fg">Emissions by Category</h3>
+        <h2 className="text-lg font-semibold text-fg">Emissions by Category</h2>
         {sortedData.length > 8 && (
           <button
             onClick={() => setShowAll(!showAll)}
-            className="flex items-center text-sm text-primary-600 hover:text-primary-700"
+            className="flex items-center text-sm text-emphasis hover:text-fg"
           >
             {showAll ? 'Show Less' : `Show All (${sortedData.length})`}
-            <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showAll ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 ms-1 transition-transform ${showAll ? 'rotate-180' : ''}`} />
           </button>
         )}
       </div>
@@ -96,7 +96,7 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
 
       {/* Top Contributors Table */}
       <div className="border-t border-line pt-4">
-        <h4 className="text-sm font-medium text-fg mb-3">Top Contributors</h4>
+        <h3 className="text-sm font-medium text-fg mb-3">Top Contributors</h3>
         <div className="space-y-2">
           {sortedData.slice(0, 5).map((item, index) => {
             const total = Object.values(data).reduce((sum, val) => sum + val, 0);
@@ -104,17 +104,17 @@ export const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ data }) => {
             
             return (
               <div key={index} className="flex items-center justify-between py-2 px-3 bg-fg/[0.04] rounded">
-                <div className="flex items-center space-x-3">
-                  <span className="w-6 h-6 bg-primary-500/15 text-primary-600 dark:text-primary-300 rounded-full flex items-center justify-center text-xs font-medium">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 -brand/15 text-emphasis rounded-full flex items-center justify-center text-xs font-medium">
                     {index + 1}
                   </span>
                   <span className="text-sm font-medium text-fg truncate max-w-xs">
                     {item.fullCategory}
                   </span>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <span className="text-sm font-medium text-fg">{item.formattedEmissions}</span>
-                  <span className="text-xs text-muted ml-2">{percentage}%</span>
+                  <span className="text-xs text-muted ms-2">{percentage}%</span>
                 </div>
               </div>
             );

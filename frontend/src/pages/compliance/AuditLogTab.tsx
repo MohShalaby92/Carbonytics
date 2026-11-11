@@ -19,11 +19,11 @@ const RESOURCE_TYPES = [
 ];
 
 const ACTION_BADGE: Record<string, string> = {
-  create: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  update: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-  delete: 'bg-red-500/15 text-red-700 dark:text-red-300',
-  lock: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  unlock: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  create: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  update: 'bg-sky-500/15 text-sky-800 dark:text-sky-300',
+  delete: 'bg-red-500/15 text-red-800 dark:text-red-300',
+  lock: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  unlock: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
   import: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
 };
 
@@ -70,11 +70,11 @@ export const AuditLogTab: React.FC = () => {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
         <div className="flex items-center gap-2">
-          <ScrollText className="w-5 h-5 text-primary-600" />
+          <ScrollText className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Audit Trail</h2>
         </div>
         <div className="w-48">
-          <Select value={resourceType} onChange={(e) => handleFilterChange(e.target.value)}>
+          <Select aria-label="Filter by resource type" value={resourceType} onChange={(e) => handleFilterChange(e.target.value)}>
             {RESOURCE_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
@@ -87,7 +87,7 @@ export const AuditLogTab: React.FC = () => {
       </p>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -104,7 +104,7 @@ export const AuditLogTab: React.FC = () => {
             return (
               <div key={entry.id} className="border border-line rounded-lg">
                 <button
-                  className="w-full flex items-center justify-between p-3 text-left hover:bg-fg/[0.03] transition-colors"
+                  className="w-full flex items-center justify-between p-3 text-start hover:bg-fg/[0.03] transition-colors"
                   onClick={() => setExpandedId(expanded ? null : entry.id)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -123,7 +123,7 @@ export const AuditLogTab: React.FC = () => {
                       {entry.userEmail}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <div className="flex items-center gap-2 shrink-0 ms-3">
                     <span className="text-xs text-muted whitespace-nowrap">
                       {format(new Date(entry.createdAt), 'MMM dd, yyyy HH:mm')}
                     </span>
@@ -176,7 +176,7 @@ export const AuditLogTab: React.FC = () => {
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+            <ChevronLeft className="w-4 h-4 me-1" /> Previous
           </Button>
           <span className="text-sm text-muted">
             Page {page} of {pages}
@@ -187,7 +187,7 @@ export const AuditLogTab: React.FC = () => {
             disabled={page >= pages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Next <ChevronRight className="w-4 h-4 ml-1" />
+            Next <ChevronRight className="w-4 h-4 ms-1" />
           </Button>
         </div>
       )}

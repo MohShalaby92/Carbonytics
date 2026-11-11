@@ -102,12 +102,12 @@ export const DenominatorsTab: React.FC = () => {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Divide className="w-5 h-5 text-primary-600" />
+          <Divide className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Intensity & Denominators</h2>
         </div>
         {canEdit && (
           <Button variant="outline" size="sm" onClick={addRow}>
-            <Plus className="w-4 h-4 mr-1" /> Add Denominator
+            <Plus className="w-4 h-4 me-1" /> Add Denominator
           </Button>
         )}
       </div>
@@ -122,8 +122,8 @@ export const DenominatorsTab: React.FC = () => {
         <div
           className={`mb-4 p-3 rounded-lg border text-sm ${
             message.type === 'success'
-              ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
-              : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+              ? 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
           }`}
         >
           {message.text}
@@ -141,8 +141,7 @@ export const DenominatorsTab: React.FC = () => {
             <div key={index} className="p-3 border border-line rounded-lg bg-fg/[0.02]">
               <div className="grid grid-cols-2 md:grid-cols-12 gap-3 items-end">
                 <div className="md:col-span-2 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Year *</label>
-                  <Input
+                  <Input label="Year *"
                     type="number"
                     min="2000"
                     max="2100"
@@ -152,8 +151,7 @@ export const DenominatorsTab: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-3 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">Metric *</label>
-                  <Select
+                  <Select label="Metric *"
                     value={d.metric}
                     disabled={!canEdit}
                     onChange={(e) => updateRow(index, { metric: e.target.value as Denominator['metric'] })}
@@ -165,8 +163,7 @@ export const DenominatorsTab: React.FC = () => {
                 </div>
                 {d.metric === 'custom' && (
                   <div className="md:col-span-2 space-y-1">
-                    <label className="block text-xs font-medium text-fg/80">Label *</label>
-                    <Input
+                    <Input label="Label *"
                       disabled={!canEdit}
                       value={d.label || ''}
                       placeholder="e.g. tonnes of cement"
@@ -175,8 +172,7 @@ export const DenominatorsTab: React.FC = () => {
                   </div>
                 )}
                 <div className={`${d.metric === 'custom' ? 'md:col-span-2' : 'md:col-span-3'} space-y-1`}>
-                  <label className="block text-xs font-medium text-fg/80">Value *</label>
-                  <Input
+                  <Input label="Value *"
                     type="number"
                     min="0"
                     step="any"
@@ -186,10 +182,7 @@ export const DenominatorsTab: React.FC = () => {
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">
-                    Unit * <span className="text-muted font-normal">({METRICS.find((m) => m.value === d.metric)?.unitHint})</span>
-                  </label>
-                  <Input
+                  <Input label={<>Unit * <span className="text-muted font-normal">({METRICS.find((m) => m.value === d.metric)?.unitHint})</span></>}
                     disabled={!canEdit}
                     value={d.unit}
                     onChange={(e) => updateRow(index, { unit: e.target.value })}
@@ -199,7 +192,7 @@ export const DenominatorsTab: React.FC = () => {
                   <div className="md:col-span-1 flex justify-end">
                     <button
                       onClick={() => removeRow(index)}
-                      className="p-2 rounded-lg text-muted hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                      className="p-2 rounded-lg text-muted hover:text-critical hover:bg-red-500/10 transition-colors"
                       title="Remove denominator"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -215,7 +208,7 @@ export const DenominatorsTab: React.FC = () => {
       {canEdit && (
         <div className="mt-6 flex justify-end">
           <Button onClick={handleSave} loading={saving} disabled={!dirty}>
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="w-4 h-4 me-2" />
             Save Denominators
           </Button>
         </div>

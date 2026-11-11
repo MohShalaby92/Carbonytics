@@ -76,7 +76,7 @@ export const ProfileSettings: React.FC = () => {
       {/* Profile Information */}
       <Card className="p-6">
         <div className="flex items-center mb-6">
-          <User className="w-5 h-5 text-primary-600 mr-2" />
+          <User className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">Profile Information</h2>
         </div>
 
@@ -108,11 +108,11 @@ export const ProfileSettings: React.FC = () => {
 
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted">
-              <Mail className="w-4 h-4 inline mr-1" />
+              <Mail className="w-4 h-4 inline me-1" />
               Role: <span className="font-medium capitalize">{user?.role}</span>
             </div>
             <Button type="submit" loading={loading}>
-              <Save className="w-4 h-4 mr-2" />
+              <Save className="w-4 h-4 me-2" />
               Save Changes
             </Button>
           </div>
@@ -122,12 +122,12 @@ export const ProfileSettings: React.FC = () => {
       {/* Password Security */}
       <Card className="p-6">
         <div className="flex items-center mb-6">
-          <Lock className="w-5 h-5 text-primary-600 mr-2" />
+          <Lock className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">Password & Security</h2>
         </div>
 
         {!showPasswordForm ? (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-sm text-muted">
                 Keep your account secure by using a strong password
@@ -189,7 +189,7 @@ export const ProfileSettings: React.FC = () => {
               />
             </div>
 
-            <div className="flex space-x-3 pt-4">
+            <div className="flex gap-3 pt-4">
               <Button type="submit" loading={loading}>
                 Update Password
               </Button>

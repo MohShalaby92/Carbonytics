@@ -176,12 +176,12 @@ export const FacilitiesTab: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-primary-600" />
+            <Building2 className="w-5 h-5 text-emphasis" />
             <h2 className="text-xl font-semibold text-fg">Entities & Facilities</h2>
           </div>
           {canEdit && (
             <Button variant="outline" size="sm" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-1" /> Add Entity
+              <Plus className="w-4 h-4 me-1" /> Add Entity
             </Button>
           )}
         </div>
@@ -192,12 +192,12 @@ export const FacilitiesTab: React.FC = () => {
         </p>
 
         {message && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-700 dark:text-green-300">
+          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-800 dark:text-green-300">
             {message}
           </div>
         )}
         {error && !modalOpen && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
             {error}
           </div>
         )}
@@ -213,44 +213,44 @@ export const FacilitiesTab: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-muted border-b border-line">
-                  <th className="py-2 pr-4 font-medium">Name</th>
-                  <th className="py-2 pr-4 font-medium">Type</th>
-                  <th className="py-2 pr-4 font-medium">Parent</th>
-                  <th className="py-2 pr-4 font-medium">Ownership</th>
-                  <th className="py-2 pr-4 font-medium">Control (op/fin)</th>
-                  <th className="py-2 pr-4 font-medium">Held</th>
-                  {canEdit && <th className="py-2 font-medium text-right">Actions</th>}
+                <tr className="text-start text-xs text-muted border-b border-line">
+                  <th className="py-2 pe-4 font-medium">Name</th>
+                  <th className="py-2 pe-4 font-medium">Type</th>
+                  <th className="py-2 pe-4 font-medium">Parent</th>
+                  <th className="py-2 pe-4 font-medium">Ownership</th>
+                  <th className="py-2 pe-4 font-medium">Control (op/fin)</th>
+                  <th className="py-2 pe-4 font-medium">Held</th>
+                  {canEdit && <th className="py-2 font-medium text-end">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {facilities.map((f) => (
                   <tr key={f.id} className="border-b border-line/50">
-                    <td className="py-3 pr-4 font-medium text-fg">
+                    <td className="py-3 pe-4 font-medium text-fg">
                       {f.name}
                       <span className="block text-xs text-muted font-normal">
                         {[f.city, f.country].filter(Boolean).join(', ') || '—'}
                       </span>
                     </td>
-                    <td className="py-3 pr-4"><Badge size="sm" variant="default">{f.entityType || 'site'}</Badge></td>
-                    <td className="py-3 pr-4 text-fg/80">
+                    <td className="py-3 pe-4"><Badge size="sm" variant="default">{f.entityType || 'site'}</Badge></td>
+                    <td className="py-3 pe-4 text-fg/80">
                       {f.parentFacilityId ? (nameById.get(f.parentFacilityId) || '—') : <span className="text-muted">org</span>}
                     </td>
-                    <td className="py-3 pr-4 text-fg/80">{f.ownershipPercent ?? 100}%</td>
-                    <td className="py-3 pr-4 text-fg/80">
+                    <td className="py-3 pe-4 text-fg/80">{f.ownershipPercent ?? 100}%</td>
+                    <td className="py-3 pe-4 text-fg/80">
                       {f.operationalControl !== false ? 'Yes' : 'No'} / {f.financialControl !== false ? 'Yes' : 'No'}
                     </td>
-                    <td className="py-3 pr-4 text-fg/80 text-xs">
+                    <td className="py-3 pe-4 text-fg/80 text-xs">
                       {f.acquiredDate || f.disposedDate
                         ? `${toDateInput(f.acquiredDate) || '…'} → ${toDateInput(f.disposedDate) || 'now'}`
                         : 'full period'}
                     </td>
                     {canEdit && (
-                      <td className="py-3 text-right whitespace-nowrap">
+                      <td className="py-3 text-end whitespace-nowrap">
                         <button onClick={() => openEdit(f)} className="p-1.5 rounded-lg text-muted hover:text-fg hover:bg-fg/[0.08] transition-colors" title="Edit">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeactivate(f)} className="p-1.5 rounded-lg text-muted hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Deactivate (soft delete)">
+                        <button onClick={() => handleDeactivate(f)} className="p-1.5 rounded-lg text-muted hover:text-critical hover:bg-red-500/10 transition-colors" title="Deactivate (soft delete)">
                           <Archive className="w-4 h-4" />
                         </button>
                       </td>
@@ -267,12 +267,12 @@ export const FacilitiesTab: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-primary-600" />
+            <Layers className="w-5 h-5 text-emphasis" />
             <h3 className="text-lg font-semibold text-fg">Consolidation roll-up</h3>
           </div>
           <div className="flex items-center gap-2">
-            <Input type="number" min="2000" max="2100" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10) || new Date().getFullYear())} className="w-24" />
-            <Select value={approach} onChange={(e) => setApproach(e.target.value as ConsolidationResult['approach'])} className="w-52">
+            <Input aria-label="Consolidation year" type="number" min="2000" max="2100" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10) || new Date().getFullYear())} className="w-24" />
+            <Select aria-label="Consolidation approach" value={approach} onChange={(e) => setApproach(e.target.value as ConsolidationResult['approach'])} className="w-52">
               {APPROACHES.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
             </Select>
           </div>
@@ -290,7 +290,7 @@ export const FacilitiesTab: React.FC = () => {
                 <p className="text-xs text-muted mt-1">Gross kg CO₂e</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-bold text-primary-600">{cons.consolidatedTotal.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-emphasis">{cons.consolidatedTotal.toLocaleString()}</p>
                 <p className="text-xs text-muted mt-1">Consolidated kg CO₂e</p>
               </div>
               <div className="rounded-lg border border-line p-3">
@@ -302,20 +302,20 @@ export const FacilitiesTab: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-muted border-b border-line">
-                      <th className="py-2 pr-4 font-medium">Entity</th>
-                      <th className="py-2 pr-4 font-medium">Share</th>
-                      <th className="py-2 pr-4 font-medium">Gross</th>
-                      <th className="py-2 pr-4 font-medium">Consolidated</th>
+                    <tr className="text-start text-xs text-muted border-b border-line">
+                      <th className="py-2 pe-4 font-medium">Entity</th>
+                      <th className="py-2 pe-4 font-medium">Share</th>
+                      <th className="py-2 pe-4 font-medium">Gross</th>
+                      <th className="py-2 pe-4 font-medium">Consolidated</th>
                     </tr>
                   </thead>
                   <tbody>
                     {cons.byEntity.map((e) => (
                       <tr key={e.entityId || 'unassigned'} className="border-b border-line/50">
-                        <td className="py-2 pr-4 text-fg/90">{e.name}</td>
-                        <td className="py-2 pr-4 text-fg/80">{e.sharePercent}%</td>
-                        <td className="py-2 pr-4 text-fg/80">{e.gross.toLocaleString()}</td>
-                        <td className="py-2 pr-4 text-fg/80">{e.consolidated.toLocaleString()}</td>
+                        <td className="py-2 pe-4 text-fg/90">{e.name}</td>
+                        <td className="py-2 pe-4 text-fg/80">{e.sharePercent}%</td>
+                        <td className="py-2 pe-4 text-fg/80">{e.gross.toLocaleString()}</td>
+                        <td className="py-2 pe-4 text-fg/80">{e.consolidated.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -331,19 +331,16 @@ export const FacilitiesTab: React.FC = () => {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.name}` : 'Add Entity'}>
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">Name *</label>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Nile Subsidiary" />
+            <Input label="Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Nile Subsidiary" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Type</label>
-              <Select value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value as Facility['entityType'] })}>
+              <Select label="Type" value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value as Facility['entityType'] })}>
                 {ENTITY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Parent entity</label>
-              <Select value={form.parentFacilityId} onChange={(e) => setForm({ ...form, parentFacilityId: e.target.value })}>
+              <Select label="Parent entity" value={form.parentFacilityId} onChange={(e) => setForm({ ...form, parentFacilityId: e.target.value })}>
                 <option value="">— directly under organization —</option>
                 {facilities.filter((f) => !editing || f.id !== editing.id).map((f) => (
                   <option key={f.id} value={f.id}>{f.name}</option>
@@ -353,18 +350,15 @@ export const FacilitiesTab: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Country</label>
-              <Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+              <Input label="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">City</label>
-              <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="optional" />
+              <Input label="City" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="optional" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 items-end">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Ownership % <span className="text-muted font-normal">(held by parent)</span></label>
-              <Input type="number" min="0" max="100" value={form.ownershipPercent} onChange={(e) => setForm({ ...form, ownershipPercent: e.target.value })} />
+              <Input label={<>Ownership % <span className="text-muted font-normal">(held by parent)</span></>} type="number" min="0" max="100" value={form.ownershipPercent} onChange={(e) => setForm({ ...form, ownershipPercent: e.target.value })} />
             </div>
             <label className="flex items-center gap-2 text-sm text-fg/80 pb-2.5 cursor-pointer">
               <input type="checkbox" checked={form.operationalControl} onChange={(e) => setForm({ ...form, operationalControl: e.target.checked })} className="rounded border-line" />
@@ -377,17 +371,14 @@ export const FacilitiesTab: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Acquired date <span className="text-muted font-normal">(M&A)</span></label>
-              <Input type="date" value={form.acquiredDate} onChange={(e) => setForm({ ...form, acquiredDate: e.target.value })} />
+              <Input label={<>Acquired date <span className="text-muted font-normal">(M&A)</span></>} type="date" value={form.acquiredDate} onChange={(e) => setForm({ ...form, acquiredDate: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-fg/80">Disposed date <span className="text-muted font-normal">(M&A)</span></label>
-              <Input type="date" value={form.disposedDate} onChange={(e) => setForm({ ...form, disposedDate: e.target.value })} />
+              <Input label={<>Disposed date <span className="text-muted font-normal">(M&A)</span></>} type="date" value={form.disposedDate} onChange={(e) => setForm({ ...form, disposedDate: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">Notes</label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="optional" />
+            <Input label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="optional" />
           </div>
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">

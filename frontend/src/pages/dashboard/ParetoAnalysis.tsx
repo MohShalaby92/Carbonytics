@@ -60,7 +60,7 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
       return (
         <div className="bg-surface p-3 border border-line rounded-lg shadow-lg">
           <p className="font-medium text-fg">{d.fullCategory}</p>
-          <p className="text-primary-600">{formatEmissions(d.emissions)} · {d.sharePercent}%</p>
+          <p className="text-emphasis">{formatEmissions(d.emissions)} · {d.sharePercent}%</p>
           <p className="text-xs text-muted">cumulative {d.cumulativePercent}%</p>
         </div>
       );
@@ -71,8 +71,8 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-lg font-semibold text-fg">Materiality (Pareto)</h3>
-        <TrendingUp className="w-5 h-5 text-primary-600" />
+        <h2 className="text-lg font-semibold text-fg">Materiality (Pareto)</h2>
+        <TrendingUp className="w-5 h-5 text-emphasis" />
       </div>
       <p className="text-xs text-muted mb-4">
         Categories ranked by contribution, with the cumulative share. The dashed line marks 80% —
@@ -122,9 +122,9 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
               <ReferenceLine
                 yAxisId="right"
                 y={80}
-                stroke="#d97706"
+                stroke="rgb(var(--accent))"
                 strokeDasharray="4 4"
-                label={{ value: '80%', position: 'right', fill: '#d97706', fontSize: 11 }}
+                label={{ value: '80%', position: 'right', fill: 'rgb(var(--accent))', fontSize: 11 }}
               />
               <Bar yAxisId="left" dataKey="emissions" radius={[4, 4, 0, 0]}>
                 {chartData.map((_, i) => (
@@ -135,9 +135,9 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
                 yAxisId="right"
                 type="monotone"
                 dataKey="cumulativePercent"
-                stroke="#d97706"
+                stroke="rgb(var(--accent))"
                 strokeWidth={2}
-                dot={{ r: 3, fill: '#d97706' }}
+                dot={{ r: 3, fill: 'rgb(var(--accent))' }}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -150,7 +150,7 @@ export const ParetoAnalysis: React.FC<ParetoAnalysisProps> = ({ data }) => {
 
       {chartData.length > 0 && (
         <p className="text-sm text-fg/80">
-          <span className="font-semibold text-primary-600">{vitalFew}</span> of {chartData.length}{' '}
+          <span className="font-semibold text-emphasis">{vitalFew}</span> of {chartData.length}{' '}
           {chartData.length === 1 ? 'category' : 'categories'} drive{' '}
           <span className="font-semibold">
             {chartData[Math.min(vitalFew, chartData.length) - 1]?.cumulativePercent ?? 0}%

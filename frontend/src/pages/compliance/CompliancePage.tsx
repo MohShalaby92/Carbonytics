@@ -102,30 +102,62 @@ export const CompliancePage: React.FC = () => {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="lg:w-64 shrink-0">
-          <Card className="p-4">
-            <nav className="space-y-2">
+          <Card className="p-1.5 lg:p-4">
+            {/* Phone/tablet: one swipeable strip so the panel is above the fold; desktop: a rail. */}
+            <div
+              role="tablist"
+              aria-label="Compliance sections"
+              className="flex gap-1 overflow-x-auto snap-x scroll-px-1.5 [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_calc(100%-2.5rem),transparent)] rtl:[mask-image:linear-gradient(to_left,#000_calc(100%-2.5rem),transparent)] pe-10 lg:pe-0 lg:[mask-image:none] lg:flex-col lg:gap-2 lg:overflow-visible"
+              onKeyDown={(e) => {
+                const keys: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, ArrowRight: 1, ArrowLeft: -1 };
+                const i = visibleTabs.findIndex((t) => t.id === activeTab);
+                let next: number | null = null;
+                if (e.key in keys) next = (i + keys[e.key] + visibleTabs.length) % visibleTabs.length;
+                else if (e.key === 'Home') next = 0;
+                else if (e.key === 'End') next = visibleTabs.length - 1;
+                if (next === null) return;
+                e.preventDefault();
+                setActiveTab(visibleTabs[next].id);
+                document.getElementById(`compliance-tab-${visibleTabs[next].id}`)?.focus();
+              }}
+            >
               {visibleTabs.map((tab) => {
                 const Icon = tab.icon;
+                const selected = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-left ${
-                      activeTab === tab.id
-                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                    id={`compliance-tab-${tab.id}`}
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls="compliance-panel"
+                    tabIndex={selected ? 0 : -1}
+                    onClick={(e) => {
+                      setActiveTab(tab.id);
+                      e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                    }}
+                    className={`focus-ring shrink-0 snap-start whitespace-nowrap lg:w-full lg:whitespace-normal flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-start ${
+                      selected
+                        ? 'bg-brand/10 text-fg'
                         : 'text-fg/80 hover:bg-fg/[0.04] hover:text-fg'
                     }`}
                   >
-                    <Icon className="w-4 h-4 mr-3 shrink-0" />
+                    <Icon className="w-4 h-4 me-3 shrink-0" aria-hidden="true" />
                     {tab.name}
                   </button>
                 );
               })}
-            </nav>
+            </div>
           </Card>
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div
+          id="compliance-panel"
+          role="tabpanel"
+          aria-labelledby={`compliance-tab-${activeTab}`}
+          tabIndex={0}
+          className="flex-1 min-w-0 focus-ring rounded-2xl"
+        >
           {renderActive()}
         </div>
       </div>

@@ -15,9 +15,9 @@ interface RecentCalculationsProps {
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-fg/[0.06] text-fg/70 border-line' },
-  completed: { label: 'Completed', className: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/20' },
-  verified: { label: 'Verified', className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/20' },
-  locked: { label: 'Locked', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/20' },
+  completed: { label: 'Completed', className: 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/20' },
+  verified: { label: 'Verified', className: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/20' },
+  locked: { label: 'Locked', className: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/20' },
 };
 
 export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculations, onChanged }) => {
@@ -65,7 +65,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
   if (!calculations || calculations.length === 0) {
     return (
       <Card className="p-6">
-        <h3 className="text-lg font-semibold text-fg mb-4">Recent Calculations</h3>
+        <h2 className="text-lg font-semibold text-fg mb-4">Recent Calculations</h2>
         <div className="text-center py-6">
           <Clock className="w-8 h-8 text-muted mx-auto mb-2" />
           <p className="text-sm text-muted">No recent calculations</p>
@@ -81,9 +81,9 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
 
   const getScopeColor = (scope: number) => {
     switch (scope) {
-      case 1: return 'bg-red-500/15 text-red-700 dark:text-red-300';
-      case 2: return 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300';
-      case 3: return 'bg-green-500/15 text-green-700 dark:text-green-300';
+      case 1: return 'bg-red-500/15 text-red-800 dark:text-red-300';
+      case 2: return 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300';
+      case 3: return 'bg-green-500/15 text-green-800 dark:text-green-300';
       default: return 'bg-fg/[0.06] text-fg/80';
     }
   };
@@ -98,14 +98,14 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-fg">Recent Calculations</h3>
+        <h2 className="text-lg font-semibold text-fg">Recent Calculations</h2>
         <Button variant="ghost" size="sm" href="/calculations">
           View All
         </Button>
       </div>
 
       {error && (
-        <div className="mb-3 p-2 bg-red-500/10 border border-red-500/25 rounded text-xs text-red-700 dark:text-red-300">
+        <div className="mb-3 p-2 bg-red-500/10 border border-red-500/25 rounded text-xs text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -118,7 +118,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
           return (
             <div key={id || index} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded-lg hover:bg-fg/[0.06] transition-colors">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1">
+                <div className="flex items-center gap-2 mb-1">
                   {getScopes(calc).map((s) => (
                     <span key={s} className={`px-2 py-0.5 text-xs font-medium rounded-full ${getScopeColor(s)}`}>
                       S{s}
@@ -128,7 +128,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
                     {calc.title || 'Untitled calculation'}
                   </span>
                 </div>
-                <div className="flex items-center space-x-2 text-xs text-muted">
+                <div className="flex items-center gap-2 text-xs text-muted">
                   <span className={`px-1.5 py-0.5 font-semibold rounded-full border ${badge.className}`}>
                     {badge.label}
                   </span>
@@ -141,7 +141,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-3">
+              <div className="flex items-center gap-2 ms-3">
                 <p className="text-sm font-medium text-fg whitespace-nowrap">
                   {formatEmissions(calc.emissions?.total || 0)}
                 </p>
@@ -157,7 +157,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
                     onClick={() => handleVerify(calc)}
                     disabled={busyId === id}
                     title="Mark this locked inventory as independently verified (audited)"
-                    className="p-1.5 rounded-lg text-muted hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                    className="p-1.5 rounded-lg text-muted hover:text-positive hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
                   >
                     <BadgeCheck className="w-4 h-4" />
                   </button>
@@ -181,7 +181,7 @@ export const RecentCalculations: React.FC<RecentCalculationsProps> = ({ calculat
       </div>
 
       <Button variant="outline" className="w-full mt-4" href="/calculations">
-        <ExternalLink className="w-4 h-4 mr-2" />
+        <ExternalLink className="w-4 h-4 me-2" />
         New Calculation
       </Button>
     </Card>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Alert } from '../../components/ui/Alert';
@@ -89,8 +90,8 @@ export const UserManagement: React.FC = () => {
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'bg-red-500/15 text-red-700 dark:text-red-300';
-      case 'manager': return 'bg-blue-500/15 text-blue-700 dark:text-blue-300';
+      case 'admin': return 'bg-red-500/15 text-red-800 dark:text-red-300';
+      case 'manager': return 'bg-blue-500/15 text-blue-800 dark:text-blue-300';
       default: return 'bg-fg/[0.06] text-fg/80';
     }
   };
@@ -107,23 +108,23 @@ export const UserManagement: React.FC = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <Users className="w-5 h-5 text-primary-600 mr-2" />
+            <Users className="w-5 h-5 text-emphasis me-2" />
             <h2 className="text-xl font-semibold text-fg">User Management</h2>
           </div>
           <Button onClick={() => setShowInviteForm(true)}>
-            <UserPlus className="w-4 h-4 mr-2" />
+            <UserPlus className="w-4 h-4 me-2" />
             Invite User
           </Button>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted" />
+          <Search className="w-4 h-4 absolute start-3 top-1/2 transform -translate-y-1/2 text-muted" />
           <Input
             placeholder="Search users..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="ps-10"
           />
         </div>
       </Card>
@@ -164,20 +165,20 @@ export const UserManagement: React.FC = () => {
               <label htmlFor="userRole" className="block text-sm font-medium text-fg/80 mb-2">
                 Role
               </label>
-              <select
+              <Select
                 id="userRole"
                 value={inviteData.role}
                 onChange={(e) => setInviteData(prev => ({ ...prev, role: e.target.value as any }))}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
               >
                 {Object.entries(USER_ROLES).map(([key, config]) => (
                   <option key={key} value={key}>{config.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex gap-3">
               <Button type="submit" loading={loading}>
-                <Mail className="w-4 h-4 mr-2" />
+                <Mail className="w-4 h-4 me-2" />
                 Send Invitation
               </Button>
               <Button type="button" variant="outline" onClick={() => setShowInviteForm(false)}>
@@ -193,9 +194,9 @@ export const UserManagement: React.FC = () => {
         <div className="space-y-4">
           {users.map((user) => (
             <div key={user.id} className="flex items-center justify-between p-4 border border-line rounded-lg hover:bg-fg/[0.04]">
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-primary-600 font-medium">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-brand/10 rounded-full flex items-center justify-center">
+                  <span className="text-emphasis font-medium">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
@@ -204,14 +205,14 @@ export const UserManagement: React.FC = () => {
                   <p className="text-sm text-muted">{user.email}</p>
                   {user.lastLogin && (
                     <p className="text-xs text-muted flex items-center mt-1">
-                      <Clock className="w-3 h-3 mr-1" />
+                      <Clock className="w-3 h-3 me-1" />
                       Last login: {new Date(user.lastLogin).toLocaleDateString()}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(user.role)}`}>
                   {USER_ROLES[user.role as keyof typeof USER_ROLES]?.name || user.role}
                 </span>
@@ -225,26 +226,26 @@ export const UserManagement: React.FC = () => {
                   </button>
 
                   {userMenuOpen === user.id && (
-                    <div className="absolute right-0 mt-2 w-56 bg-surface rounded-md shadow-lg border border-line z-10">
+                    <div className="absolute end-0 mt-2 w-56 bg-surface rounded-md shadow-lg border border-line z-10">
                       <div className="py-1">
                         {Object.entries(USER_ROLES).map(([key, config]) => (
                           <button
                             key={key}
                             onClick={() => handleUpdateRole(user.id, key)}
-                            className="w-full text-left px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center disabled:opacity-40"
+                            className="w-full text-start px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.06] flex items-center disabled:opacity-40"
                             disabled={user.role === key}
                             title={config.description}
                           >
-                            <Shield className="w-4 h-4 mr-2 shrink-0" />
+                            <Shield className="w-4 h-4 me-2 shrink-0" />
                             Make {config.name}
                           </button>
                         ))}
                         <div className="border-t border-line my-1"></div>
                         <button
                           onClick={() => handleRemoveUser(user.id)}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center"
+                          className="w-full text-start px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10 flex items-center"
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
+                          <Trash2 className="w-4 h-4 me-2" />
                           Remove User
                         </button>
                       </div>
@@ -264,7 +265,7 @@ export const UserManagement: React.FC = () => {
               </p>
               {!searchTerm && (
                 <Button onClick={() => setShowInviteForm(true)}>
-                  <UserPlus className="w-4 h-4 mr-2" />
+                  <UserPlus className="w-4 h-4 me-2" />
                   Invite Your First User
                 </Button>
               )}

@@ -99,8 +99,7 @@ export const TargetsModal: React.FC<TargetsModalProps> = ({ isOpen, onClose, onS
             <div key={i} className="border border-line rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-fg/80 mb-1">Target name *</label>
-                  <Input
+                  <Input label="Target name *"
                     value={t.name}
                     placeholder="e.g. 50% reduction by 2030"
                     onChange={(e) => update(i, { name: e.target.value })}
@@ -118,18 +117,14 @@ export const TargetsModal: React.FC<TargetsModalProps> = ({ isOpen, onClose, onS
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-fg/80 mb-1">Baseline year</label>
-                  <Input
+                  <Input label="Baseline year"
                     type="number"
                     value={t.baselineYear}
                     onChange={(e) => update(i, { baselineYear: parseInt(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg/80 mb-1">
-                    Baseline (kg CO₂e)
-                  </label>
-                  <Input
+                  <Input label="Baseline (kg CO₂e)"
                     type="number"
                     step="0.01"
                     value={t.baselineEmissions}
@@ -139,16 +134,14 @@ export const TargetsModal: React.FC<TargetsModalProps> = ({ isOpen, onClose, onS
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg/80 mb-1">Target year</label>
-                  <Input
+                  <Input label="Target year"
                     type="number"
                     value={t.targetYear}
                     onChange={(e) => update(i, { targetYear: parseInt(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-fg/80 mb-1">Reduction %</label>
-                  <Input
+                  <Input label="Reduction %"
                     type="number"
                     min={1}
                     max={100}
@@ -167,17 +160,17 @@ export const TargetsModal: React.FC<TargetsModalProps> = ({ isOpen, onClose, onS
             size="sm"
             onClick={() => setTargets((prev) => [...prev, emptyTarget()])}
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 me-2" />
             Add target
           </Button>
 
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-md text-sm text-red-700 dark:text-red-300">
+            <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-md text-sm text-red-800 dark:text-red-300">
               {error}
             </div>
           )}
 
-          <div className="flex justify-end space-x-3 pt-2 border-t border-line">
+          <div className="flex justify-end gap-3 pt-2 border-t border-line">
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>

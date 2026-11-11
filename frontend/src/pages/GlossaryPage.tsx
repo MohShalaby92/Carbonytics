@@ -157,7 +157,7 @@ export const GlossaryPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8 flex items-start gap-3">
-        <span className="grid place-items-center w-11 h-11 rounded-xl bg-primary-500/10 text-primary-600 shrink-0">
+        <span className="grid place-items-center w-11 h-11 rounded-xl -brand/10 text-emphasis shrink-0">
           <BookOpen className="w-6 h-6" />
         </span>
         <div>

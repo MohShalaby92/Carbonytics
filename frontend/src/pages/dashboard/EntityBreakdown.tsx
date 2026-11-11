@@ -54,13 +54,13 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
     <Card className="p-6">
       <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-primary-600" />
-          <h3 className="text-lg font-semibold text-fg">Emissions by Entity / Site</h3>
+          <Building2 className="w-5 h-5 text-emphasis" />
+          <h2 className="text-lg font-semibold text-fg">Emissions by Entity / Site</h2>
         </div>
         <select
           value={approach}
           onChange={(e) => setApproach(e.target.value as Approach)}
-          className="px-3 py-1.5 text-sm font-medium bg-surface text-fg/80 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          className="px-3 py-1.5 rounded-xl border border-line-strong bg-surface text-sm [@media(pointer:coarse)]:text-base text-fg shadow-sm focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring"
           aria-label="Consolidation approach"
         >
           {APPROACHES.map((a) => (
@@ -74,13 +74,13 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
       </p>
 
       {selectedFacilityId && (
-        <div className="mb-3 flex items-center justify-between gap-2 py-2 px-3 bg-primary-500/10 border border-primary-500/25 rounded-lg text-sm">
+        <div className="mb-3 flex items-center justify-between gap-2 py-2 px-3 -brand/10 border -brand/25 rounded-lg text-sm">
           <span className="text-fg/80 min-w-0 truncate">
             Dashboard filtered to: <span className="font-medium">{selectedName || 'selected site'}</span>
           </span>
           <button
             onClick={() => onSelectFacility('')}
-            className="text-xs inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 hover:underline shrink-0"
+            className="text-xs inline-flex items-center gap-1 text-emphasis hover:text-fg hover:underline shrink-0"
           >
             <X className="w-3 h-3" /> Clear
           </button>
@@ -88,7 +88,7 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
       )}
 
       {error && (
-        <div className="mb-3 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+        <div className="mb-3 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
@@ -109,7 +109,7 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
               <p className="text-xs text-muted">consolidated</p>
             </div>
             <div className="rounded-lg border border-line p-2">
-              <p className="text-sm font-bold text-primary-600">{data.overallSharePercent}%</p>
+              <p className="text-sm font-bold text-emphasis">{data.overallSharePercent}%</p>
               <p className="text-xs text-muted">share</p>
             </div>
           </div>
@@ -125,8 +125,8 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
                   key={e.entityId || 'unassigned'}
                   disabled={!clickable}
                   onClick={() => clickable && onSelectFacility(selected ? '' : e.entityId as string)}
-                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                    selected ? 'border-primary-500 bg-primary-500/10' : 'border-line'
+                  className={`w-full text-start rounded-lg border p-3 transition-colors ${
+                    selected ? 'border-brand/50 -brand/10' : 'border-line'
                   } ${clickable ? 'hover:bg-fg/[0.04] cursor-pointer' : 'cursor-default'}`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -146,7 +146,7 @@ export const EntityBreakdown: React.FC<EntityBreakdownProps> = ({
                   </div>
                   <div className="flex h-2 w-full overflow-hidden rounded-full bg-fg/[0.06]">
                     <div
-                      className="bg-primary-500/70 h-full"
+                      className="-brand/70 h-full"
                       style={{ width: `${(e.gross / maxGross) * 100}%` }}
                     />
                   </div>

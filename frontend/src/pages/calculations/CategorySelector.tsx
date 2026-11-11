@@ -56,9 +56,9 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
 
   const getScopeColor = (scope: number) => {
     switch (scope) {
-      case 1: return 'text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/25';
-      case 2: return 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border-yellow-500/25';
-      case 3: return 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/25';
+      case 1: return 'text-fg bg-scope-1/15 border-scope-1/40';
+      case 2: return 'text-fg bg-scope-2/15 border-scope-2/40';
+      case 3: return 'text-fg bg-scope-3/15 border-scope-3/40';
       default: return 'text-muted bg-fg/[0.04] border-line';
     }
   };
@@ -78,7 +78,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
         {[1, 2, 3].map(scope => (
           <div key={scope} className="animate-pulse">
             <div className="h-10 bg-fg/[0.08] rounded mb-2"></div>
-            <div className="space-y-2 ml-4">
+            <div className="space-y-2 ms-4">
               <div className="h-6 bg-fg/[0.06] rounded w-3/4"></div>
               <div className="h-6 bg-fg/[0.06] rounded w-2/3"></div>
             </div>
@@ -104,14 +104,14 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
         </button>
       </div>
       {showPriorityHelp && (
-        <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300 space-y-1">
+        <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-800 dark:text-blue-300 space-y-1">
           <p className="font-medium">What do high / medium / low mean?</p>
           <p>
             The flag is the category's typical <strong>materiality</strong> — how much it
             usually contributes to an organization's footprint and how important it is to
             measure first. It is not a data-quality rating.
           </p>
-          <ul className="list-disc ml-4 space-y-0.5">
+          <ul className="list-disc ms-4 space-y-0.5">
             <li><span className="font-medium">high</span> — usually a major source; measure these first.</li>
             <li><span className="font-medium">medium</span> — relevant for many organizations.</li>
             <li><span className="font-medium">low</span> — niche; include for completeness.</li>
@@ -130,18 +130,18 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             <button
               onClick={() => toggleScope(scope)}
               className={cn(
-                'w-full px-4 py-3 flex items-center justify-between text-left transition-colors hover:bg-opacity-80',
+                'w-full px-4 py-3 flex items-center justify-between text-start transition-colors hover:bg-opacity-80',
                 getScopeColor(scope)
               )}
             >
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
                 {getScopeIcon(scope)}
                 <div>
                   <h3 className="font-medium">Scope {scope}</h3>
                   <p className="text-xs opacity-75">{getScopeDescription(scope)}</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-medium bg-surface/60 px-2 py-1 rounded">
                   {scopeCategories.length}
                 </span>
@@ -161,7 +161,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                     key={category.id}
                     onClick={() => onCategorySelect(category.id)}
                     className={cn(
-                      'w-full px-4 py-3 text-left hover:bg-fg/[0.04] transition-colors border-b border-line last:border-b-0',
+                      'w-full px-4 py-3 text-start hover:bg-fg/[0.04] transition-colors border-b border-line last:border-b-0',
                       // Token-based selected state (the old bg-primary-50 was light-mode only)
                       selectedCategoryId === category.id && 'bg-brand/10 ring-1 ring-inset ring-brand/30'
                     )}
@@ -192,11 +192,11 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                           )}
                         </div>
                       </div>
-                      <div className="ml-3 text-right">
+                      <div className="ms-3 text-end">
                         <span className={cn(
                           'inline-block text-xs px-2 py-1 rounded-full',
-                          category.priority === 'high' && 'bg-red-500/15 text-red-700 dark:text-red-300',
-                          category.priority === 'medium' && 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+                          category.priority === 'high' && 'bg-red-500/15 text-red-800 dark:text-red-300',
+                          category.priority === 'medium' && 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300',
                           category.priority === 'low' && 'bg-fg/[0.06] text-fg/80'
                         )}>
                           {category.priority}

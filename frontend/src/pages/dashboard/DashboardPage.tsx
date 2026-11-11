@@ -262,7 +262,7 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-fg">Carbon Dashboard</h1>
           <p className="mt-2 text-muted">
@@ -270,13 +270,13 @@ export const DashboardPage: React.FC = () => {
           </p>
         </div>
         
-        <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Facility filter (only when facilities exist) */}
           {facilities.length > 0 && (
             <select
               value={facilityId}
               onChange={(e) => setFacilityId(e.target.value)}
-              className="px-3 py-2 text-sm font-medium bg-surface text-fg/80 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="w-full sm:w-auto px-3 py-2 rounded-xl border border-line-strong bg-surface text-sm [@media(pointer:coarse)]:text-base text-fg shadow-sm focus:outline-none focus:border-ring focus:ring-1 focus:ring-ring"
               aria-label="Filter by facility"
             >
               <option value="">All facilities</option>
@@ -287,16 +287,17 @@ export const DashboardPage: React.FC = () => {
           )}
 
           {/* Timeframe Selector */}
-          <div className="flex rounded-md shadow-sm">
+          <div className="flex flex-1 sm:flex-none rounded-md shadow-sm">
             {(['month', 'quarter', 'year'] as const).map((period) => (
               <button
                 key={period}
                 onClick={() => setTimeframe(period)}
+                aria-pressed={timeframe === period}
                 className={`
-                  px-4 py-2 text-sm font-medium border
-                  ${period === 'month' ? 'rounded-l-md' : period === 'year' ? 'rounded-r-md' : ''}
+                  flex-1 px-4 py-2 text-sm font-medium border
+                  ${period === 'month' ? 'rounded-s-md' : period === 'year' ? 'rounded-e-md' : ''}
                   ${timeframe === period
-                    ? 'bg-primary-600 text-white border-primary-600'
+                    ? 'bg-fg/[0.08] text-fg border-line'
                     : 'bg-surface text-fg/80 border-line hover:bg-fg/[0.04]'
                   }
                 `}
@@ -310,22 +311,26 @@ export const DashboardPage: React.FC = () => {
             variant="outline"
             onClick={handleRefresh}
             loading={refreshing}
+            aria-label="Refresh"
+            className="px-3.5 sm:px-4"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            <RefreshCw className="w-4 h-4 sm:me-2" aria-hidden="true" />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
 
           <Button
             variant="outline"
             onClick={handleExportReport}
             loading={exporting}
+            aria-label="Export report"
+            className="px-3.5 sm:px-4"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export
+            <Download className="w-4 h-4 sm:me-2" aria-hidden="true" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
 
-          <Button href="/calculations">
-            <Plus className="w-4 h-4 mr-2" />
+          <Button href="/calculations" className="w-full sm:w-auto">
+            <Plus className="w-4 h-4 me-2" aria-hidden="true" />
             New Calculation
           </Button>
         </div>
@@ -372,7 +377,7 @@ export const DashboardPage: React.FC = () => {
       {/* Bottom Section - Additional Insights */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-fg mb-1">Insights & Recommendations</h3>
+          <h2 className="text-lg font-semibold text-fg mb-1">Insights & Recommendations</h2>
           <p className="text-xs text-muted mb-4">
             Generated automatically from rule-based checks on your current scope mix
             (e.g. Scope 3 &gt; 50% of total, Scope 2 &gt; 30% of total).
@@ -382,7 +387,7 @@ export const DashboardPage: React.FC = () => {
               <>
                 {dashboardData.scopeBreakdown[3] > dashboardData.totalEmissions * 0.5 && (
                   <div className="p-3 bg-yellow-500/10 border border-yellow-500/25 rounded-md">
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300 dark:text-yellow-300">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-300">
                       <strong>Scope 3 Focus:</strong> Over 50% of emissions are from Scope 3. 
                       Consider supplier engagement and value chain optimization.
                     </p>
@@ -391,7 +396,7 @@ export const DashboardPage: React.FC = () => {
                 
                 {dashboardData.scopeBreakdown[2] > dashboardData.totalEmissions * 0.3 && (
                   <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-md">
-                    <p className="text-sm text-blue-700 dark:text-blue-300 dark:text-blue-300">
+                    <p className="text-sm text-blue-800 dark:text-blue-300">
                       <strong>Energy Opportunity:</strong> Significant Scope 2 emissions detected. 
                       Consider renewable energy procurement or energy efficiency measures.
                     </p>
@@ -399,7 +404,7 @@ export const DashboardPage: React.FC = () => {
                 )}
 
                 <div className="p-3 bg-green-500/10 border border-green-500/25 rounded-md">
-                  <p className="text-sm text-green-700 dark:text-green-300 dark:text-green-300">
+                  <p className="text-sm text-green-800 dark:text-green-300">
                     <strong>Egyptian Context:</strong> Using local emission factors for more accurate calculations. 
                     Consider the growing renewable energy sector in Egypt.
                   </p>
@@ -410,11 +415,11 @@ export const DashboardPage: React.FC = () => {
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-fg mb-4">Next Steps</h3>
+          <h2 className="text-lg font-semibold text-fg mb-4">Next Steps</h2>
           <div className="space-y-3">
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center mt-0.5">
-                <span className="text-xs font-medium text-primary-600">1</span>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-brand/10 rounded-full flex items-center justify-center mt-0.5">
+                <span className="text-xs font-medium text-emphasis">1</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-fg">Set Science-Based Targets</p>
@@ -422,9 +427,9 @@ export const DashboardPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center mt-0.5">
-                <span className="text-xs font-medium text-primary-600">2</span>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-brand/10 rounded-full flex items-center justify-center mt-0.5">
+                <span className="text-xs font-medium text-emphasis">2</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-fg">Expand Data Collection</p>
@@ -432,9 +437,9 @@ export const DashboardPage: React.FC = () => {
               </div>
             </div>
             
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center mt-0.5">
-                <span className="text-xs font-medium text-primary-600">3</span>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-brand/10 rounded-full flex items-center justify-center mt-0.5">
+                <span className="text-xs font-medium text-emphasis">3</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-fg">Monitor Progress</p>
@@ -448,7 +453,7 @@ export const DashboardPage: React.FC = () => {
             className="w-full mt-4"
             onClick={() => setShowTargetsModal(true)}
           >
-            <Settings className="w-4 h-4 mr-2" />
+            <Settings className="w-4 h-4 me-2" />
             Configure Targets
           </Button>
         </Card>

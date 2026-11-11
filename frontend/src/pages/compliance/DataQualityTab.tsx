@@ -12,17 +12,17 @@ import { Gauge, TrendingDown, TrendingUp, Minus } from 'lucide-react';
  * toward 1s and primary share to rise).
  */
 const dqColor = (s: number | null) =>
-  s == null ? 'text-muted' : s <= 2 ? 'text-green-600' : s <= 3.5 ? 'text-yellow-600' : 'text-red-600';
+  s == null ? 'text-muted' : s <= 2 ? 'text-positive' : s <= 3.5 ? 'text-caution' : 'text-critical';
 
 /** Heatmap cell styling for a pedigree score (1 best … 5 worst — lower is better). */
 const pedCell = (s: number | null | undefined) =>
   s == null
     ? 'text-muted'
     : s <= 2
-    ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+    ? 'bg-green-500/15 text-green-800 dark:text-green-300'
     : s <= 3.5
-    ? 'bg-amber-400/20 text-amber-700 dark:text-amber-300'
-    : 'bg-red-500/15 text-red-700 dark:text-red-300';
+    ? 'bg-amber-400/20 text-amber-800 dark:text-amber-300'
+    : 'bg-red-500/15 text-red-800 dark:text-red-300';
 
 const PED_DIMS: [string, string][] = [
   ['Technological', 'technological'],
@@ -67,7 +67,7 @@ export const DataQualityTab: React.FC = () => {
     <div className="space-y-6">
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-2">
-          <Gauge className="w-5 h-5 text-primary-600" />
+          <Gauge className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Data Quality</h2>
         </div>
         <p className="text-sm text-muted mb-4">
@@ -77,19 +77,17 @@ export const DataQualityTab: React.FC = () => {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
             {error}
           </div>
         )}
 
         <div className="flex flex-wrap items-end gap-3 mb-5">
           <div className="space-y-1">
-            <label className="block text-xs text-muted">Period start</label>
-            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+            <Input label="Period start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs text-muted">Period end</label>
-            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <Input label="Period end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
           <Button variant="outline" onClick={loadReport}>
             Recompute
@@ -109,7 +107,7 @@ export const DataQualityTab: React.FC = () => {
                 <p className="text-xs text-muted mt-1">weighted DQ (1 best … 5)</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-bold text-green-600">{ds ? `${ds.primarySharePercent}%` : '—'}</p>
+                <p className="text-2xl font-bold text-positive">{ds ? `${ds.primarySharePercent}%` : '—'}</p>
                 <p className="text-xs text-muted mt-1">primary data</p>
               </div>
               <div className="rounded-lg border border-line p-3">
@@ -117,7 +115,7 @@ export const DataQualityTab: React.FC = () => {
                 <p className="text-xs text-muted mt-1">secondary data</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-semibold text-yellow-600">
+                <p className="text-2xl font-semibold text-caution">
                   {report?.dataQuality?.estimates?.emissionsShare ?? 0}%
                 </p>
                 <p className="text-xs text-muted mt-1">estimated (gap-filled)</p>
@@ -176,7 +174,7 @@ export const DataQualityTab: React.FC = () => {
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="text-xs text-muted">
-                        <th className="text-left font-medium py-2 pr-3" />
+                        <th className="text-start font-medium py-2 pe-3" />
                         {PED_DIMS.map(([label]) => (
                           <th key={label} className="font-medium px-2 py-2 text-center whitespace-nowrap">
                             {label}
@@ -186,7 +184,7 @@ export const DataQualityTab: React.FC = () => {
                     </thead>
                     <tbody>
                       <tr className="border-t border-line">
-                        <td className="py-1.5 pr-3 font-medium text-fg/90 whitespace-nowrap">
+                        <td className="py-1.5 pe-3 font-medium text-fg/90 whitespace-nowrap">
                           Organization <span className="text-muted">(weighted)</span>
                         </td>
                         {PED_DIMS.map(([, key]) => {
@@ -204,7 +202,7 @@ export const DataQualityTab: React.FC = () => {
                         .filter((c) => c.pedigree && c.pedigree.overall != null)
                         .map((c) => (
                           <tr key={c.category} className="border-t border-line/50">
-                            <td className="py-1.5 pr-3 text-fg/80 whitespace-nowrap">
+                            <td className="py-1.5 pe-3 text-fg/80 whitespace-nowrap">
                               {c.category} <span className="text-muted">· S{c.scope}</span>
                             </td>
                             {PED_DIMS.map(([, key]) => {
@@ -245,28 +243,28 @@ export const DataQualityTab: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-muted border-b border-line">
-                  <th className="py-2 pr-4 font-medium">Year</th>
-                  <th className="py-2 pr-4 font-medium text-right">Emissions (kg)</th>
-                  <th className="py-2 pr-4 font-medium text-right">Weighted DQ</th>
-                  <th className="py-2 pr-4 font-medium text-right">Primary %</th>
+                <tr className="text-start text-xs text-muted border-b border-line">
+                  <th className="py-2 pe-4 font-medium">Year</th>
+                  <th className="py-2 pe-4 font-medium text-end">Emissions (kg)</th>
+                  <th className="py-2 pe-4 font-medium text-end">Weighted DQ</th>
+                  <th className="py-2 pe-4 font-medium text-end">Primary %</th>
                   <th className="py-2 font-medium">YoY</th>
                 </tr>
               </thead>
               <tbody>
                 {trend.years.map((y) => (
                   <tr key={y.year} className="border-b border-line/50">
-                    <td className="py-2 pr-4 font-medium text-fg/90">{y.year}</td>
-                    <td className="py-2 pr-4 text-right tabular-nums text-fg/80">{y.totalEmissions.toLocaleString()}</td>
-                    <td className={`py-2 pr-4 text-right tabular-nums font-medium ${dqColor(y.weightedDqScore)}`}>
+                    <td className="py-2 pe-4 font-medium text-fg/90">{y.year}</td>
+                    <td className="py-2 pe-4 text-end tabular-nums text-fg/80">{y.totalEmissions.toLocaleString()}</td>
+                    <td className={`py-2 pe-4 text-end tabular-nums font-medium ${dqColor(y.weightedDqScore)}`}>
                       {y.weightedDqScore ?? '—'}
                     </td>
-                    <td className="py-2 pr-4 text-right tabular-nums text-fg/80">{y.primarySharePercent}%</td>
+                    <td className="py-2 pe-4 text-end tabular-nums text-fg/80">{y.primarySharePercent}%</td>
                     <td className="py-2">
                       {y.improving === undefined ? (
                         <span className="text-xs text-muted">—</span>
                       ) : y.improving ? (
-                        <span className="text-xs text-green-700 dark:text-green-400 inline-flex items-center gap-1">
+                        <span className="text-xs text-green-800 dark:text-green-400 inline-flex items-center gap-1">
                           <TrendingDown className="w-3.5 h-3.5" /> improving
                           {y.dqScoreDelta != null && ` (DQ ${y.dqScoreDelta > 0 ? '+' : ''}${y.dqScoreDelta})`}
                         </span>

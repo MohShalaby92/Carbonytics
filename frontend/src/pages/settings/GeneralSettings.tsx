@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Alert';
+import { Badge } from '../../components/ui/Badge';
+import { Select } from '../../components/ui/Select';
 import { organizationService, OrganizationSettings } from '../../services/organizationService';
 import { usePersona, PERSONAS } from '../../hooks/usePersona';
 import { useAuth } from '../../hooks/useAuth';
@@ -77,7 +79,7 @@ export const GeneralSettings: React.FC = () => {
       {/* Persona / workspace mode (§10) */}
       <Card className="p-6">
         <div className="flex items-center mb-2">
-          <LayoutGrid className="w-5 h-5 text-primary-600 mr-2" />
+          <LayoutGrid className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">Workspace mode</h2>
         </div>
         <p className="text-sm text-muted mb-4">
@@ -93,15 +95,15 @@ export const GeneralSettings: React.FC = () => {
                 type="button"
                 disabled={!isAdmin}
                 onClick={() => isAdmin && setPersona(p.id)}
-                className={`text-left rounded-xl border p-4 transition-colors ${
-                  active ? 'border-primary-500 bg-primary-500/10' : 'border-line hover:bg-fg/[0.03]'
+                className={`text-start rounded-xl border p-4 transition-colors ${
+                  active ? 'border-brand/50 -brand/10' : 'border-line hover:bg-fg/[0.03]'
                 } ${!isAdmin ? 'cursor-default opacity-80' : ''}`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-fg">{p.label}</span>
-                  {active && <Check className="w-4 h-4 text-primary-600" />}
+                  {active && <Check className="w-4 h-4 text-emphasis" />}
                 </div>
-                <p className="text-xs text-primary-600 mb-1">{p.tagline}</p>
+                <p className="text-xs text-emphasis mb-1">{p.tagline}</p>
                 <p className="text-xs text-muted leading-relaxed">{p.description}</p>
               </button>
             );
@@ -111,7 +113,7 @@ export const GeneralSettings: React.FC = () => {
 
       <Card className="p-6">
         <div className="flex items-center mb-6">
-          <SettingsIcon className="w-5 h-5 text-primary-600 mr-2" />
+          <SettingsIcon className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">General Settings</h2>
         </div>
 
@@ -120,19 +122,19 @@ export const GeneralSettings: React.FC = () => {
             {/* Currency */}
             <div>
               <label htmlFor="currency" className="block text-sm font-medium text-fg/80 mb-2">
-                <DollarSign className="w-4 h-4 inline mr-1" />
+                <DollarSign className="w-4 h-4 inline me-1" />
                 Default Currency
               </label>
-              <select
+              <Select
                 id="currency"
                 value={settings.currency}
                 onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
               >
                 {Object.entries(CURRENCIES).map(([code, config]) => (
                   <option key={code} value={code}>{code} - {config.name}</option>
                 ))}
-              </select>
+              </Select>
               <p className="text-xs text-muted mt-1">
                 This will be used for displaying monetary values in reports
               </p>
@@ -141,19 +143,19 @@ export const GeneralSettings: React.FC = () => {
             {/* Language */}
             <div>
               <label htmlFor="language" className="block text-sm font-medium text-fg/80 mb-2">
-                <Globe className="w-4 h-4 inline mr-1" />
+                <Globe className="w-4 h-4 inline me-1" />
                 Language
               </label>
-              <select
+              <Select
                 id="language"
                 value={settings.language}
                 onChange={(e) => setSettings(prev => ({ ...prev, language: e.target.value }))}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
               >
                 {Object.entries(LANGUAGES).map(([code, config]) => (
                   <option key={code} value={code}>{config.name}</option>
                 ))}
-              </select>
+              </Select>
               <p className="text-xs text-muted mt-1">
                 Interface language for your organization
               </p>
@@ -162,19 +164,19 @@ export const GeneralSettings: React.FC = () => {
             {/* Timezone */}
             <div className="md:col-span-2">
               <label htmlFor="timezone" className="block text-sm font-medium text-fg/80 mb-2">
-                <Clock className="w-4 h-4 inline mr-1" />
+                <Clock className="w-4 h-4 inline me-1" />
                 Timezone
               </label>
-              <select
+              <Select
                 id="timezone"
                 value={settings.timezone}
                 onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
               >
                 {timezones.map(tz => (
                   <option key={tz.value} value={tz.value}>{tz.label}</option>
                 ))}
-              </select>
+              </Select>
               <p className="text-xs text-muted mt-1">
                 Default timezone for displaying dates and times
               </p>
@@ -187,7 +189,7 @@ export const GeneralSettings: React.FC = () => {
                 <p>These settings apply to your entire organization</p>
               </div>
               <Button type="submit" loading={loading}>
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-4 h-4 me-2" />
                 Save Settings
               </Button>
             </div>
@@ -195,43 +197,39 @@ export const GeneralSettings: React.FC = () => {
         </form>
       </Card>
 
-      {/* Additional Settings */}
+      {/* Additional preferences: not persisted yet, so shown disabled rather than pretending to save. */}
       <Card className="p-6">
-        <h3 className="text-lg font-medium text-fg mb-4">Additional Preferences</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
-            <div>
-              <h4 className="font-medium text-fg">Data Export Format</h4>
-              <p className="text-sm text-muted">Default format for exporting calculation data</p>
-            </div>
-            <select className="px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-              <option value="csv">CSV</option>
-              <option value="excel">Excel</option>
-              <option value="pdf">PDF</option>
-            </select>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <h3 className="text-lg font-medium text-fg">Additional Preferences</h3>
+          <Badge size="sm">Coming soon</Badge>
+        </div>
+        <p className="text-sm text-muted mb-4">These preferences aren't saved yet. They'll switch on in a later release.</p>
 
-          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
-            <div>
-              <h4 className="font-medium text-fg">Measurement Units</h4>
-              <p className="text-sm text-muted">Preferred units for emission calculations</p>
+        <div className="space-y-4" aria-disabled="true">
+          {[
+            { id: 'pref-export', title: 'Data Export Format', hint: 'Default format for exporting calculation data', options: [['csv', 'CSV'], ['excel', 'Excel'], ['pdf', 'PDF']] },
+            { id: 'pref-units', title: 'Measurement Units', hint: 'Preferred units for emission calculations', options: [['metric', 'Metric (kg, km, L)'], ['imperial', 'Imperial (lbs, miles, gal)']] },
+          ].map((pref) => (
+            <div key={pref.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-line rounded-lg">
+              <div>
+                <label htmlFor={pref.id} className="font-medium text-fg">{pref.title}</label>
+                <p className="text-sm text-muted">{pref.hint}</p>
+              </div>
+              <Select id={pref.id} disabled className="sm:w-56">
+                {pref.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
             </div>
-            <select className="px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-              <option value="metric">Metric (kg, km, L)</option>
-              <option value="imperial">Imperial (lbs, miles, gal)</option>
-            </select>
-          </div>
+          ))}
 
-          <div className="flex items-center justify-between p-4 border border-line rounded-lg">
+          <div className="flex items-center justify-between gap-3 p-4 border border-line rounded-lg">
             <div>
-              <h4 className="font-medium text-fg">Auto-save Calculations</h4>
+              <span id="pref-autosave" className="font-medium text-fg">Auto-save Calculations</span>
               <p className="text-sm text-muted">Automatically save calculations as you work</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-fg/[0.08] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-line after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
+            <button type="button" role="switch" aria-checked="false" aria-labelledby="pref-autosave" disabled
+              className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-fg/[0.08] border border-line disabled:opacity-50 disabled:cursor-not-allowed">
+              <span className="absolute top-0.5 start-0.5 h-[18px] w-[18px] rounded-full bg-surface border border-line shadow-sm" />
+            </button>
           </div>
         </div>
       </Card>

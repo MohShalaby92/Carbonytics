@@ -21,6 +21,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'build',
-    sourcemap: true,
+    // Generated for local debugging but never referenced from the bundles; the Docker image deletes them.
+    sourcemap: 'hidden',
   },
 });

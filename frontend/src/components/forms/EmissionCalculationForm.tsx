@@ -482,9 +482,9 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
   const getScopeColor = (scope: number) => {
     switch (scope) {
-      case 1: return 'text-red-600 dark:text-red-400 bg-red-500/10';
-      case 2: return 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10';
-      case 3: return 'text-green-600 dark:text-green-400 bg-green-500/10';
+      case 1: return 'text-fg bg-scope-1/15';
+      case 2: return 'text-fg bg-scope-2/15';
+      case 3: return 'text-fg bg-scope-3/15';
       default: return 'text-muted bg-fg/[0.04]';
     }
   };
@@ -503,22 +503,19 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
   return (
     <Card className="p-6 space-y-6">
-      <div className="flex items-center space-x-3">
-        <Calculator className="w-6 h-6 text-primary-600" />
+      <div className="flex items-center gap-3">
+        <Calculator className="w-6 h-6 text-emphasis" />
         <h2 className="text-xl font-semibold text-fg">Calculate Emissions</h2>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Category Selection */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-fg/80">
-            Emission Category
-          </label>
           <Controller
             name="categoryId"
             control={control}
             render={({ field }) => (
-              <Select
+              <Select label="Emission Category"
                 {...field}
                 error={errors.categoryId?.message}
               >
@@ -535,8 +532,8 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
         {/* Category Details */}
         {selectedCategory && (
-          <Alert className={`border-l-4 ${getScopeColor(selectedCategory.scope)} border-l-current`}>
-            <div className="flex items-start space-x-3">
+          <Alert>
+            <div className="flex items-start gap-3">
               <div className={`p-2 rounded-full ${getScopeColor(selectedCategory.scope)}`}>
                 {getScopeIcon(selectedCategory.scope)}
               </div>
@@ -570,10 +567,10 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               <button
                 type="button"
                 onClick={() => setShowSourcing((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-fg/[0.02]"
+                className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-start hover:bg-fg/[0.02]"
               >
                 <span className="inline-flex items-center gap-2 text-sm font-medium text-fg/90">
-                  <BookOpen className="w-4 h-4 text-primary-600" />
+                  <BookOpen className="w-4 h-4 text-emphasis" />
                   How to source this data
                 </span>
                 {showSourcing ? (
@@ -585,21 +582,21 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               {showSourcing && (
                 <div className="px-4 pb-4 pt-1 space-y-3 text-xs">
                   <div className="flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 mt-0.5 text-primary-600 shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 mt-0.5 text-emphasis shrink-0" />
                     <p className="text-fg/80">
                       <span className="font-semibold text-fg">Where it lives — </span>
                       {g.whereItLives}
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <ListChecks className="w-3.5 h-3.5 mt-0.5 text-primary-600 shrink-0" />
+                    <ListChecks className="w-3.5 h-3.5 mt-0.5 text-emphasis shrink-0" />
                     <p className="text-fg/80">
                       <span className="font-semibold text-fg">Preferred form — </span>
                       {g.preferredForm}
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-amber-600 shrink-0" />
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-caution shrink-0" />
                     <p className="text-fg/80">
                       <span className="font-semibold text-fg">Avoid — </span>
                       {g.pitfalls}
@@ -617,8 +614,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         {/* Fleet quick-select (Mobile Combustion distance-based) */}
         {isMobile && fleet.length > 0 && (
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-fg/80">Quick-select fleet vehicle</label>
-            <Select defaultValue="" onChange={(e) => applyFleetVehicle(e.target.value)}>
+            <Select label="Quick-select fleet vehicle" defaultValue="" onChange={(e) => applyFleetVehicle(e.target.value)}>
               <option value="">— pick a registered vehicle (sets its km factor) —</option>
               {fleet.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -637,13 +633,13 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         {selectedCategory && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-fg/80">
+              <label htmlFor="calc-emission-factor" className="block text-sm font-medium text-fg/80">
                 Emission Factor
               </label>
               <button
                 type="button"
                 onClick={() => { setShowCustomFactor((v) => !v); setCustomFactorError(null); }}
-                className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+                className="text-xs font-medium text-emphasis hover:text-fg"
               >
                 {showCustomFactor ? 'Cancel custom factor' : '+ Add custom factor'}
               </button>
@@ -652,6 +648,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             {availableFactors.length > 0 ? (
               <>
                 <Select
+                  id="calc-emission-factor"
                   value={selectedFactorId}
                   onChange={(e) => setSelectedFactorId(e.target.value)}
                 >
@@ -674,7 +671,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       {f.region && <span>Region: {f.region}</span>}
                       {f.qualityRating && <span>Quality: {f.qualityRating}</span>}
                       {f.organizationId && (
-                        <span className="text-primary-600 dark:text-primary-300">Custom (your organization)</span>
+                        <span className="text-emphasis">Custom (your organization)</span>
                       )}
                     </div>
                   );
@@ -738,7 +735,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             {/* Primary Value Input */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-fg/80">
+                <label htmlFor="calc-value" className="block text-sm font-medium text-fg/80">
                   Value *
                 </label>
                 <button
@@ -750,7 +747,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       ? 'Set the period first — estimates come from your history for the same period'
                       : 'Suggest a conservative estimate from your historical data'
                   }
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-emphasis hover:text-fg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Lightbulb className="w-3.5 h-3.5" />
                   {estimating ? 'Estimating…' : 'Suggest estimate'}
@@ -762,6 +759,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                 render={({ field }) => (
                   <Input
                     {...field}
+                    id="calc-value"
                     type="number"
                     step="0.01"
                     placeholder="Enter amount"
@@ -774,14 +772,11 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
             {/* Unit Selection */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-fg/80">
-                Unit *
-              </label>
               <Controller
                 name="unit"
                 control={control}
                 render={({ field }) => (
-                  <Select
+                  <Select label="Unit *"
                     {...field}
                     error={errors.unit?.message}
                   >
@@ -799,7 +794,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
             {/* Dynamic Category-Specific Fields (base fields like unit/period excluded) */}
             {dynamicInputs(selectedCategory).map(input => (
               <div key={input.field} className="space-y-2">
-                <label className="block text-sm font-medium text-fg/80">
+                <label htmlFor={`calc-${input.field}`} className="block text-sm font-medium text-fg/80">
                   {input.field.charAt(0).toUpperCase() + input.field.slice(1).replace(/([A-Z])/g, ' $1')}
                   {input.required && ' *'}
                 </label>
@@ -812,7 +807,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                     const value = (field.value as any) ?? '';
                     if (input.type === 'select' && input.options) {
                       return (
-                        <Select {...field} value={value} error={(errors as any)[input.field]?.message}>
+                        <Select {...field} id={`calc-${input.field}`} value={value} error={(errors as any)[input.field]?.message}>
                           <option value="">Select...</option>
                           {input.options.map(option => (
                             <option key={option} value={option}>{option}</option>
@@ -823,6 +818,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          id={`calc-${input.field}`}
                           value={value}
                           type="number"
                           step="0.01"
@@ -834,6 +830,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          id={`calc-${input.field}`}
                           value={value}
                           type="date"
                           error={(errors as any)[input.field]?.message}
@@ -843,6 +840,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                       return (
                         <Input
                           {...field}
+                          id={`calc-${input.field}`}
                           value={value}
                           type="text"
                           error={(errors as any)[input.field]?.message}
@@ -880,8 +878,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {MB_FIELDS.map((f) => (
                     <div key={f.key} className="space-y-1">
-                      <label className="block text-xs font-medium text-fg/80">{f.label} (kg)</label>
-                      <Input
+                      <Input label={<>{f.label} (kg)</>}
                         type="number"
                         step="0.01"
                         min="0"
@@ -908,12 +905,12 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
         {/* Gap-filling estimate status */}
         {estimateError && (
-          <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-700 dark:text-amber-300">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs text-amber-800 dark:text-amber-300">
             {estimateError}
           </div>
         )}
         {estimate && (
-          <div className="p-3 bg-sky-500/10 border border-sky-500/25 rounded-lg text-xs text-sky-700 dark:text-sky-300 space-y-1">
+          <div className="p-3 bg-sky-500/10 border border-sky-500/25 rounded-lg text-xs text-sky-800 dark:text-sky-300 space-y-1">
             <p className="font-medium flex items-center gap-1.5">
               <Lightbulb className="w-3.5 h-3.5" />
               Estimated value applied — will be saved flagged as an estimate (quality low, DQ 5)
@@ -939,14 +936,11 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         {/* Period Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-fg/80">
-              Period Start *
-            </label>
             <Controller
               name="period.start"
               control={control}
               render={({ field }) => (
-                <Input
+                <Input label="Period Start *"
                   {...field}
                   type="date"
                   error={errors.period?.start?.message}
@@ -956,14 +950,11 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-fg/80">
-              Period End *
-            </label>
             <Controller
               name="period.end"
               control={control}
               render={({ field }) => (
-                <Input
+                <Input label="Period End *"
                   {...field}
                   type="date"
                   error={errors.period?.end?.message}
@@ -975,14 +966,11 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
 
         {/* Notes */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-fg/80">
-            Notes (optional)
-          </label>
           <Controller
             name="notes"
             control={control}
             render={({ field }) => (
-              <Textarea
+              <Textarea label="Notes (optional)"
                 {...field}
                 rows={3}
                 placeholder="Add any additional notes or context..."
@@ -994,30 +982,30 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         {/* Real-time Calculation Result */}
         {calculationResult && (
           <Card className="p-4 bg-green-500/10 border-green-500/25">
-            <h3 className="font-medium text-green-700 dark:text-green-300 dark:text-green-300 mb-2">Calculation Result</h3>
+            <h3 className="font-medium text-green-800 dark:text-green-300 mb-2">Calculation Result</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted">Emissions:</span>
-                <span className="font-medium text-green-700 dark:text-green-300 dark:text-green-300">
+                <span className="font-medium text-green-800 dark:text-green-300">
                   {formatEmissions(calculationResult.calculation.emissions)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Factor:</span>
-                <span className="text-green-700 dark:text-green-300">
+                <span className="text-green-800 dark:text-green-300">
                   {calculationResult.factor.value} {calculationResult.factor.unit}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Source:</span>
-                <span className="text-green-700 dark:text-green-300">
+                <span className="text-green-800 dark:text-green-300">
                   {calculationResult.factor.source} ({calculationResult.factor.year})
                 </span>
               </div>
               {(calculationResult.factor as any).supplierName && (
                 <div className="flex justify-between">
                   <span className="text-muted">Method:</span>
-                  <span className="font-medium text-green-700 dark:text-green-300">
+                  <span className="font-medium text-green-800 dark:text-green-300">
                     supplier-specific ({(calculationResult.factor as any).supplierName})
                   </span>
                 </div>
@@ -1025,7 +1013,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               {calculationResult.quality?.dqScore != null && (
                 <div className="flex justify-between">
                   <span className="text-muted">Data quality (PCAF 1–5):</span>
-                  <span className="font-medium text-green-700 dark:text-green-300">
+                  <span className="font-medium text-green-800 dark:text-green-300">
                     DQ {calculationResult.quality.dqScore}
                     {calculationResult.quality.rating ? ` · ${calculationResult.quality.rating}` : ''}
                   </span>
@@ -1034,7 +1022,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               {calculationResult.provenance?.gwpSet && (
                 <div className="flex justify-between">
                   <span className="text-muted">GWP set:</span>
-                  <span className="text-green-700 dark:text-green-300">
+                  <span className="text-green-800 dark:text-green-300">
                     {calculationResult.provenance.gwpSet}
                     {calculationResult.provenance.gwpApplied === 'per-gas'
                       ? ' (applied per gas)'
@@ -1045,12 +1033,12 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               {calculationResult.provenance?.gwpApplied === 'per-gas' &&
                 calculationResult.provenance.gasBreakdown && (
                   <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
-                    <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                    <p className="text-xs font-medium text-green-800 dark:text-green-300">
                       Per-gas breakdown (kg)
                     </p>
                     <div className="flex justify-between text-xs">
                       <span className="text-muted">CO₂ · CH₄ · N₂O:</span>
-                      <span className="text-green-700 dark:text-green-300">
+                      <span className="text-green-800 dark:text-green-300">
                         {calculationResult.provenance.gasBreakdown.co2} · {calculationResult.provenance.gasBreakdown.ch4} · {calculationResult.provenance.gasBreakdown.n2o}
                       </span>
                     </div>
@@ -1058,12 +1046,12 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                 )}
               {calculationResult.materialBalance && (
                 <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
-                  <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                  <p className="text-xs font-medium text-green-800 dark:text-green-300">
                     Material balance (refrigerant)
                   </p>
                   <div className="flex justify-between text-xs">
                     <span className="text-muted">Released (activity value):</span>
-                    <span className="font-medium text-green-700 dark:text-green-300">
+                    <span className="font-medium text-green-800 dark:text-green-300">
                       {calculationResult.materialBalance.releasedKg.toLocaleString()} kg
                     </span>
                   </div>
@@ -1077,18 +1065,18 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
               )}
               {calculationResult.scope2Dual && (
                 <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
-                  <p className="text-xs font-medium text-green-700 dark:text-green-300">
+                  <p className="text-xs font-medium text-green-800 dark:text-green-300">
                     Scope 2 dual reporting
                   </p>
                   <div className="flex justify-between">
                     <span className="text-muted">Location-based:</span>
-                    <span className="text-green-700 dark:text-green-300">
+                    <span className="text-green-800 dark:text-green-300">
                       {formatEmissions(calculationResult.scope2Dual.locationBased)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted">Market-based:</span>
-                    <span className="text-green-700 dark:text-green-300">
+                    <span className="text-green-800 dark:text-green-300">
                       {formatEmissions(calculationResult.scope2Dual.marketBased)}
                     </span>
                   </div>
@@ -1101,7 +1089,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
                 <div className="mt-2 pt-2 border-t border-green-500/25 space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted">Biogenic CO₂ (memo, excl. from scope):</span>
-                    <span className="font-medium text-green-700 dark:text-green-300">
+                    <span className="font-medium text-green-800 dark:text-green-300">
                       {formatEmissions(calculationResult.biogenicCO2)}
                     </span>
                   </div>
@@ -1120,7 +1108,7 @@ export const EmissionCalculationForm: React.FC<EmissionCalculationFormProps> = (
         )}
 
         {/* Action Buttons */}
-        <div className="flex space-x-3 pt-4">
+        <div className="flex gap-3 pt-4">
           <Button
             type="button"
             variant="outline"

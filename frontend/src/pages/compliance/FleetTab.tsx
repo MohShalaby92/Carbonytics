@@ -143,13 +143,13 @@ export const FleetTab: React.FC = () => {
           </div>
           {canEdit && (
             <Button onClick={openAdd} className="shrink-0">
-              <Plus className="w-4 h-4 mr-1" /> Add vehicle
+              <Plus className="w-4 h-4 me-1" /> Add vehicle
             </Button>
           )}
         </div>
 
         {error && (
-          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
             {error}
           </div>
         )}
@@ -165,26 +165,26 @@ export const FleetTab: React.FC = () => {
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-muted border-b border-line">
-                  <th className="py-2 pr-4 font-medium">Vehicle</th>
-                  <th className="py-2 pr-4 font-medium">Type</th>
-                  <th className="py-2 pr-4 font-medium">Fuel</th>
-                  <th className="py-2 pr-4 font-medium">Default distance factor</th>
-                  {canEdit && <th className="py-2 font-medium text-right">Actions</th>}
+                <tr className="text-start text-muted border-b border-line">
+                  <th className="py-2 pe-4 font-medium">Vehicle</th>
+                  <th className="py-2 pe-4 font-medium">Type</th>
+                  <th className="py-2 pe-4 font-medium">Fuel</th>
+                  <th className="py-2 pe-4 font-medium">Default distance factor</th>
+                  {canEdit && <th className="py-2 font-medium text-end">Actions</th>}
                 </tr>
               </thead>
               <tbody className="text-fg/90">
                 {vehicles.map((v) => (
                   <tr key={v.id} className="border-b border-line/60">
-                    <td className="py-2 pr-4">
+                    <td className="py-2 pe-4">
                       <div className="font-medium text-fg">{v.name}</div>
                       {v.registration && <div className="text-xs text-muted">{v.registration}</div>}
                     </td>
-                    <td className="py-2 pr-4 capitalize">{v.vehicleType}</td>
-                    <td className="py-2 pr-4">{v.fuel || '—'}{v.size ? ` · ${v.size}` : ''}</td>
-                    <td className="py-2 pr-4">{factorLabel(v.factorId)}</td>
+                    <td className="py-2 pe-4 capitalize">{v.vehicleType}</td>
+                    <td className="py-2 pe-4">{v.fuel || '—'}{v.size ? ` · ${v.size}` : ''}</td>
+                    <td className="py-2 pe-4">{factorLabel(v.factorId)}</td>
                     {canEdit && (
-                      <td className="py-2 text-right whitespace-nowrap">
+                      <td className="py-2 text-end whitespace-nowrap">
                         <button
                           onClick={() => openEdit(v)}
                           className="p-1.5 text-muted hover:text-fg"
@@ -194,7 +194,7 @@ export const FleetTab: React.FC = () => {
                         </button>
                         <button
                           onClick={() => deactivate(v)}
-                          className="p-1.5 text-muted hover:text-red-600"
+                          className="p-1.5 text-muted hover:text-critical"
                           title="Deactivate vehicle"
                         >
                           <Archive className="w-4 h-4" />
@@ -212,36 +212,30 @@ export const FleetTab: React.FC = () => {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.name}` : 'Add vehicle'}>
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-fg/80">Name / plate *</label>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Delivery van 1 / ABC-123" />
+            <Input label="Name / plate *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Delivery van 1 / ABC-123" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-fg/80">Type</label>
-              <Select value={form.vehicleType} onChange={(e) => setForm({ ...form, vehicleType: e.target.value as Vehicle['vehicleType'] })}>
+              <Select label="Type" value={form.vehicleType} onChange={(e) => setForm({ ...form, vehicleType: e.target.value as Vehicle['vehicleType'] })}>
                 {VEHICLE_TYPES.map((t) => (
                   <option key={t} value={t} className="capitalize">{t}</option>
                 ))}
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-fg/80">Fuel</label>
-              <Input value={form.fuel} onChange={(e) => setForm({ ...form, fuel: e.target.value })} placeholder="Diesel / Petrol / Electric…" />
+              <Input label="Fuel" value={form.fuel} onChange={(e) => setForm({ ...form, fuel: e.target.value })} placeholder="Diesel / Petrol / Electric…" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-fg/80">Size / class</label>
-              <Input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} placeholder="Supermini / Class II…" />
+              <Input label="Size / class" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} placeholder="Supermini / Class II…" />
             </div>
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-fg/80">Registration (optional)</label>
-              <Input value={form.registration} onChange={(e) => setForm({ ...form, registration: e.target.value })} />
+              <Input label="Registration (optional)" value={form.registration} onChange={(e) => setForm({ ...form, registration: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-fg/80">Default distance factor (kg CO₂e/km)</label>
-            <Select value={form.factorId} onChange={(e) => setForm({ ...form, factorId: e.target.value })}>
+            <Select label="Default distance factor (kg CO₂e/km)" value={form.factorId} onChange={(e) => setForm({ ...form, factorId: e.target.value })}>
               <option value="">None — choose later</option>
               {kmFactors.map((f: any) => (
                 <option key={f.id} value={f.id}>
@@ -255,8 +249,7 @@ export const FleetTab: React.FC = () => {
             </p>
           </div>
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-fg/80">Notes (optional)</label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Input label="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</Button>

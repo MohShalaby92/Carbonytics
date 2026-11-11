@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Alert } from '../../components/ui/Alert';
@@ -105,7 +106,7 @@ export const OrganizationSettingsTab: React.FC = () => {
 
       <Card className="p-6">
         <div className="flex items-center mb-6">
-          <Building2 className="w-5 h-5 text-primary-600 mr-2" />
+          <Building2 className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">Organization Details</h2>
         </div>
 
@@ -126,25 +127,25 @@ export const OrganizationSettingsTab: React.FC = () => {
 
             <div>
               <label htmlFor="industry" className="block text-sm font-medium text-fg/80 mb-2">
-                <Briefcase className="w-4 h-4 inline mr-1" />
+                <Briefcase className="w-4 h-4 inline me-1" />
                 Industry
               </label>
-              <select
+              <Select
                 id="industry"
                 value={organization.industry}
                 onChange={(e) => setOrganization(prev => prev ? { ...prev, industry: e.target.value } : null)}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
                 required
               >
                 {INDUSTRIES.map(industry => (
                   <option key={industry} value={industry}>{industry}</option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div>
               <label htmlFor="country" className="block text-sm font-medium text-fg/80 mb-2">
-                <MapPin className="w-4 h-4 inline mr-1" />
+                <MapPin className="w-4 h-4 inline me-1" />
                 Country
               </label>
               <Input
@@ -160,17 +161,17 @@ export const OrganizationSettingsTab: React.FC = () => {
               <label htmlFor="size" className="block text-sm font-medium text-fg/80 mb-2">
                 Organization Size
               </label>
-              <select
+              <Select
                 id="size"
                 value={organization.size}
                 onChange={(e) => setOrganization(prev => prev ? { ...prev, size: e.target.value as any } : null)}
-                className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                
                 required
               >
                 {Object.entries(ORGANIZATION_SIZES).map(([key, config]) => (
                   <option key={key} value={key}>{config.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -180,7 +181,7 @@ export const OrganizationSettingsTab: React.FC = () => {
                 <p>Created: {new Date(organization.createdAt).toLocaleDateString()}</p>
               </div>
               <Button type="submit" loading={loading}>
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-4 h-4 me-2" />
                 Save Changes
               </Button>
             </div>
@@ -191,7 +192,7 @@ export const OrganizationSettingsTab: React.FC = () => {
       {/* Methodology: GWP set + consolidation approach (both audited) */}
       <Card className="p-6">
         <div className="flex items-center mb-2">
-          <FlaskConical className="w-5 h-5 text-primary-600 mr-2" />
+          <FlaskConical className="w-5 h-5 text-emphasis me-2" />
           <h2 className="text-xl font-semibold text-fg">Methodology</h2>
         </div>
         <p className="text-sm text-muted mb-6">
@@ -204,16 +205,16 @@ export const OrganizationSettingsTab: React.FC = () => {
             <label htmlFor="gwpSet" className="block text-sm font-medium text-fg/80 mb-2">
               GWP value set
             </label>
-            <select
+            <Select
               id="gwpSet"
               value={gwpSet}
               onChange={(e) => setGwpSet(e.target.value as 'AR4' | 'AR5' | 'AR6')}
-              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              
             >
               {GWP_SETS.map((set) => (
                 <option key={set.value} value={set.value}>{set.label}</option>
               ))}
-            </select>
+            </Select>
             <p className="mt-2 text-xs text-muted">
               Applied when converting per-gas factors (CH₄, N₂O…) to CO₂e. Factors already
               denominated in CO₂e are used as-is — GWPs are never applied twice.
@@ -224,7 +225,7 @@ export const OrganizationSettingsTab: React.FC = () => {
             <label htmlFor="consolidationApproach" className="block text-sm font-medium text-fg/80 mb-2">
               Consolidation approach
             </label>
-            <select
+            <Select
               id="consolidationApproach"
               value={organization.consolidationApproach || 'operational_control'}
               onChange={(e) =>
@@ -232,12 +233,12 @@ export const OrganizationSettingsTab: React.FC = () => {
                   prev ? { ...prev, consolidationApproach: e.target.value as any } : null
                 )
               }
-              className="w-full px-3 py-2 border border-line rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              
             >
               {CONSOLIDATION_APPROACHES.map((approach) => (
                 <option key={approach.value} value={approach.value}>{approach.label}</option>
               ))}
-            </select>
+            </Select>
             <p className="mt-2 text-xs text-muted">
               {
                 CONSOLIDATION_APPROACHES.find(
@@ -251,7 +252,7 @@ export const OrganizationSettingsTab: React.FC = () => {
 
         <div className="mt-6 flex justify-end">
           <Button onClick={handleMethodologySave} loading={savingMethodology}>
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="w-4 h-4 me-2" />
             Save Methodology
           </Button>
         </div>

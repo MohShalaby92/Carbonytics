@@ -103,13 +103,13 @@ export const CompletenessTab: React.FC = () => {
   );
 
   const pct = completeness?.completenessPercent ?? 0;
-  const pctColor = pct >= 90 ? 'text-green-600' : pct >= 60 ? 'text-yellow-600' : 'text-red-600';
+  const pctColor = pct >= 90 ? 'text-positive' : pct >= 60 ? 'text-caution' : 'text-critical';
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-2">
-          <ClipboardCheck className="w-5 h-5 text-primary-600" />
+          <ClipboardCheck className="w-5 h-5 text-emphasis" />
           <h2 className="text-xl font-semibold text-fg">Completeness</h2>
         </div>
         <p className="text-sm text-muted mb-4">
@@ -119,12 +119,12 @@ export const CompletenessTab: React.FC = () => {
         </p>
 
         {message && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-700 dark:text-green-300">
+          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/25 rounded-lg text-sm text-green-800 dark:text-green-300">
             {message}
           </div>
         )}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
             {error}
           </div>
         )}
@@ -132,12 +132,10 @@ export const CompletenessTab: React.FC = () => {
         {/* Period + summary */}
         <div className="flex flex-wrap items-end gap-3 mb-5">
           <div className="space-y-1">
-            <label className="block text-xs text-muted">Period start</label>
-            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+            <Input label="Period start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="block text-xs text-muted">Period end</label>
-            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <Input label="Period end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
           <Button variant="outline" onClick={refreshCompleteness}>
             Recompute
@@ -158,25 +156,25 @@ export const CompletenessTab: React.FC = () => {
                 <p className="text-xs text-muted mt-1">relevant</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-semibold text-green-600">{completeness.coveredCount}</p>
+                <p className="text-2xl font-semibold text-positive">{completeness.coveredCount}</p>
                 <p className="text-xs text-muted mt-1">covered</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-semibold text-blue-600">{completeness.excludedCount}</p>
+                <p className="text-2xl font-semibold text-info">{completeness.excludedCount}</p>
                 <p className="text-xs text-muted mt-1">excluded</p>
               </div>
               <div className="rounded-lg border border-line p-3">
-                <p className="text-2xl font-semibold text-red-600">{completeness.gapCount}</p>
+                <p className="text-2xl font-semibold text-critical">{completeness.gapCount}</p>
                 <p className="text-xs text-muted mt-1">gaps</p>
               </div>
             </div>
             {completeness.note && (
-              <div className="mb-2 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300">
+              <div className="mb-2 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-800 dark:text-blue-300">
                 {completeness.note}
               </div>
             )}
             {completeness.gapCount > 0 && (
-              <div className="mb-2 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-700 dark:text-red-300">
+              <div className="mb-2 p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-800 dark:text-red-300">
                 <strong>Undocumented gaps:</strong>{' '}
                 {completeness.gaps.map((g) => `S${g.scope} ${g.category}`).join(', ')}. Add data or
                 document an exclusion in the Exclusions Register.
@@ -212,7 +210,7 @@ export const CompletenessTab: React.FC = () => {
                       <label
                         key={c.id}
                         className={`flex items-center gap-2.5 p-2 rounded-lg border text-sm cursor-pointer transition-colors ${
-                          isRelevant ? 'border-primary-500/40 bg-primary-50/40' : 'border-line hover:bg-fg/[0.03]'
+                          isRelevant ? '-brand/40 bg-brand/10' : 'border-line hover:bg-fg/[0.03]'
                         } ${!canEdit ? 'cursor-default' : ''}`}
                       >
                         <input
@@ -225,10 +223,10 @@ export const CompletenessTab: React.FC = () => {
                         <span className="flex-1 text-fg/90">{c.category}</span>
                         {isGap ? (
                           <span title="Relevant but no data and no exclusion — undocumented gap">
-                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <AlertTriangle className="w-4 h-4 text-critical" />
                           </span>
                         ) : isRelevant ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <CheckCircle2 className="w-4 h-4 text-positive" />
                         ) : (
                           <Circle className="w-4 h-4 text-muted/40" />
                         )}
@@ -239,8 +237,8 @@ export const CompletenessTab: React.FC = () => {
               </div>
             ))}
             <p className="text-xs text-muted">
-              <AlertTriangle className="w-3.5 h-3.5 inline mb-0.5 text-red-500" /> = undocumented gap
-              for the selected period · <CheckCircle2 className="w-3.5 h-3.5 inline mb-0.5 text-green-500" /> =
+              <AlertTriangle className="w-3.5 h-3.5 inline mb-0.5 text-critical" /> = undocumented gap
+              for the selected period · <CheckCircle2 className="w-3.5 h-3.5 inline mb-0.5 text-positive" /> =
               relevant &amp; covered/excluded. Save, then Recompute to refresh the markers.
             </p>
           </div>

@@ -57,26 +57,30 @@ export const API_ENDPOINTS = {
 	1: {
 	  name: 'Scope 1',
 	  description: 'Direct emissions from owned or controlled sources',
-	  color: '#ef4444',
+	  color: 'rgb(var(--scope-1))',
 	  icon: 'Factory',
 	  examples: ['Natural gas boilers', 'Company vehicles', 'Refrigerant leaks'],
 	},
 	2: {
 	  name: 'Scope 2',
 	  description: 'Indirect emissions from purchased energy',
-	  color: '#f59e0b',
+	  color: 'rgb(var(--scope-2))',
 	  icon: 'Zap',
 	  examples: ['Purchased electricity', 'Steam heating', 'District cooling'],
 	},
 	3: {
 	  name: 'Scope 3',
 	  description: 'Indirect emissions from value chain',
-	  color: '#10b981',
+	  color: 'rgb(var(--scope-3))',
 	  icon: 'Truck',
 	  examples: ['Business travel', 'Employee commuting', 'Purchased goods'],
 	},
   } as const;
   
+  /** Theme-aware chart colour for a GHG scope; accepts 1 | '1' | 'Scope 1'. */
+  export const scopeColor = (scope: number | string): string =>
+	`rgb(var(--scope-${String(scope).replace(/\D/g, '')}))`;
+
   export const INDUSTRIES = [
 	'Technology/Software',
 	'Manufacturing',
@@ -272,9 +276,9 @@ export const API_ENDPOINTS = {
   
   // Chart configuration
   export const CHART_COLORS = {
-	scope1: '#ef4444', // Red
-	scope2: '#f59e0b', // Orange/Yellow
-	scope3: '#10b981', // Green
+	scope1: 'rgb(var(--scope-1))',
+	scope2: 'rgb(var(--scope-2))',
+	scope3: 'rgb(var(--scope-3))',
 	total: '#6b7280',  // Gray
 	primary: '#0ea5e9', // Blue
 	secondary: '#8b5cf6', // Purple

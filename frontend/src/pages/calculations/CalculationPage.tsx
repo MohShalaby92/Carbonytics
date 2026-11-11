@@ -39,7 +39,7 @@ export const CalculationPage: React.FC = () => {
     setSelectedCategoryId(categoryId);
     setShowForm(true);
     // Bring the form into view (it sits in the right column / below on mobile).
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 100);
   };
 
   /** Persist the session's entries as one calculation report on the server. */
@@ -110,8 +110,8 @@ export const CalculationPage: React.FC = () => {
         <div
           className={`mb-6 p-3 rounded-lg border text-sm ${
             reportMessage.type === 'success'
-              ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
-              : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+              ? 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
           }`}
         >
           {reportMessage.text}
@@ -134,7 +134,7 @@ export const CalculationPage: React.FC = () => {
                 className="w-full mt-4"
                 variant="outline"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 me-2" />
                 Add Calculation
               </Button>
             )}
@@ -149,7 +149,7 @@ export const CalculationPage: React.FC = () => {
               <div className="pt-4 border-t border-line mt-4">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total Emissions:</span>
-                  <span className="text-primary-600">
+                  <span className="text-emphasis">
                     {totalEmissions.toFixed(2)} kg CO₂e
                   </span>
                 </div>
@@ -157,10 +157,7 @@ export const CalculationPage: React.FC = () => {
 
               {facilities.length > 0 && (
                 <div className="mt-4 space-y-1">
-                  <label className="block text-xs font-medium text-fg/80">
-                    Facility (optional)
-                  </label>
-                  <Select value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
+                  <Select label="Facility (optional)" value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
                     <option value="">Whole organization</option>
                     {facilities.map((f) => (
                       <option key={f.id} value={f.id}>{f.name}{f.city ? ` — ${f.city}` : ''}</option>
@@ -175,7 +172,7 @@ export const CalculationPage: React.FC = () => {
                 onClick={handleSaveReport}
                 loading={savingReport}
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-4 h-4 me-2" />
                 Save Report ({calculations.length} {calculations.length === 1 ? 'entry' : 'entries'})
               </Button>
             </Card>

@@ -2,6 +2,7 @@ import React from 'react';
 import { ChartContainer } from '../../components/ui/ChartContainer';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { formatEmissions } from '../../utils/calculations';
+import { scopeColor } from '../../constants';
 
 interface CalculationSummaryProps {
   calculations: any[];
@@ -37,11 +38,6 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
     count: data.count,
   }));
 
-  const COLORS = {
-    'Scope 1': '#ef4444',
-    'Scope 2': '#f59e0b', 
-    'Scope 3': '#10b981',
-  };
 
   const totalEmissions = Object.values(scopeData).reduce((sum: number, data: any) => sum + data.total, 0);
 
@@ -58,7 +54,7 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
       {/* Overview Stats */}
       <div className="grid grid-cols-2 gap-4">
         <div className="text-center">
-          <div className="text-2xl font-bold text-primary-600">
+          <div className="text-2xl font-bold text-emphasis">
             {formatEmissions(totalEmissions)}
           </div>
           <div className="text-sm text-muted">Total Emissions</div>
@@ -76,15 +72,15 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
         <h4 className="font-medium text-fg">Scope Breakdown</h4>
         {Object.entries(scopeData).map(([scopeName, data]: [string, any]) => (
           <div key={scopeName} className="flex items-center justify-between p-3 bg-fg/[0.04] rounded">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-3">
               <div 
                 className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: COLORS[scopeName as keyof typeof COLORS] }}
+                style={{ backgroundColor: scopeColor(scopeName) }}
               />
               <span className="font-medium text-sm">{scopeName}</span>
               <span className="text-xs text-muted">({data.count} items)</span>
             </div>
-            <div className="text-right">
+            <div className="text-end">
               <div className="font-medium text-sm">{formatEmissions(data.total)}</div>
               <div className="text-xs text-muted">
                 {((data.total / totalEmissions) * 100).toFixed(1)}%
@@ -116,7 +112,7 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
                 dataKey="value"
               >
                 {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                  <Cell key={`cell-${index}`} fill={scopeColor(entry.name)} />
                 ))}
               </Pie>
               <Tooltip
@@ -137,14 +133,14 @@ export const CalculationSummary: React.FC<CalculationSummaryProps> = ({ calculat
                 <span className="truncate">{calc.category?.category || 'Unknown'}</span>
                 {calc.isEstimate && (
                   <span
-                    className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/20"
+                    className="shrink-0 px-1.5 py-0.5 text-[11px] font-semibold rounded-full bg-sky-500/15 text-sky-800 dark:text-sky-300 border border-sky-500/20"
                     title={calc.estimationMethod || 'Gap-filled estimate'}
                   >
                     estimate
                   </span>
                 )}
                 {calc.dqScore != null && (
-                  <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-fg/[0.06] text-fg/70 border border-line" title="PCAF-style data quality score (1 best – 5 worst)">
+                  <span className="shrink-0 px-1.5 py-0.5 text-[11px] font-semibold rounded-full bg-fg/[0.06] text-fg/70 border border-line" title="PCAF-style data quality score (1 best – 5 worst)">
                     DQ {calc.dqScore}
                   </span>
                 )}

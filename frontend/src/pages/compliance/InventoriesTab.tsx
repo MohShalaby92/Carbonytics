@@ -95,7 +95,7 @@ export const InventoriesTab: React.FC = () => {
   return (
     <Card className="p-6">
       <div className="flex items-center gap-2 mb-2">
-        <CalendarRange className="w-5 h-5 text-primary-600" />
+        <CalendarRange className="w-5 h-5 text-emphasis" />
         <h2 className="text-xl font-semibold text-fg">Reporting Years (Inventories)</h2>
       </div>
       <p className="text-sm text-muted mb-4">
@@ -109,8 +109,8 @@ export const InventoriesTab: React.FC = () => {
         <div
           className={`mb-4 p-3 rounded-lg border text-sm ${
             message.type === 'success'
-              ? 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
-              : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
+              ? 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
           }`}
         >
           {message.text}
@@ -120,8 +120,7 @@ export const InventoriesTab: React.FC = () => {
       {canEdit && (
         <div className="flex items-end gap-3 mb-6 p-3 border border-line rounded-lg bg-fg/[0.02]">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-fg/80">New reporting year</label>
-            <Input
+            <Input label="New reporting year"
               type="number"
               min="2000"
               max="2100"
@@ -131,7 +130,7 @@ export const InventoriesTab: React.FC = () => {
             />
           </div>
           <Button variant="outline" size="sm" onClick={create} loading={busyId === 'new'}>
-            <Plus className="w-4 h-4 mr-1" /> Create
+            <Plus className="w-4 h-4 me-1" /> Create
           </Button>
         </div>
       )}
@@ -154,7 +153,7 @@ export const InventoriesTab: React.FC = () => {
                     </Badge>
                     {inv.isBaseYear && (
                       <Badge variant="info" size="sm">
-                        <Star className="w-3 h-3 mr-1" /> Base year
+                        <Star className="w-3 h-3 me-1" /> Base year
                       </Badge>
                     )}
                     {inv.status === 'published' && inv.gwpSet && (
@@ -187,30 +186,30 @@ export const InventoriesTab: React.FC = () => {
                     {inv.status === 'draft' && (
                       <Button variant="outline" size="sm" disabled={busy}
                         onClick={() => run(inv.id, () => complianceService.transitionInventory(inv.id, 'review'), `${inv.reportingYear} moved to review`)}>
-                        <Send className="w-4 h-4 mr-1" /> Submit for review
+                        <Send className="w-4 h-4 me-1" /> Submit for review
                       </Button>
                     )}
                     {inv.status === 'review' && (
                       <Button variant="outline" size="sm" disabled={busy}
                         onClick={() => run(inv.id, () => complianceService.transitionInventory(inv.id, 'draft'), `${inv.reportingYear} returned to draft`)}>
-                        <Undo2 className="w-4 h-4 mr-1" /> Back to draft
+                        <Undo2 className="w-4 h-4 me-1" /> Back to draft
                       </Button>
                     )}
                     {inv.status !== 'published' ? (
                       <Button variant="primary" size="sm" disabled={busy} onClick={() => publish(inv)}>
-                        <Lock className="w-4 h-4 mr-1" /> Publish
+                        <Lock className="w-4 h-4 me-1" /> Publish
                       </Button>
                     ) : (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => reopen(inv)}>
-                        <Unlock className="w-4 h-4 mr-1" /> Reopen
+                        <Unlock className="w-4 h-4 me-1" /> Reopen
                       </Button>
                     )}
                     <Button variant="ghost" size="sm" disabled={busy}
                       onClick={() => run(inv.id, () => complianceService.setBaseYear(inv.id, !inv.isBaseYear), inv.isBaseYear ? `${inv.reportingYear} is no longer the base year` : `${inv.reportingYear} set as base year`)}>
-                      <Star className="w-4 h-4 mr-1" /> {inv.isBaseYear ? 'Unset base year' : 'Set base year'}
+                      <Star className="w-4 h-4 me-1" /> {inv.isBaseYear ? 'Unset base year' : 'Set base year'}
                     </Button>
                     <Button variant="ghost" size="sm" disabled={busy} onClick={() => checkRecalc(inv)}>
-                      <Calculator className="w-4 h-4 mr-1" /> Recalculation check
+                      <Calculator className="w-4 h-4 me-1" /> Recalculation check
                     </Button>
                   </div>
                 )}
@@ -219,8 +218,7 @@ export const InventoriesTab: React.FC = () => {
                 {canEdit && inv.isBaseYear && (
                   <div className="mt-3 flex items-end gap-2">
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-fg/80">Recalculation threshold (%)</label>
-                      <Input
+                      <Input label="Recalculation threshold (%)"
                         type="number" min="0" max="100" step="any" className="w-28"
                         value={thresholdDraft[inv.id] ?? inv.recalcThresholdPercent}
                         onChange={(e) => setThresholdDraft((p) => ({ ...p, [inv.id]: parseFloat(e.target.value) }))}
@@ -237,8 +235,8 @@ export const InventoriesTab: React.FC = () => {
                 {rc && (
                   <div className={`mt-3 p-3 rounded-lg border text-sm ${
                     !rc.applicable ? 'bg-fg/[0.03] border-line text-muted'
-                      : rc.exceedsThreshold ? 'bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-300'
-                      : 'bg-green-500/10 border-green-500/25 text-green-700 dark:text-green-300'
+                      : rc.exceedsThreshold ? 'bg-amber-500/10 border-amber-500/25 text-amber-800 dark:text-amber-300'
+                      : 'bg-green-500/10 border-green-500/25 text-green-800 dark:text-green-300'
                   }`}>
                     {!rc.applicable ? (
                       rc.note

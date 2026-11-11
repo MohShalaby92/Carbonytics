@@ -54,13 +54,13 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
   const estimateShare = allEmissions > 0 ? (estimateEmissions / allEmissions) * 100 : 0;
 
   const helpPanel = showHelp && (
-    <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-700 dark:text-blue-300 space-y-1.5">
+    <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/25 rounded-lg text-xs text-blue-800 dark:text-blue-300 space-y-1.5">
       <p className="font-medium">How quality is assessed</p>
       <p>
         Every saved entry gets a rating from the calculation engine based on the emission
         factor it used:
       </p>
-      <ul className="list-disc ml-4 space-y-1">
+      <ul className="list-disc ms-4 space-y-1">
         <li><strong>High</strong> — region-specific (e.g. Egyptian) factor from an authoritative source, recent year.</li>
         <li><strong>Medium</strong> — global factor or minor uncertainty (e.g. unit conversion involved).</li>
         <li><strong>Low</strong> — estimated/baseline factor with high uncertainty (validate before reporting).</li>
@@ -74,7 +74,7 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
     return (
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-fg">Data Quality</h3>
+          <h2 className="text-lg font-semibold text-fg">Data Quality</h2>
           <button
             onClick={() => setShowHelp((v) => !v)}
             className="text-muted hover:text-fg transition-colors"
@@ -97,7 +97,7 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
       label: 'High Quality',
       count: counts.high,
       icon: CheckCircle,
-      color: 'text-green-600 dark:text-green-400',
+      color: 'text-positive',
       bgColor: 'bg-green-500/10',
       description: 'Region-specific factors, recent data',
     },
@@ -132,7 +132,7 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-fg">Data Quality</h3>
+        <h2 className="text-lg font-semibold text-fg">Data Quality</h2>
         <button
           onClick={() => setShowHelp((v) => !v)}
           className="text-muted hover:text-fg transition-colors"
@@ -148,13 +148,13 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
       <div className="mb-6 p-4 bg-fg/[0.04] rounded-lg">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-fg/80">Overall Quality Score</span>
-          <span className="text-2xl font-bold text-primary-600">
+          <span className="text-2xl font-bold text-emphasis">
             {rated > 0 ? `${averageQuality.toFixed(0)}%` : '—'}
           </span>
         </div>
         <div className="mt-2 w-full bg-fg/[0.08] rounded-full h-2">
           <div
-            className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+            className="bg-brand h-2 rounded-full transition-all duration-300"
             style={{ width: `${averageQuality}%` }}
           />
         </div>
@@ -168,16 +168,16 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
       <div className="mb-6 grid grid-cols-2 gap-3">
         <div className="p-3 bg-fg/[0.04] rounded-lg" title="Emissions-weighted PCAF-style data quality score: 1 (supplier-specific) … 5 (estimate). Entries without a DQ score are excluded.">
           <p className="text-xs font-medium text-fg/80">Weighted DQ score</p>
-          <p className="text-xl font-bold text-primary-600 mt-1">
+          <p className="text-xl font-bold text-emphasis mt-1">
             {weightedDqScore != null ? weightedDqScore.toFixed(2) : '—'}
-            <span className="text-xs font-normal text-muted ml-1">/ 5 (1 = best)</span>
+            <span className="text-xs font-normal text-muted ms-1">/ 5 (1 = best)</span>
           </p>
         </div>
         <div className="p-3 bg-fg/[0.04] rounded-lg" title="Share of total emissions backed by gap-filled estimates rather than measured activity data.">
           <p className="text-xs font-medium text-fg/80">Estimated data</p>
-          <p className="text-xl font-bold text-primary-600 mt-1">
+          <p className="text-xl font-bold text-emphasis mt-1">
             {estimateShare.toFixed(0)}%
-            <span className="text-xs font-normal text-muted ml-1">
+            <span className="text-xs font-normal text-muted ms-1">
               ({estimateCount} {estimateCount === 1 ? 'entry' : 'entries'})
             </span>
           </p>
@@ -192,14 +192,14 @@ export const QualityIndicators: React.FC<QualityIndicatorsProps> = ({ calculatio
           return (
             <div key={index} className={`p-3 ${indicator.bgColor} rounded-lg`}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-3">
                   <Icon className={`w-5 h-5 ${indicator.color}`} />
                   <div>
                     <p className={`font-medium ${indicator.color}`}>{indicator.label}</p>
                     <p className="text-xs text-muted">{indicator.description}</p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className={`font-bold ${indicator.color}`}>{indicator.count}</p>
                   <p className="text-xs text-muted">{percentage}%</p>
                 </div>

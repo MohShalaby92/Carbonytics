@@ -197,11 +197,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       <Card className="p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-primary-500/10">
-              <FileSpreadsheet className="w-5 h-5 text-primary-600" />
+            <div className="p-2 rounded-lg -brand/10">
+              <FileSpreadsheet className="w-5 h-5 text-emphasis" />
             </div>
             <div>
-              <h3 className="font-semibold text-fg">Start with the template</h3>
+              <h2 className="font-semibold text-fg">Start with the template</h2>
               <p className="text-sm text-muted">
                 A guided Excel workbook with dropdowns, a worked example, and your live category &amp;
                 factor reference. Fill the <strong>Activity Data</strong> sheet, then upload it below.
@@ -227,14 +227,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
           onDrop={handleDrop}
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            isDragging ? 'border-primary-500 bg-primary-500/5' : 'border-line hover:border-primary-500/40'
+            isDragging ? 'border-brand/50 -brand/5' : 'border-line hover:-brand/40'
           }`}
         >
           <Upload className="w-12 h-12 text-muted mx-auto mb-4" />
           {selectedFile ? (
             <div className="space-y-2">
-              <div className="flex items-center justify-center space-x-2">
-                <File className="w-5 h-5 text-primary-600" />
+              <div className="flex items-center justify-center gap-2">
+                <File className="w-5 h-5 text-emphasis" />
                 <span className="font-medium text-fg">{selectedFile.name}</span>
               </div>
               <p className="text-sm text-muted">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -244,7 +244,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             </div>
           ) : (
             <>
-              <h3 className="text-lg font-medium text-fg mb-2">Upload your file</h3>
+              <h2 className="text-lg font-medium text-fg mb-2">Upload your file</h2>
               <p className="text-muted mb-4">Drag &amp; drop an Excel (.xlsx) or CSV file here, or browse</p>
               <Button variant="outline" onClick={() => fileInputRef.current?.click()}>Choose File</Button>
             </>
@@ -264,7 +264,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {/* Validation / Preview */}
       {validation && !importResult && (
         <Card className="p-6">
-          <h3 className="font-semibold text-fg mb-1">Preview</h3>
+          <h2 className="font-semibold text-fg mb-1">Preview</h2>
           <p className="text-sm text-muted mb-4">
             Exactly what each row will produce — resolved factor and computed emissions — before anything is saved.
           </p>
@@ -279,16 +279,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
           {/* Summary chips */}
           <div className="flex flex-wrap gap-2 mb-4">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-green-500/10 text-green-700 dark:text-green-300">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-green-500/10 text-green-800 dark:text-green-300">
               <CheckCircle className="w-4 h-4" /> {importableCount} ready to import
             </span>
             {errorCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-red-500/10 text-red-700 dark:text-red-300">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-red-500/10 text-red-800 dark:text-red-300">
                 <AlertCircle className="w-4 h-4" /> {errorCount} with errors
               </span>
             )}
             {validation.duplicateCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-amber-500/10 text-amber-700 dark:text-amber-300">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm bg-amber-500/10 text-amber-800 dark:text-amber-300">
                 <Copy className="w-4 h-4" /> {validation.duplicateCount} already in your data
               </span>
             )}
@@ -297,8 +297,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           {/* Blocking errors */}
           {validation.errors.length > 0 && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25">
-              <h4 className="font-medium text-red-800 dark:text-red-300 mb-1.5">Rows with errors (these are skipped on import):</h4>
-              <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 max-h-32 overflow-y-auto">
+              <h3 className="font-medium text-red-800 dark:text-red-300 mb-1.5">Rows with errors (these are skipped on import):</h3>
+              <ul className="text-sm text-red-800 dark:text-red-300 space-y-1 max-h-32 overflow-y-auto">
                 {validation.errors.slice(0, 12).map((e, i) => <li key={i}>• {e}</li>)}
                 {validation.errors.length > 12 && <li className="text-muted">… and {validation.errors.length - 12} more</li>}
               </ul>
@@ -308,10 +308,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           {/* Advisory warnings */}
           {validation.warnings && validation.warnings.length > 0 && (
             <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25">
-              <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-1.5 flex items-center gap-1.5">
+              <h3 className="font-medium text-amber-800 dark:text-amber-300 mb-1.5 flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4" /> Data-quality warnings ({validation.warnings.length}) — advisory
-              </h4>
-              <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+              </h3>
+              <ul className="text-sm text-amber-800 dark:text-amber-300 space-y-1">
                 {validation.warnings.map((w, i) => (
                   <li key={i}><span className="font-medium">{WARNING_LABEL[w.type] || w.type}:</span> {w.message}</li>
                 ))}
@@ -325,13 +325,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <table className="min-w-full text-sm">
               <thead className="bg-fg/[0.04] text-muted">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">#</th>
-                  <th className="px-3 py-2 text-left font-medium">Category</th>
-                  <th className="px-3 py-2 text-left font-medium">Factor</th>
-                  <th className="px-3 py-2 text-right font-medium">Activity</th>
-                  <th className="px-3 py-2 text-right font-medium">Emissions (kg CO₂e)</th>
+                  <th className="px-3 py-2 text-start font-medium">#</th>
+                  <th className="px-3 py-2 text-start font-medium">Category</th>
+                  <th className="px-3 py-2 text-start font-medium">Factor</th>
+                  <th className="px-3 py-2 text-end font-medium">Activity</th>
+                  <th className="px-3 py-2 text-end font-medium">Emissions (kg CO₂e)</th>
                   <th className="px-3 py-2 text-center font-medium">DQ</th>
-                  <th className="px-3 py-2 text-left font-medium">Flags</th>
+                  <th className="px-3 py-2 text-start font-medium">Flags</th>
                 </tr>
               </thead>
               <tbody>
@@ -351,15 +351,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                         {r.factor || '—'}
                         {r.factorSource && <span className="block text-xs text-muted">{r.factorSource}</span>}
                       </td>
-                      <td className="px-3 py-2 text-right text-fg/80">{r.value !== undefined ? `${fmtNum(r.value)} ${r.unit || ''}` : '—'}</td>
-                      <td className="px-3 py-2 text-right font-medium text-fg">{hasError ? '—' : fmtNum(r.emissions)}</td>
+                      <td className="px-3 py-2 text-end text-fg/80">{r.value !== undefined ? `${fmtNum(r.value)} ${r.unit || ''}` : '—'}</td>
+                      <td className="px-3 py-2 text-end font-medium text-fg">{hasError ? '—' : fmtNum(r.emissions)}</td>
                       <td className="px-3 py-2 text-center text-fg/80">{r.dqScore ?? '—'}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {hasError && <span className="px-1.5 py-0.5 rounded text-xs bg-red-500/15 text-red-700 dark:text-red-300" title={r.errors.join('; ')}>error</span>}
-                          {r.isEstimate && <span className="px-1.5 py-0.5 rounded text-xs bg-sky-500/15 text-sky-700 dark:text-sky-300">estimate</span>}
-                          {r.duplicate && <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/15 text-amber-700 dark:text-amber-300">duplicate</span>}
-                          {!hasError && !r.isEstimate && !r.duplicate && <span className="px-1.5 py-0.5 rounded text-xs bg-green-500/15 text-green-700 dark:text-green-300">ready</span>}
+                          {hasError && <span className="px-1.5 py-0.5 rounded text-xs bg-red-500/15 text-red-800 dark:text-red-300" title={r.errors.join('; ')}>error</span>}
+                          {r.isEstimate && <span className="px-1.5 py-0.5 rounded text-xs bg-sky-500/15 text-sky-800 dark:text-sky-300">estimate</span>}
+                          {r.duplicate && <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/15 text-amber-800 dark:text-amber-300">duplicate</span>}
+                          {!hasError && !r.isEstimate && !r.duplicate && <span className="px-1.5 py-0.5 rounded text-xs bg-green-500/15 text-green-800 dark:text-green-300">ready</span>}
                         </div>
                       </td>
                     </tr>
@@ -390,11 +390,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {/* Import Results */}
       {importResult && (
         <Card className="p-6">
-          <h3 className="font-semibold text-fg mb-4">Import complete</h3>
+          <h2 className="font-semibold text-fg mb-4">Import complete</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
             {[
-              { label: 'Imported', value: importResult.successful, cls: 'text-green-600 dark:text-green-400' },
-              { label: 'Calculations', value: importResult.createdCalculations, cls: 'text-primary-600' },
+              { label: 'Imported', value: importResult.successful, cls: 'text-positive' },
+              { label: 'Calculations', value: importResult.createdCalculations, cls: 'text-emphasis' },
               { label: 'Skipped', value: importResult.skipped, cls: 'text-amber-600 dark:text-amber-400' },
               { label: 'Failed', value: importResult.failed, cls: 'text-red-600 dark:text-red-400' },
             ].map((s) => (
@@ -407,15 +407,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
           {importResult.successful > 0 && (
             <Alert variant="success" className="mb-4">
-              <CheckCircle className="w-4 h-4" />
               <span>Imported {importResult.successful} row(s) into {importResult.createdCalculations} calculation(s).</span>
             </Alert>
           )}
 
           {importResult.errors && importResult.errors.length > 0 && (
             <div className="mb-2">
-              <h4 className="font-medium text-red-800 dark:text-red-300 mb-1.5">Rows not imported:</h4>
-              <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 max-h-40 overflow-y-auto">
+              <h3 className="font-medium text-red-800 dark:text-red-300 mb-1.5">Rows not imported:</h3>
+              <ul className="text-sm text-red-800 dark:text-red-300 space-y-1 max-h-40 overflow-y-auto">
                 {importResult.errors.slice(0, 15).map((e, i) => <li key={i}>Row {e.row}: {e.error}</li>)}
                 {importResult.errors.length > 15 && <li className="text-muted">… and {importResult.errors.length - 15} more</li>}
               </ul>
