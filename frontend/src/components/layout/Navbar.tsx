@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// Navbar switches at the `nav` screen (68em ≈ 1088px at default size, not lg): it scales with the user's text size, so the full nav only shows when it fits.
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
@@ -20,6 +21,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { BrandMark } from '../ui/BrandMark';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
@@ -29,12 +31,13 @@ const navigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-const ThemeToggle: React.FC = () => {
+export const ThemeToggle: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   return (
     <button
+      type="button"
       onClick={toggleTheme}
-      aria-label="Toggle theme"
+      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
       className="p-2 rounded-lg text-muted hover:text-fg hover:bg-fg/[0.06] transition-colors"
     >
       {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -44,7 +47,7 @@ const ThemeToggle: React.FC = () => {
 
 const Brand: React.FC<{ to: string }> = ({ to }) => (
   <Link to={to} className="flex items-center gap-2.5">
-    <img src="/icon.png" alt="" aria-hidden="true" className="w-9 h-9 object-contain" />
+    <BrandMark className="w-7 h-7" />
     <span className="text-lg font-display font-semibold tracking-tight text-fg">Carbonytics</span>
   </Link>
 );
@@ -55,8 +58,25 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuButton = useRef<HTMLButtonElement>(null);
+  const mobileMenuButton = useRef<HTMLButtonElement>(null);
+
+  // Escape closes whichever menu is open and returns focus to its trigger.
+  useEffect(() => {
+    if (!userMenuOpen && !mobileMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (userMenuOpen) { setUserMenuOpen(false); userMenuButton.current?.focus(); }
+      if (mobileMenuOpen) { setMobileMenuOpen(false); mobileMenuButton.current?.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [userMenuOpen, mobileMenuOpen]);
 
   const isCurrent = (path: string) => location.pathname === path;
+
+  // The sign-in page carries its own brand panel and theme toggle.
+  if (location.pathname === '/login') return null;
 
   if (!user) {
     return (
@@ -77,7 +97,7 @@ export const Navbar: React.FC = () => {
         <div className="flex justify-between h-16">
           <div className="flex items-center gap-8">
             <Brand to="/dashboard" />
-            <div className="hidden md:flex md:gap-1">
+            <div className="hidden nav:flex nav:gap-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const active = isCurrent(item.href);
@@ -86,7 +106,7 @@ export const Navbar: React.FC = () => {
                     key={item.name}
                     to={item.href}
                     className={cn(
-                      'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors',
+                      'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors',
                       active ? 'bg-fg/[0.06] text-fg' : 'text-muted hover:text-fg hover:bg-fg/[0.04]'
                     )}
                   >
@@ -98,17 +118,20 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          <div className="hidden md:flex md:items-center gap-1">
+          <div className="hidden nav:flex nav:items-center gap-1">
             <ThemeToggle />
             <div className="relative">
               <button
+                ref={userMenuButton}
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-3 p-1.5 pr-3 rounded-xl hover:bg-fg/[0.04] transition-colors"
+                aria-expanded={userMenuOpen}
+                aria-controls="user-menu"
+                className="flex items-center gap-3 p-1.5 pe-3 rounded-xl hover:bg-fg/[0.04] transition-colors"
               >
                 <span className="grid place-items-center w-9 h-9 rounded-full bg-brand text-brand-fg font-semibold">
                   {user.name.charAt(0).toUpperCase()}
                 </span>
-                <span className="text-left leading-tight">
+                <span className="text-start leading-tight">
                   <span className="block text-sm font-semibold text-fg">{user.name}</span>
                   <span className="block text-xs text-muted">
                     <span className="capitalize">{user.role}</span> · {PERSONA_LABEL[persona]}
@@ -119,7 +142,7 @@ export const Navbar: React.FC = () => {
               {userMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-60 bg-surface border border-line rounded-xl shadow-lift py-1.5 z-50">
+                  <div id="user-menu" className="absolute end-0 mt-2 w-60 bg-surface border border-line rounded-xl shadow-lift py-1.5 z-50">
                     <Link to="/profile" className="flex items-center gap-3 px-4 py-2 text-sm text-fg/80 hover:bg-fg/[0.05]" onClick={() => setUserMenuOpen(false)}>
                       <User className="w-4 h-4" /> Profile
                     </Link>
@@ -145,7 +168,7 @@ export const Navbar: React.FC = () => {
                             <span className="flex items-center gap-3">
                               <LayoutGrid className="w-4 h-4" /> {p.label}
                             </span>
-                            {persona === p.id && <Check className="w-4 h-4 text-primary-600" />}
+                            {persona === p.id && <Check className="w-4 h-4 text-emphasis" />}
                           </button>
                         ))}
                       </>
@@ -160,12 +183,15 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          <div className="md:hidden flex items-center gap-1">
+          <div className="nav:hidden flex items-center gap-1">
             <ThemeToggle />
             <button
+              ref={mobileMenuButton}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-muted hover:text-fg hover:bg-fg/[0.06]"
               aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -174,7 +200,7 @@ export const Navbar: React.FC = () => {
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-line">
+        <div id="mobile-menu" className="nav:hidden border-t border-line">
           <div className="px-3 py-3 space-y-1">
             {navigation.map((item) => {
               const Icon = item.icon;
@@ -184,7 +210,7 @@ export const Navbar: React.FC = () => {
                   key={item.name}
                   to={item.href}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors',
+                    'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-colors',
                     active ? 'bg-fg/[0.06] text-fg' : 'text-muted hover:text-fg hover:bg-fg/[0.04]'
                   )}
                   onClick={() => setMobileMenuOpen(false)}
@@ -204,7 +230,14 @@ export const Navbar: React.FC = () => {
                 <div className="text-xs text-muted">{user.email}</div>
               </div>
             </div>
-            <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-fg/[0.04]">
+            {/* Profile and Glossary live in the desktop user menu; phones need them here too. */}
+            <Link to="/profile" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-fg/[0.04]">
+              <User className="w-5 h-5" /> Profile
+            </Link>
+            <Link to="/glossary" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-fg/[0.04]">
+              <BookOpen className="w-5 h-5" /> Glossary &amp; Methodology
+            </Link>
+            <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-semibold text-muted hover:text-fg hover:bg-fg/[0.04]">
               <LogOut className="w-5 h-5" /> Sign out
             </button>
           </div>

@@ -50,9 +50,16 @@ function App() {
           <PersonaProvider>
           <Router>
             <div className="min-h-screen bg-bg text-fg">
+              {/* First Tab stop: jump past the navbar straight to the page. */}
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:start-3 focus:z-[60] focus:rounded-xl focus:bg-surface focus:border focus:border-line focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-fg focus:shadow-lift focus-ring"
+              >
+                Skip to content
+              </a>
               <Navbar />
               <OnboardingGate />
-              <main>
+              <main id="main" tabIndex={-1} className="focus:outline-none">
                 <Suspense fallback={<PageFallback />}>
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
