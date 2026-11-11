@@ -4,7 +4,7 @@
 // Env:    BASE_URL (default http://localhost:8080), BROWSER (path to Edge or Chrome),
 //         DEMO_EMAIL, DEMO_PASSWORD (default: the local demo account from createDemoUser.ts)
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,7 +12,6 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
 const EMAIL = process.env.DEMO_EMAIL || 'demo@carbonytics.com';
 const PASSWORD = process.env.DEMO_PASSWORD || 'Demo!2026Pass';
 const OUT = join(process.cwd(), 'docs', 'images');
-const PORT = 9333;
 const WIDTH = 1440;
 const HEIGHT = 900;
 
@@ -30,7 +29,8 @@ if (!browserPath) throw new Error('No Chrome or Edge found. Set BROWSER to its e
 const profile = mkdtempSync(join(tmpdir(), 'carbonytics-shots-'));
 const browser = spawn(browserPath, [
   '--headless=new',
-  `--remote-debugging-port=${PORT}`,
+  // Port 0 lets the browser pick a free port, so the script never attaches to another browser and its cookies.
+  '--remote-debugging-port=0',
   `--user-data-dir=${profile}`,
   '--hide-scrollbars',
   '--no-first-run',
@@ -43,16 +43,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function connect() {
   for (let i = 0; i < 50; i++) {
     try {
-      const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
+      const [port, browserPath] = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n');
+      const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = targets.find((t) => t.type === 'page');
-      if (page) return page.webSocketDebuggerUrl;
+      if (page) return { pageUrl: page.webSocketDebuggerUrl, browserUrl: `ws://127.0.0.1:${port}${browserPath}` };
     } catch {}
     await sleep(200);
   }
   throw new Error('Browser did not expose a DevTools page');
 }
 
-const ws = new WebSocket(await connect());
+// browser.kill() stops only the launcher on Windows, so the whole browser is closed over CDP instead.
+async function closeBrowser(url) {
+  const bws = new WebSocket(url);
+  await new Promise((r) => bws.addEventListener('open', r, { once: true }));
+  bws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+  await sleep(500);
+}
+
+const { pageUrl, browserUrl } = await connect();
+const ws = new WebSocket(pageUrl);
 await new Promise((r) => ws.addEventListener('open', r, { once: true }));
 let nextId = 0;
 const pending = new Map();
@@ -167,6 +177,7 @@ try {
   await shot('dashboard-dark');
 } finally {
   ws.close();
+  try { await closeBrowser(browserUrl); } catch {}
   browser.kill();
   await sleep(500);
   try { rmSync(profile, { recursive: true, force: true }); } catch {}

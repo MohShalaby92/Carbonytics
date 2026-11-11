@@ -128,7 +128,7 @@ The commands below work the same in PowerShell, Command Prompt, Git Bash, macOS 
 	| --- | --- |
 	| `demo@carbonytics.com` | `Demo!2026Pass` |
 
-	The sign-in page shows these credentials in local builds. Production builds hide them.
+	The Vite dev server shows these credentials on the sign-in page. Production builds, including this Docker stack, hide them.
 
 A new database starts with 24 starter factors. The full library of about 1,350 factors comes from the official datasheets through the import scripts in [`backend/src/scripts`](backend/src/scripts). [`docs/HANDOFF.md`](docs/HANDOFF.md) lists the import commands.
 
